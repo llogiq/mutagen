@@ -1,0 +1,8 @@
+[package]
+name = "mutagen"
+version = "0.1.0"
+authors = ["Andre Bogus <bogusandre@gmail.com>"]
+description = "Mutation testing for Rust – Support library"
+repository = "https://github.com/llogiq/mutator"
+license = "Apache-2.0/MIT"
+readme = "README.md"

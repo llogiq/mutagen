@@ -1,0 +1,14 @@
+[package]
+name = "mutagen-plugin"
+version = "0.1.0"
+authors = ["Andre Bogus <bogusandre@gmail.com>"]
+description = "Mutation testing for Rust – mutator plugin"
+repository = "https://github.com/llogiq/mutagen"
+license = "Apache-2.0/MIT"
+
+[lib]
+crate-type = [ "dylib" ]
+plugin = true
+
+[dependencies]
+mutator = "0.1.0"
