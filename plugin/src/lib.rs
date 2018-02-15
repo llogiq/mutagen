@@ -3,7 +3,6 @@
 extern crate rustc_plugin;
 extern crate syntax;
 
-use Mutation::*;
 use rustc_plugin::registry::Registry;
 use std::collections::HashMap;
 use std::convert::TryFrom;
@@ -17,128 +16,118 @@ use syntax::util::small_vector::SmallVector;
 
 #[plugin_registrar]
 pub fn plugin_registrar(reg: &mut Registry) {
-    reg.register_syntax_extension(Symbol::intern("mutate"),
-        SyntaxExtension::MultiModifier(Box::new(mutator)));
+    reg.register_syntax_extension(
+        Symbol::intern("mutate"),
+        SyntaxExtension::MultiModifier(Box::new(mutator)),
+    );
 }
 
-pub fn mutator(cx: &mut ExtCtxt, _span: Span, _mi: &MetaItem,
-                          a: Annotatable) -> Annotatable {
+/// create a MutatorPlugin and let it fold the items/trait items/impl items
+pub fn mutator(cx: &mut ExtCtxt, _span: Span, _mi: &MetaItem, a: Annotatable) -> Annotatable {
     let mut p = MutatorPlugin::new(cx);
     match a {
-        Annotatable::Item(i) => Annotatable::Item(
-            p.fold_item(i).expect_one("expected exactly one item")),
-        Annotatable::TraitItem(i) => Annotatable::TraitItem(
-            i.map(|i| p.fold_trait_item(i)
-                       .expect_one("expected exactly one item"))),
-        Annotatable::ImplItem(i) => Annotatable::ImplItem(
-            i.map(|i| p.fold_impl_item(i)
-                       .expect_one("expected exactly one item"))),
+        Annotatable::Item(i) => {
+            Annotatable::Item(p.fold_item(i).expect_one("expected exactly one item"))
+        }
+        Annotatable::TraitItem(i) => Annotatable::TraitItem(i.map(|i| {
+            p.fold_trait_item(i).expect_one("expected exactly one item")
+        })),
+        Annotatable::ImplItem(i) => Annotatable::ImplItem(i.map(|i| {
+            p.fold_impl_item(i).expect_one("expected exactly one item")
+        })),
     }
 }
 
-
-
+/// information about the current method
 struct MethodInfo {
-    returns_default: bool,
+    /// does the return type implement the Default trait (best effort)
+    is_default: bool,
+    /// which inputs have the same type as the output?
+    have_output_type: Vec<Symbol>,
+    /// which inputs have the same type and could be switched?
+    /// TODO mutability
     interchangeables: HashMap<Symbol, Vec<Symbol>>,
 }
 
-/// The various mutations we can do
-enum Mutation {
-    /// an early return (if the return value has a Default impl)
-    EarlyReturn,
-    /// replace a literal value with one of a selection
-    ReplaceLiteral(usize),
-    /// Change `x == y` to `true`, `false` or `x != y`
-    AndAnd,
-    OrOr,
-    IfCondition,
-    WhileCondition,
-    Equal,
-    /// Change `x != y` to `true`, `false` or `x == y`
-    NotEqual,
-    /// Change `x > y` to `true`, `false`, `x >= y`, `x < y`, `x <= y`,
-    /// `x == y` or `x != y`
-    /// (also works with `x < y` by switching operands)
-    GreaterThan,
-    /// Change `x >= y` to `true`, `false`, `x > y`, `x < y`, `x <= y`,
-    /// `x == y` or `x != y`
-    /// (also works with `x <= y` by switching operands)
-    GreaterEqual,
-}
-
-
-impl Mutation {
-    /// How many counts does this mutation add?
-    fn count(&self) -> usize {
-        match *self {
-            ReplaceLiteral(n) => n,
-            Equal | NotEqual => 3,
-            GreaterThan | GreaterEqual => 7,
-            _ => 1,
-        }
-    }
+#[derive(Default)]
+struct MutatorInfo {
+    /// a stack of method infos
+    method_infos: Vec<MethodInfo>,
+    /// Self types for known impls
+    self_tys: Vec<Ty>,
 }
 
 /// The MutatorPlugin
 pub struct MutatorPlugin<'a, 'cx: 'a> {
     /// context for quoting
     cx: &'a mut ExtCtxt<'cx>,
-    /// a stack of method infos
-    method_infos: Vec<MethodInfo>,
+    /// information about the context
+    info: MutatorInfo,
     /// a sequence of mutations
-    mutations: Vec<Mutation>,
+    mutations: Vec<String>,
     /// the current mutation count, starting from 1
-    current_count: usize
+    current_count: usize,
 }
 
 impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
     fn new(cx: &'a mut ExtCtxt<'cx>) -> Self {
         MutatorPlugin {
             cx,
-            method_infos: vec![],
+            info: Default::default(),
             mutations: vec![],
-            current_count: 1
+            current_count: 1,
         }
     }
 
-    /// increment the mutation count by `n`, return the previous value
-    fn next(&mut self, n: usize) {
-        let result = self.current_count;
-        self.current_count += n;
-        result
-    }
-
     fn start_fn(&mut self, decl: &FnDecl) {
-        let returns_default = match decl.output {
-            FunctionRetTy::Default(_) => true,
-            FunctionRetTy::Ty(ref ty) => is_ty_default(ty, None)
+        let (is_default, out_ty) = match decl.output {
+            FunctionRetTy::Default(_) => (true, None),
+            FunctionRetTy::Ty(ref ty) => {
+                (is_ty_default(ty, self.info.self_tys.last()), Some(&**ty))
+            }
         };
+        // arguments of output type
+        let mut have_output_type = vec![];
         // add arguments of same type, so we can switch them?
-        let mut argtypes : HashMap<Symbol, &Ty> = HashMap::new();
-        let mut typeargs : HashMap<&Ty, Vec<Symbol>> = HashMap::new();
+        let mut argtypes: HashMap<Symbol, &Ty> = HashMap::new();
+        let mut typeargs: HashMap<&Ty, Vec<Symbol>> = HashMap::new();
         for arg in &decl.inputs {
             if let Some(name) = get_pat_name(&arg.pat) {
                 argtypes.insert(name, &*arg.ty);
                 typeargs.entry(&arg.ty).or_insert(vec![]).push(name);
+                if Some(&*arg.ty) == out_ty {
+                    have_output_type.push(name);
+                }
             }
         }
-        let mut interchangeables : HashMap<Symbol, Vec<Symbol>> = HashMap::new();
-        for (name, ty) in argtypes {
-            let alt = &typeargs[ty];
-            if alt.len() > 1 {
-                interchangeables.insert(name, alt.iter()
-                                             .filter(|n| **n != name)
-                                             .cloned()
-                                             .collect::<Vec<_>>());
+        let mut replaceables = HashMap::new();
+        for (arg, ty) in argtypes {
+            if typeargs[ty].len() > 1 {
+                replaceables.insert(
+                    arg,
+                    typeargs[ty].iter().cloned().filter(|a| a != &arg).collect(),
+                );
             }
         }
-        self.method_infos.push(MethodInfo { returns_default, interchangeables });
+        self.info.method_infos.push(MethodInfo {
+            is_default,
+            have_output_type,
+            interchangeables: replaceables,
+        });
     }
 
     fn end_fn(&mut self) {
-        let info =self.method_infos.pop();
+        let info = self.info.method_infos.pop();
         assert!(info.is_some());
+    }
+
+    fn start_impl(&mut self, ty: &Ty) {
+        self.info.self_tys.push(ty.clone());
+    }
+
+    fn end_impl(&mut self) {
+        let ty = self.info.self_tys.pop();
+        assert!(ty.is_some());
     }
 }
 
@@ -170,37 +159,516 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
     }
 
     fn fold_item_simple(&mut self, i: Item) -> Item {
-        let mut is_fn = false;
-        if let ItemKind::Fn(ref decl, _, _, _, _, _) = i.node {
-            self.start_fn(&decl);
-            is_fn = true;
+        enum ItemState {
+            Impl,
+            Fn,
+            Other,
         }
+        let state = match i.node {
+            ItemKind::Impl(_, _, _, _, _, ref ty, _) => {
+                self.start_impl(ty);
+                ItemState::Impl
+            }
+            ItemKind::Fn(ref decl, ..) => {
+                self.start_fn(&decl);
+                ItemState::Fn
+            }
+            _ => ItemState::Other,
+        };
         let item = fold::noop_fold_item_simple(i, self);
-        if is_fn {
-            self.end_fn();
+        match state {
+            ItemState::Impl => self.end_impl(),
+            ItemState::Fn => self.end_fn(),
+            _ => (),
         }
         item
     }
 
     fn fold_block(&mut self, block: P<Block>) -> P<Block> {
-        if self.method_infos.last().map_or(false, |i| i.returns_default) {
-            block.map(|b| {
-                let Block { stmts, id, rules, span, recovered } = b;
-                let mut newstmts : Vec<Stmt> = Vec::with_capacity(stmts.len() + 1);
-                let n = self.next(1);
-                newstmts.push(quote_stmt!(self.cx,
-                    if mutagen::MU.now($n) { return Default::default(); }).unwrap());
-                newstmts.extend(stmts.into_iter().flat_map(|s| fold::noop_fold_stmt(s, self)));
-                Block { stmts: newstmts, id, rules, span, recovered }
-            })
-        } else {
+        let mut pre_stmts = vec![];
+        {
+            let MutatorPlugin {
+                ref mut cx,
+                ref info,
+                ref mut mutations,
+                ref mut current_count,
+            } = *self;
+            if let Some(&MethodInfo {
+                is_default,
+                ref have_output_type,
+                ref interchangeables,
+            }) = info.method_infos.last()
+            {
+                if is_default {
+                    let n = *current_count;
+                    *current_count += 1;
+                    add_mutation(cx, mutations, block.span, "insert return default()");
+                    pre_stmts.push(
+                        quote_stmt!(cx,
+                    if mutagen::MU.now($n) { return Default::default(); })
+                            .unwrap(),
+                    );
+                }
+                for name in have_output_type {
+                    let n = *current_count;
+                    *current_count += 1;
+                    let ident = name.to_ident();
+                    add_mutation(
+                        cx,
+                        mutations,
+                        block.span,
+                        &format!("insert return {}", name),
+                    );
+                    pre_stmts.push(
+                        quote_stmt!(cx,
+                    if mutagen::MU.now($n) { return $ident; })
+                            .unwrap(),
+                    );
+                }
+                //TODO: switch interchangeables, need mutability info, too
+                //for name in method_info.interchangeables { }
+            }
+        }
+        if pre_stmts.is_empty() {
             fold::noop_fold_block(block, self)
+        } else {
+            block.map(
+                |Block {
+                     stmts,
+                     id,
+                     rules,
+                     span,
+                     recovered,
+                 }| {
+                    let mut newstmts: Vec<Stmt> = Vec::with_capacity(pre_stmts.len() + stmts.len());
+                    newstmts.extend(pre_stmts);
+                    newstmts.extend(
+                        stmts
+                            .into_iter()
+                            .flat_map(|s| fold::noop_fold_stmt(s, self)),
+                    );
+                    Block {
+                        stmts: newstmts,
+                        id,
+                        rules,
+                        span,
+                        recovered,
+                    }
+                },
+            )
         }
     }
 
     fn fold_expr(&mut self, expr: P<Expr>) -> P<Expr> {
-        fold::noop_fold_expr(expr, self) //TODO
+        expr.and_then(|expr| match expr {
+            Expr {
+                id,
+                node: ExprKind::Binary(op, left, right),
+                span,
+                attrs,
+            } => match op.node {
+                BinOpKind::And => {
+                    let n;
+                    {
+                        n = self.current_count;
+                        self.current_count += 5;
+                        add_mutation(
+                            &self.cx,
+                            &mut self.mutations,
+                            expr.span,
+                            "replacing _ && _ with false",
+                        );
+                        add_mutation(
+                            &self.cx,
+                            &mut self.mutations,
+                            expr.span,
+                            "replacing _ && _ with true",
+                        );
+                        add_mutation(
+                            &self.cx,
+                            &mut self.mutations,
+                            expr.span,
+                            "replacing x && _ with x",
+                        );
+                        add_mutation(
+                            &self.cx,
+                            &mut self.mutations,
+                            expr.span,
+                            "replacing x && _ with !x",
+                        );
+                        add_mutation(
+                            &self.cx,
+                            &mut self.mutations,
+                            expr.span,
+                            "replacing x && y with x && !y",
+                        );
+                    }
+                    let left = left.map(|e| fold::noop_fold_expr(e, self));
+                    let right = right.map(|e| fold::noop_fold_expr(e, self));
+                    quote_expr!(self.cx, mutagen::MU.and(|| $left, || $right, $n))
+                }
+                BinOpKind::Or => {
+                    let n;
+                    {
+                        n = self.current_count;
+                        self.current_count += 5;
+                        add_mutation(
+                            &self.cx,
+                            &mut self.mutations,
+                            expr.span,
+                            "replacing _ || _ with false",
+                        );
+                        add_mutation(
+                            &self.cx,
+                            &mut self.mutations,
+                            expr.span,
+                            "replacing _ || _ with true",
+                        );
+                        add_mutation(
+                            &self.cx,
+                            &mut self.mutations,
+                            expr.span,
+                            "replacing x || _ with x",
+                        );
+                        add_mutation(
+                            &self.cx,
+                            &mut self.mutations,
+                            expr.span,
+                            "replacing x || _ with !x",
+                        );
+                        add_mutation(
+                            &self.cx,
+                            &mut self.mutations,
+                            expr.span,
+                            "replacing x || y with x || !y",
+                        );
+                    }
+                    let left = left.map(|e| fold::noop_fold_expr(e, self));
+                    let right = right.map(|e| fold::noop_fold_expr(e, self));
+                    quote_expr!(self.cx, mutagen::MU.or(|| $left, || $right, $n))
+                }
+                BinOpKind::Eq => {
+                    let n;
+                    {
+                        n = self.current_count;
+                        self.current_count += 3;
+                        add_mutation(
+                            &self.cx,
+                            &mut self.mutations,
+                            expr.span,
+                            "replacing _ == _ with false",
+                        );
+                        add_mutation(
+                            &self.cx,
+                            &mut self.mutations,
+                            expr.span,
+                            "replacing _ == _ with true",
+                        );
+                        add_mutation(
+                            &self.cx,
+                            &mut self.mutations,
+                            expr.span,
+                            "replacing x == y with x != y",
+                        );
+                    }
+                    let left = left.map(|e| fold::noop_fold_expr(e, self));
+                    let right = right.map(|e| fold::noop_fold_expr(e, self));
+                    quote_expr!(self.cx, mutagen::MU.eq(|| $left, || $right, $n))
+                }
+                BinOpKind::Ne => {
+                    let n;
+                    {
+                        n = self.current_count;
+                        self.current_count += 3;
+                        add_mutation(
+                            &self.cx,
+                            &mut self.mutations,
+                            expr.span,
+                            "replacing _ != _ with false",
+                        );
+                        add_mutation(
+                            &self.cx,
+                            &mut self.mutations,
+                            expr.span,
+                            "replacing _ != _ with true",
+                        );
+                        add_mutation(
+                            &self.cx,
+                            &mut self.mutations,
+                            expr.span,
+                            "replacing x != y with x == y",
+                        );
+                    }
+                    let left = left.map(|e| fold::noop_fold_expr(e, self));
+                    let right = right.map(|e| fold::noop_fold_expr(e, self));
+                    quote_expr!(self.cx, mutagen::MU.ne(|| $left, || $right, $n))
+                }
+                BinOpKind::Gt => {
+                    let n;
+                    {
+                        n = self.current_count;
+                        self.current_count += 7;
+                        add_mutation(
+                            &self.cx,
+                            &mut self.mutations,
+                            expr.span,
+                            "replacing _ > _ with false",
+                        );
+                        add_mutation(
+                            &self.cx,
+                            &mut self.mutations,
+                            expr.span,
+                            "replacing _ > _ with true",
+                        );
+                        add_mutation(
+                            &self.cx,
+                            &mut self.mutations,
+                            expr.span,
+                            "replacing x > y with x < y",
+                        );
+                        add_mutation(
+                            &self.cx,
+                            &mut self.mutations,
+                            expr.span,
+                            "replacing x > y with x <= y",
+                        );
+                        add_mutation(
+                            &self.cx,
+                            &mut self.mutations,
+                            expr.span,
+                            "replacing x > y with x >= y",
+                        );
+                        add_mutation(
+                            &self.cx,
+                            &mut self.mutations,
+                            expr.span,
+                            "replacing x > y with x == y",
+                        );
+                        add_mutation(
+                            &self.cx,
+                            &mut self.mutations,
+                            expr.span,
+                            "replacing x > y with x != y",
+                        );
+                    }
+                    let left = left.map(|e| fold::noop_fold_expr(e, self));
+                    let right = right.map(|e| fold::noop_fold_expr(e, self));
+                    quote_expr!(self.cx, mutagen::MU.gt(|| $left, || $right, $n))
+                }
+                BinOpKind::Lt => {
+                    let n;
+                    {
+                        n = self.current_count;
+                        self.current_count += 7;
+                        add_mutation(
+                            &self.cx,
+                            &mut self.mutations,
+                            expr.span,
+                            "replacing _ < _ with false",
+                        );
+                        add_mutation(
+                            &self.cx,
+                            &mut self.mutations,
+                            expr.span,
+                            "replacing _ < _ with true",
+                        );
+                        add_mutation(
+                            &self.cx,
+                            &mut self.mutations,
+                            expr.span,
+                            "replacing x < y with x > y",
+                        );
+                        add_mutation(
+                            &self.cx,
+                            &mut self.mutations,
+                            expr.span,
+                            "replacing x < y with x >= y",
+                        );
+                        add_mutation(
+                            &self.cx,
+                            &mut self.mutations,
+                            expr.span,
+                            "replacing x < y with x <= y",
+                        );
+                        add_mutation(
+                            &self.cx,
+                            &mut self.mutations,
+                            expr.span,
+                            "replacing x < y with x == y",
+                        );
+                        add_mutation(
+                            &self.cx,
+                            &mut self.mutations,
+                            expr.span,
+                            "replacing x < y with x != y",
+                        );
+                    }
+                    let left = left.map(|e| fold::noop_fold_expr(e, self));
+                    let right = right.map(|e| fold::noop_fold_expr(e, self));
+                    quote_expr!(self.cx, mutagen::MU.gt(|| $right, || $left, $n))
+                }
+                BinOpKind::Ge => {
+                    let n;
+                    {
+                        n = self.current_count;
+                        self.current_count += 7;
+                        add_mutation(
+                            &self.cx,
+                            &mut self.mutations,
+                            expr.span,
+                            "replacing _ >= _ with false",
+                        );
+                        add_mutation(
+                            &self.cx,
+                            &mut self.mutations,
+                            expr.span,
+                            "replacing _ >= _ with true",
+                        );
+                        add_mutation(
+                            &self.cx,
+                            &mut self.mutations,
+                            expr.span,
+                            "replacing x >= y with x < y",
+                        );
+                        add_mutation(
+                            &self.cx,
+                            &mut self.mutations,
+                            expr.span,
+                            "replacing x >= y with x <= y",
+                        );
+                        add_mutation(
+                            &self.cx,
+                            &mut self.mutations,
+                            expr.span,
+                            "replacing x >= y with x > y",
+                        );
+                        add_mutation(
+                            &self.cx,
+                            &mut self.mutations,
+                            expr.span,
+                            "replacing x >= y with x == y",
+                        );
+                        add_mutation(
+                            &self.cx,
+                            &mut self.mutations,
+                            expr.span,
+                            "replacing x >= y with x != y",
+                        );
+                    }
+                    let left = left.map(|e| fold::noop_fold_expr(e, self));
+                    let right = right.map(|e| fold::noop_fold_expr(e, self));
+                    quote_expr!(self.cx, mutagen::MU.ge(|| $left, || $right, $n))
+                }
+                BinOpKind::Le => {
+                    let n;
+                    {
+                        n = self.current_count;
+                        self.current_count += 7;
+                        add_mutation(
+                            &self.cx,
+                            &mut self.mutations,
+                            expr.span,
+                            "replacing _ <= _ with false",
+                        );
+                        add_mutation(
+                            &self.cx,
+                            &mut self.mutations,
+                            expr.span,
+                            "replacing _ <= _ with true",
+                        );
+                        add_mutation(
+                            &self.cx,
+                            &mut self.mutations,
+                            expr.span,
+                            "replacing x <= y with x > y",
+                        );
+                        add_mutation(
+                            &self.cx,
+                            &mut self.mutations,
+                            expr.span,
+                            "replacing x <= y with x >= y",
+                        );
+                        add_mutation(
+                            &self.cx,
+                            &mut self.mutations,
+                            expr.span,
+                            "replacing x <= y with x < y",
+                        );
+                        add_mutation(
+                            &self.cx,
+                            &mut self.mutations,
+                            expr.span,
+                            "replacing x <= y with x == y",
+                        );
+                        add_mutation(
+                            &self.cx,
+                            &mut self.mutations,
+                            expr.span,
+                            "replacing x <= y with x != y",
+                        );
+                    }
+                    let left = left.map(|e| fold::noop_fold_expr(e, self));
+                    let right = right.map(|e| fold::noop_fold_expr(e, self));
+                    quote_expr!(self.cx, mutagen::MU.ge(|| $right, || $left, $n))
+                }
+                _ => P(fold::noop_fold_expr(
+                    Expr {
+                        id,
+                        node: ExprKind::Binary(op, left, right),
+                        span,
+                        attrs,
+                    },
+                    self,
+                )),
+            },
+            Expr {
+                id,
+                node: ExprKind::If(cond, then, opt_else),
+                span,
+                attrs,
+            } => {
+                let n;
+                {
+                    n = self.current_count;
+                    self.current_count += 3;
+                    add_mutation(
+                        &self.cx,
+                        &mut self.mutations,
+                        cond.span,
+                        "replacing if condition with false",
+                    );
+                    add_mutation(
+                        &self.cx,
+                        &mut self.mutations,
+                        cond.span,
+                        "replacing if condition with true",
+                    );
+                    add_mutation(
+                        &self.cx,
+                        &mut self.mutations,
+                        cond.span,
+                        "inverting if condition",
+                    );
+                }
+                let cond = cond.map(|e| fold::noop_fold_expr(e, self));
+                let then = fold::noop_fold_block(then, self);
+                let opt_else = opt_else.map(|p_else| p_else.map(|e| fold::noop_fold_expr(e, self)));
+                let mut_cond = quote_expr!(self.cx, mutagen::MU.t($cond, $n));
+                P(Expr {
+                    id,
+                    node: ExprKind::If(mut_cond, then, opt_else),
+                    span,
+                    attrs,
+                })
+            }
+            e => P(fold::noop_fold_expr(e, self)),
+        }) //TODO: more expr mutations
     }
+}
+
+fn add_mutation(cx: &ExtCtxt, mutations: &mut Vec<String>, span: Span, text: &str) {
+    //TODO: Write to a file instead
+    mutations.push(format!("{} @ {}", text, cx.codemap().span_to_string(span)));
 }
 
 fn get_pat_name(pat: &Pat) -> Option<Symbol> {
@@ -211,9 +679,19 @@ fn get_pat_name(pat: &Pat) -> Option<Symbol> {
     }
 }
 
-static ALWAYS_DEFAULT : &[&[&str]] = &[
-    &["u8"], &["u16"], &["u32"], &["u64"], &["u128"], &["usize"],
-    &["i8"], &["i16"], &["i32"], &["i64"], &["i128"], &["isize"],
+static ALWAYS_DEFAULT: &[&[&str]] = &[
+    &["u8"],
+    &["u16"],
+    &["u32"],
+    &["u64"],
+    &["u128"],
+    &["usize"],
+    &["i8"],
+    &["i16"],
+    &["i32"],
+    &["i64"],
+    &["i128"],
+    &["isize"],
     &["vec", "Vec"],
     &["option", "Option"],
     &["char"],
@@ -230,7 +708,8 @@ static ALWAYS_DEFAULT : &[&[&str]] = &[
     &["time", "Duration"],
     &["iter", "Empty"],
     &["fmt", "Error"],
-    &["hash", "SipHasher"], &["hash", "SipHasher24"],
+    &["hash", "SipHasher"],
+    &["hash", "SipHasher24"],
     &["hash", "BuildHasherDefault"],
     &["collections", "hash_map", "DefaultHasher"],
     &["collections", "hash_map", "RandomState"],
@@ -242,7 +721,7 @@ static ALWAYS_DEFAULT : &[&[&str]] = &[
     &["sync", "CondVar"],
 ];
 
-static DEFAULT_IF_ARG : &[&[&str]] = &[
+static DEFAULT_IF_ARG: &[&[&str]] = &[
     &["boxed", "Box"],
     &["rc", "Rc"],
     &["rc", "Weak"],
@@ -267,38 +746,41 @@ static DEFAULT_IF_ARG : &[&[&str]] = &[
     &["sync", "Mutex"],
     &["sync", "RwLock"],
     &["mem", "ManuallyDrop"],
-    ];
+];
 
 fn is_ty_default(ty: &Ty, self_ty: Option<&Ty>) -> bool {
     match ty.node {
         TyKind::Slice(_) | TyKind::Never => true,
-        TyKind::Rptr(_lt, MutTy { ty: ref pty, .. }) => {
-            match pty.node {
-                TyKind::Slice(_) => true,
-                TyKind::Path(_, ref ty_path) => match_path(ty_path, &["str"]),
-                _ => false
-            }
+        TyKind::Rptr(_lt, MutTy { ty: ref pty, .. }) => match pty.node {
+            TyKind::Slice(_) => true,
+            TyKind::Path(_, ref ty_path) => match_path(ty_path, &["str"]),
+            _ => false,
         },
         TyKind::Paren(ref t) => is_ty_default(t, self_ty),
-        TyKind::Array(ref inner, ref len) => is_ty_default(inner, self_ty) &&
-            get_lit(len).map_or(false, |n| n <= 32),
-        TyKind::Tup(ref inners) => inners.len() <= 12 &&
-            inners.iter().all(|t| is_ty_default(&*t, self_ty)),
-        TyKind::Path(ref _qself, ref ty_path) =>
-            is_path_default(ty_path, self_ty),
+        TyKind::Array(ref inner, ref len) => {
+            is_ty_default(inner, self_ty) && get_lit(len).map_or(false, |n| n <= 32)
+        }
+        TyKind::Tup(ref inners) => {
+            inners.len() <= 12 && inners.iter().all(|t| is_ty_default(&*t, self_ty))
+        }
+        TyKind::Path(ref _qself, ref ty_path) => is_path_default(ty_path, self_ty),
         TyKind::TraitObject(ref bounds, _) | TyKind::ImplTrait(ref bounds) => {
             bounds.iter().any(|bound| {
                 if let TraitTyParamBound(ref poly_trait, _) = *bound {
-                    poly_trait.trait_ref.path.segments.last().map_or(false,
-                        |s| s.identifier.name == "Default")
+                    poly_trait
+                        .trait_ref
+                        .path
+                        .segments
+                        .last()
+                        .map_or(false, |s| s.identifier.name == "Default")
                 } else {
                     false
                 }
             })
-        },
+        }
         TyKind::ImplicitSelf => self_ty.map_or(false, |t| is_ty_default(t, None)),
         TyKind::Typeof(ref expr) => is_expr_default(expr, self_ty),
-        _ => false
+        _ => false,
     }
 }
 
@@ -306,41 +788,37 @@ fn is_expr_default(expr: &Expr, self_ty: Option<&Ty>) -> bool {
     match expr.node {
         ExprKind::Path(_, ref path) => is_path_default(path, self_ty),
         ExprKind::Paren(ref e) => is_expr_default(e, self_ty),
-        ExprKind::AddrOf(_, ref e) => {
-            match e.node {
-                ExprKind::Array(ref exprs) => exprs.len() == 1,
-                ExprKind::Path(_, ref path) => match_path(path, &["str"]),
-                _ => false
-            }
+        ExprKind::AddrOf(_, ref e) => match e.node {
+            ExprKind::Array(ref exprs) => exprs.len() == 1,
+            ExprKind::Path(_, ref path) => match_path(path, &["str"]),
+            _ => false,
         },
-        ExprKind::Repeat(ref e, ref len) =>
-            is_expr_default(e, self_ty)
-            && get_lit(len).map_or(false, |n| n <= 32),
-        ExprKind::Array(ref exprs) =>
-            exprs.len() == 1, // = Slice
-        ExprKind::Tup(ref exprs) =>
-            exprs.len() <= 12
-            && exprs.iter().all(|e| is_expr_default(e, self_ty)),
-        _ => false
+        ExprKind::Repeat(ref e, ref len) => {
+            is_expr_default(e, self_ty) && get_lit(len).map_or(false, |n| n <= 32)
+        }
+        ExprKind::Array(ref exprs) => exprs.len() == 1, // = Slice
+        ExprKind::Tup(ref exprs) => {
+            exprs.len() <= 12 && exprs.iter().all(|e| is_expr_default(e, self_ty))
+        }
+        _ => false,
     }
 }
 
 fn is_path_default(ty_path: &Path, self_ty: Option<&Ty>) -> bool {
     if ALWAYS_DEFAULT.iter().any(|p| match_path(ty_path, p)) {
-        return true
+        return true;
     }
     for path in DEFAULT_IF_ARG {
         if match_path(ty_path, path) {
             return ty_path.segments.last().map_or(false, |s| {
                 s.parameters.as_ref().map_or(false, |p| {
                     if let AngleBracketed(ref data) = **p {
-                        data.types.len() == 1 &&
-                            is_ty_default(&*data.types[0], self_ty)
+                        data.types.len() == 1 && is_ty_default(&*data.types[0], self_ty)
                     } else {
                         false
                     }
                 })
-            })
+            });
         }
     }
     // TODO: Cow
@@ -348,8 +826,11 @@ fn is_path_default(ty_path: &Path, self_ty: Option<&Ty>) -> bool {
 }
 
 fn match_path(path: &Path, pat: &[&str]) -> bool {
-    path.segments.iter().rev().zip(
-              pat.iter().rev()).all(|(a, b)| &a.identifier.name == b)
+    path.segments
+        .iter()
+        .rev()
+        .zip(pat.iter().rev())
+        .all(|(a, b)| &a.identifier.name == b)
 }
 
 fn get_lit(expr: &Expr) -> Option<usize> {

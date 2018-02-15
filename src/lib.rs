@@ -32,9 +32,6 @@ impl<T> Selector<T> for (T, T, T, T) {
     }
 }
 
-/// The global mutation count
-pub static MU : Mutagen = Mutagen { x: 0 }
-
 /// A global helper struct to keep a mutation count
 ///
 /// This is used by the Mutagen crate to simplify the code it inserts.
@@ -42,6 +39,9 @@ pub static MU : Mutagen = Mutagen { x: 0 }
 pub struct Mutagen {
     x: AtomicUsize
 }
+
+/// The global mutation count
+pub static MU: Mutagen = Mutagen { x: AtomicUsize::new(0) };
 
 impl Mutagen {
     /// get the current mutation count
@@ -88,7 +88,7 @@ impl Mutagen {
     ///
     /// upholds the invariant that g() is not called unless f() == true
     pub fn and<X, Y>(&self, f: X, g: Y, n: usize) -> bool
-    where X: FnOnce() -> bool, Y: FnOnce() -> bool {
+        where X: FnOnce() -> bool, Y: FnOnce() -> bool {
         match n.wrapping_sub(self.get()) {
             0 => false,
             1 => true,
@@ -103,7 +103,7 @@ impl Mutagen {
     ///
     /// upholds the invariant that g() is not called unless f() == false
     pub fn or<X, Y>(&self, f: X, g: Y, n: usize) -> bool
-    where X: FnOnce() -> bool, Y: FnOnce() -> bool {
+        where X: FnOnce() -> bool, Y: FnOnce() -> bool {
         match n.wrapping_sub(self.get()) {
             0 => false,
             1 => true,
@@ -137,13 +137,13 @@ impl Mutagen {
     /// use instead of `>` (or, switching operand order `<`)
     pub fn gt<T: PartialOrd>(&self, x: T, y: T, n: usize) -> bool {
         match n.wrapping_sub(self.get()) {
-            0 => x >= y,
-            1 => x <= y,
+            0 => false,
+            1 => true,
             2 => x < y,
-            3 => x <= y && x >= y, // == with PartialOrd
-            4 => x < y || x > y, // != with PartialOrd
-            5 => true,
-            6 => false,
+            3 => x <= y,
+            4 => x >= y,
+            5 => x <= y && x >= y, // == with PartialOrd
+            6 => x < y || x > y, // != with PartialOrd
             _ => x > y
         }
     }
@@ -151,14 +151,14 @@ impl Mutagen {
     /// use instead of `>=` (or, switching operand order `<=`)
     pub fn ge<T: PartialOrd>(&self, x: T, y: T, n: usize) -> bool {
         match n.wrapping_sub(self.get()) {
-            0 => x > y,
-            1 => x < y,
-            2 => x <= y,
-            3 => x <= y && x >= y, // == with PartialOrd
-            4 => x < y || x > y, // != with PartialOrd
-            5 => true,
-            6 => false,
-           _ => x >= y
+            0 => false,
+            1 => true,
+            2 => x < y,
+            3 => x <= y,
+            4 => x > y,
+            5 => x <= y && x >= y, // == with PartialOrd
+            6 => x < y || x > y, // != with PartialOrd
+            _ => x >= y
         }
     }
 }
