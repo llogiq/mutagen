@@ -36,6 +36,8 @@ impl<T> Selector<T> for (T, T, T, T) {
 ///
 /// This is used by the Mutagen crate to simplify the code it inserts.
 /// You should have no business using it manually.
+///
+/// TODO: Use a lazy_static instead?
 pub struct Mutagen {
     x: AtomicUsize
 }

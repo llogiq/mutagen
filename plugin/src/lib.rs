@@ -201,8 +201,13 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
             {
                 if is_default {
                     let n = *current_count;
-                    *current_count += 1;
-                    add_mutation(cx, mutations, block.span, "insert return default()");
+                    add_mutations(
+                        cx,
+                        mutations,
+                        current_count,
+                        block.span,
+                        &["insert return default()"],
+                    );
                     pre_stmts.push(
                         quote_stmt!(cx,
                     if mutagen::MU.now($n) { return Default::default(); })
@@ -211,13 +216,13 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                 }
                 for name in have_output_type {
                     let n = *current_count;
-                    *current_count += 1;
                     let ident = name.to_ident();
-                    add_mutation(
+                    add_mutations(
                         cx,
                         mutations,
+                        current_count,
                         block.span,
-                        &format!("insert return {}", name),
+                        &[&format!("insert return {}", name)],
                     );
                     pre_stmts.push(
                         quote_stmt!(cx,
@@ -271,36 +276,18 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                     let n;
                     {
                         n = self.current_count;
-                        self.current_count += 5;
-                        add_mutation(
+                        add_mutations(
                             &self.cx,
                             &mut self.mutations,
+                            &mut self.current_count,
                             expr.span,
-                            "replacing _ && _ with false",
-                        );
-                        add_mutation(
-                            &self.cx,
-                            &mut self.mutations,
-                            expr.span,
-                            "replacing _ && _ with true",
-                        );
-                        add_mutation(
-                            &self.cx,
-                            &mut self.mutations,
-                            expr.span,
-                            "replacing x && _ with x",
-                        );
-                        add_mutation(
-                            &self.cx,
-                            &mut self.mutations,
-                            expr.span,
-                            "replacing x && _ with !x",
-                        );
-                        add_mutation(
-                            &self.cx,
-                            &mut self.mutations,
-                            expr.span,
-                            "replacing x && y with x && !y",
+                            &[
+                                "replacing _ && _ with false",
+                                "replacing _ && _ with true",
+                                "replacing x && _ with x",
+                                "replacing x && _ with !x",
+                                "replacing x && y with x && !y",
+                            ],
                         );
                     }
                     let left = left.map(|e| fold::noop_fold_expr(e, self));
@@ -311,36 +298,18 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                     let n;
                     {
                         n = self.current_count;
-                        self.current_count += 5;
-                        add_mutation(
+                        add_mutations(
                             &self.cx,
                             &mut self.mutations,
+                            &mut self.current_count,
                             expr.span,
-                            "replacing _ || _ with false",
-                        );
-                        add_mutation(
-                            &self.cx,
-                            &mut self.mutations,
-                            expr.span,
-                            "replacing _ || _ with true",
-                        );
-                        add_mutation(
-                            &self.cx,
-                            &mut self.mutations,
-                            expr.span,
-                            "replacing x || _ with x",
-                        );
-                        add_mutation(
-                            &self.cx,
-                            &mut self.mutations,
-                            expr.span,
-                            "replacing x || _ with !x",
-                        );
-                        add_mutation(
-                            &self.cx,
-                            &mut self.mutations,
-                            expr.span,
-                            "replacing x || y with x || !y",
+                            &[
+                                "replacing _ || _ with false",
+                                "replacing _ || _ with true",
+                                "replacing x || _ with x",
+                                "replacing x || _ with !x",
+                                "replacing x || y with x || !y",
+                            ],
                         );
                     }
                     let left = left.map(|e| fold::noop_fold_expr(e, self));
@@ -351,24 +320,16 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                     let n;
                     {
                         n = self.current_count;
-                        self.current_count += 3;
-                        add_mutation(
+                        add_mutations(
                             &self.cx,
                             &mut self.mutations,
+                            &mut self.current_count,
                             expr.span,
-                            "replacing _ == _ with false",
-                        );
-                        add_mutation(
-                            &self.cx,
-                            &mut self.mutations,
-                            expr.span,
-                            "replacing _ == _ with true",
-                        );
-                        add_mutation(
-                            &self.cx,
-                            &mut self.mutations,
-                            expr.span,
-                            "replacing x == y with x != y",
+                            &[
+                                "replacing _ == _ with false",
+                                "replacing _ == _ with true",
+                                "replacing x == y with x != y",
+                            ],
                         );
                     }
                     let left = left.map(|e| fold::noop_fold_expr(e, self));
@@ -379,24 +340,16 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                     let n;
                     {
                         n = self.current_count;
-                        self.current_count += 3;
-                        add_mutation(
+                        add_mutations(
                             &self.cx,
                             &mut self.mutations,
+                            &mut self.current_count,
                             expr.span,
-                            "replacing _ != _ with false",
-                        );
-                        add_mutation(
-                            &self.cx,
-                            &mut self.mutations,
-                            expr.span,
-                            "replacing _ != _ with true",
-                        );
-                        add_mutation(
-                            &self.cx,
-                            &mut self.mutations,
-                            expr.span,
-                            "replacing x != y with x == y",
+                            &[
+                                "replacing _ != _ with false",
+                                "replacing _ != _ with true",
+                                "replacing x != y with x == y",
+                            ],
                         );
                     }
                     let left = left.map(|e| fold::noop_fold_expr(e, self));
@@ -407,48 +360,20 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                     let n;
                     {
                         n = self.current_count;
-                        self.current_count += 7;
-                        add_mutation(
+                        add_mutations(
                             &self.cx,
                             &mut self.mutations,
+                            &mut self.current_count,
                             expr.span,
-                            "replacing _ > _ with false",
-                        );
-                        add_mutation(
-                            &self.cx,
-                            &mut self.mutations,
-                            expr.span,
-                            "replacing _ > _ with true",
-                        );
-                        add_mutation(
-                            &self.cx,
-                            &mut self.mutations,
-                            expr.span,
-                            "replacing x > y with x < y",
-                        );
-                        add_mutation(
-                            &self.cx,
-                            &mut self.mutations,
-                            expr.span,
-                            "replacing x > y with x <= y",
-                        );
-                        add_mutation(
-                            &self.cx,
-                            &mut self.mutations,
-                            expr.span,
-                            "replacing x > y with x >= y",
-                        );
-                        add_mutation(
-                            &self.cx,
-                            &mut self.mutations,
-                            expr.span,
-                            "replacing x > y with x == y",
-                        );
-                        add_mutation(
-                            &self.cx,
-                            &mut self.mutations,
-                            expr.span,
-                            "replacing x > y with x != y",
+                            &[
+                                "replacing _ > _ with false",
+                                "replacing _ > _ with true",
+                                "replacing x > y with x < y",
+                                "replacing x > y with x <= y",
+                                "replacing x > y with x >= y",
+                                "replacing x > y with x == y",
+                                "replacing x > y with x != y",
+                            ],
                         );
                     }
                     let left = left.map(|e| fold::noop_fold_expr(e, self));
@@ -459,48 +384,20 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                     let n;
                     {
                         n = self.current_count;
-                        self.current_count += 7;
-                        add_mutation(
+                        add_mutations(
                             &self.cx,
                             &mut self.mutations,
+                            &mut self.current_count,
                             expr.span,
-                            "replacing _ < _ with false",
-                        );
-                        add_mutation(
-                            &self.cx,
-                            &mut self.mutations,
-                            expr.span,
-                            "replacing _ < _ with true",
-                        );
-                        add_mutation(
-                            &self.cx,
-                            &mut self.mutations,
-                            expr.span,
-                            "replacing x < y with x > y",
-                        );
-                        add_mutation(
-                            &self.cx,
-                            &mut self.mutations,
-                            expr.span,
-                            "replacing x < y with x >= y",
-                        );
-                        add_mutation(
-                            &self.cx,
-                            &mut self.mutations,
-                            expr.span,
-                            "replacing x < y with x <= y",
-                        );
-                        add_mutation(
-                            &self.cx,
-                            &mut self.mutations,
-                            expr.span,
-                            "replacing x < y with x == y",
-                        );
-                        add_mutation(
-                            &self.cx,
-                            &mut self.mutations,
-                            expr.span,
-                            "replacing x < y with x != y",
+                            &[
+                                "replacing _ < _ with false",
+                                "replacing _ < _ with true",
+                                "replacing x < y with x > y",
+                                "replacing x < y with x >= y",
+                                "replacing x < y with x <= y",
+                                "replacing x < y with x == y",
+                                "replacing x < y with x != y",
+                            ],
                         );
                     }
                     let left = left.map(|e| fold::noop_fold_expr(e, self));
@@ -511,48 +408,20 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                     let n;
                     {
                         n = self.current_count;
-                        self.current_count += 7;
-                        add_mutation(
+                        add_mutations(
                             &self.cx,
                             &mut self.mutations,
+                            &mut self.current_count,
                             expr.span,
-                            "replacing _ >= _ with false",
-                        );
-                        add_mutation(
-                            &self.cx,
-                            &mut self.mutations,
-                            expr.span,
-                            "replacing _ >= _ with true",
-                        );
-                        add_mutation(
-                            &self.cx,
-                            &mut self.mutations,
-                            expr.span,
-                            "replacing x >= y with x < y",
-                        );
-                        add_mutation(
-                            &self.cx,
-                            &mut self.mutations,
-                            expr.span,
-                            "replacing x >= y with x <= y",
-                        );
-                        add_mutation(
-                            &self.cx,
-                            &mut self.mutations,
-                            expr.span,
-                            "replacing x >= y with x > y",
-                        );
-                        add_mutation(
-                            &self.cx,
-                            &mut self.mutations,
-                            expr.span,
-                            "replacing x >= y with x == y",
-                        );
-                        add_mutation(
-                            &self.cx,
-                            &mut self.mutations,
-                            expr.span,
-                            "replacing x >= y with x != y",
+                            &[
+                                "replacing _ >= _ with false",
+                                "replacing _ >= _ with true",
+                                "replacing x >= y with x < y",
+                                "replacing x >= y with x <= y",
+                                "replacing x >= y with x > y",
+                                "replacing x >= y with x == y",
+                                "replacing x >= y with x != y",
+                            ],
                         );
                     }
                     let left = left.map(|e| fold::noop_fold_expr(e, self));
@@ -563,48 +432,20 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                     let n;
                     {
                         n = self.current_count;
-                        self.current_count += 7;
-                        add_mutation(
+                        add_mutations(
                             &self.cx,
                             &mut self.mutations,
+                            &mut self.current_count,
                             expr.span,
-                            "replacing _ <= _ with false",
-                        );
-                        add_mutation(
-                            &self.cx,
-                            &mut self.mutations,
-                            expr.span,
-                            "replacing _ <= _ with true",
-                        );
-                        add_mutation(
-                            &self.cx,
-                            &mut self.mutations,
-                            expr.span,
-                            "replacing x <= y with x > y",
-                        );
-                        add_mutation(
-                            &self.cx,
-                            &mut self.mutations,
-                            expr.span,
-                            "replacing x <= y with x >= y",
-                        );
-                        add_mutation(
-                            &self.cx,
-                            &mut self.mutations,
-                            expr.span,
-                            "replacing x <= y with x < y",
-                        );
-                        add_mutation(
-                            &self.cx,
-                            &mut self.mutations,
-                            expr.span,
-                            "replacing x <= y with x == y",
-                        );
-                        add_mutation(
-                            &self.cx,
-                            &mut self.mutations,
-                            expr.span,
-                            "replacing x <= y with x != y",
+                            &[
+                                "replacing _ <= _ with false",
+                                "replacing _ <= _ with true",
+                                "replacing x <= y with x > y",
+                                "replacing x <= y with x >= y",
+                                "replacing x <= y with x < y",
+                                "replacing x <= y with x == y",
+                                "replacing x <= y with x != y",
+                            ],
                         );
                     }
                     let left = left.map(|e| fold::noop_fold_expr(e, self));
@@ -630,24 +471,16 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                 let n;
                 {
                     n = self.current_count;
-                    self.current_count += 3;
-                    add_mutation(
+                    add_mutations(
                         &self.cx,
                         &mut self.mutations,
+                        &mut self.current_count,
                         cond.span,
-                        "replacing if condition with false",
-                    );
-                    add_mutation(
-                        &self.cx,
-                        &mut self.mutations,
-                        cond.span,
-                        "replacing if condition with true",
-                    );
-                    add_mutation(
-                        &self.cx,
-                        &mut self.mutations,
-                        cond.span,
-                        "inverting if condition",
+                        &[
+                            "replacing if condition with false",
+                            "replacing if condition with true",
+                            "inverting if condition",
+                        ],
                     );
                 }
                 let cond = cond.map(|e| fold::noop_fold_expr(e, self));
@@ -666,9 +499,21 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
     }
 }
 
-fn add_mutation(cx: &ExtCtxt, mutations: &mut Vec<String>, span: Span, text: &str) {
+fn add_mutations(
+    cx: &ExtCtxt,
+    mutations: &mut Vec<String>,
+    count: &mut usize,
+    span: Span,
+    descriptions: &[&str],
+) {
     //TODO: Write to a file instead
-    mutations.push(format!("{} @ {}", text, cx.codemap().span_to_string(span)));
+    let span_desc = cx.codemap().span_to_string(span);
+    mutations.extend(
+        descriptions
+            .iter()
+            .map(|desc| format!("{} @ {}", desc, span_desc)),
+    );
+    *count += descriptions.len();
 }
 
 fn get_pat_name(pat: &Pat) -> Option<Symbol> {
