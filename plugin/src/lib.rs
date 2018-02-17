@@ -158,121 +158,48 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
     }
 
     fn fold_trait_item(&mut self, i: TraitItem) -> SmallVector<TraitItem> {
-        let mut is_fn = false;
-        if let TraitItemKind::Method(ref sig, Some(_)) = i.node {
-            self.start_fn(&sig.decl);
-            is_fn = true;
-        }
-        let item = fold::noop_fold_trait_item(i, self);
-        if is_fn {
-            self.end_fn();
-        }
-        item
+        SmallVector::one(match i {
+            TraitItem {
+                id,
+                ident,
+                attrs,
+                generics,
+                node: TraitItemKind::Method(sig, Some(block)),
+                span,
+                tokens
+            } => {
+                self.start_fn(&sig.decl);
+                let ti = TraitItem {
+                    id,
+                    ident,
+                    attrs,
+                    generics,
+                    node: TraitItemKind::Method(sig, Some(fold_first_block(block, self))),
+                    span,
+                    tokens
+                };
+                self.end_fn();
+                ti
+            },
+            ti => ti
+        })
     }
 
-    fn fold_item_simple(&mut self, i: Item) -> Item {
-        enum ItemState {
-            Impl,
-            Fn,
-            Other,
-        }
-        let state = match i.node {
-            ItemKind::Impl(_, _, _, _, _, ref ty, _) => {
-                self.start_impl(ty);
-                ItemState::Impl
-            }
-            ItemKind::Fn(ref decl, ..) => {
+    fn fold_item_kind(&mut self, i: ItemKind) -> ItemKind {
+        match i {
+            ItemKind::Impl(unsafety, polarity, defaultness, generics, opt_trait_ref, ty, impl_items) => {
+                self.start_impl( & ty);
+                let k = ItemKind::Impl(unsafety, polarity, defaultness, generics, opt_trait_ref, ty, impl_items);
+                self.end_impl();
+                k
+            },
+            ItemKind::Fn(decl, unsafety, constness, abi, generics, block) => {
                 self.start_fn(&decl);
-                ItemState::Fn
-            }
-            _ => ItemState::Other,
-        };
-        let item = fold::noop_fold_item_simple(i, self);
-        match state {
-            ItemState::Impl => self.end_impl(),
-            ItemState::Fn => self.end_fn(),
-            _ => (),
-        }
-        item
-    }
-
-    fn fold_block(&mut self, block: P<Block>) -> P<Block> {
-        let mut pre_stmts = vec![];
-        {
-            let MutatorPlugin {
-                ref mut cx,
-                ref info,
-                ref mut mutations,
-                ref mut current_count,
-            } = *self;
-            if let Some(&MethodInfo {
-                is_default,
-                ref have_output_type,
-                ref interchangeables,
-            }) = info.method_infos.last()
-            {
-                if is_default {
-                    let n = *current_count;
-                    add_mutations(
-                        cx,
-                        mutations,
-                        current_count,
-                        block.span,
-                        &["insert return default()"],
-                    );
-                    pre_stmts.push(
-                        quote_stmt!(cx,
-                    if mutagen::now($n) { return Default::default(); })
-                            .unwrap(),
-                    );
-                }
-                for name in have_output_type {
-                    let n = *current_count;
-                    let ident = name.to_ident();
-                    add_mutations(
-                        cx,
-                        mutations,
-                        current_count,
-                        block.span,
-                        &[&format!("insert return {}", name)],
-                    );
-                    pre_stmts.push(
-                        quote_stmt!(cx,
-                    if mutagen::now($n) { return $ident; })
-                            .unwrap(),
-                    );
-                }
-                //TODO: switch interchangeables, need mutability info, too
-                //for name in method_info.interchangeables { }
-            }
-        }
-        if pre_stmts.is_empty() {
-            fold::noop_fold_block(block, self)
-        } else {
-            block.map(
-                |Block {
-                     stmts,
-                     id,
-                     rules,
-                     span,
-                     recovered,
-                 }| {
-                    let mut newstmts: Vec<Stmt> = Vec::with_capacity(pre_stmts.len() + stmts.len());
-                    newstmts.extend(pre_stmts);
-                    newstmts.extend(
-                        stmts
-                            .into_iter()
-                            .flat_map(|s| fold::noop_fold_stmt(s, self)),
-                    );
-                    Block {
-                        stmts: newstmts,
-                        id,
-                        rules,
-                        span,
-                        recovered,
-                    }
-                },
-            )
+                let k = ItemKind::Fn(decl, unsafety, constness, abi, generics, fold_first_block(block, self));
+                self.end_fn();
+                k
+            },
+            k => k
         }
     }
 
@@ -511,6 +438,86 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
     }
 }
 
+fn fold_first_block(block: P<Block>, m: &mut MutatorPlugin) -> P<Block> {
+    let mut pre_stmts = vec![];
+    {
+        let MutatorPlugin {
+            ref mut cx,
+            ref info,
+            ref mut mutations,
+            ref mut current_count,
+        } = *m;
+        if let Some(&MethodInfo {
+            is_default,
+            ref have_output_type,
+            ref interchangeables,
+        }) = info.method_infos.last()
+            {
+                if is_default {
+                    let n = *current_count;
+                    add_mutations(
+                        cx,
+                        mutations,
+                        current_count,
+                        block.span,
+                        &["insert return default()"],
+                    );
+                    pre_stmts.push(
+                        quote_stmt!(cx,
+                    if mutagen::now($n) { return Default::default(); })
+                            .unwrap(),
+                    );
+                }
+                for name in have_output_type {
+                    let n = *current_count;
+                    let ident = name.to_ident();
+                    add_mutations(
+                        cx,
+                        mutations,
+                        current_count,
+                        block.span,
+                        &[&format!("insert return {}", name)],
+                    );
+                    pre_stmts.push(
+                        quote_stmt!(cx,
+                    if mutagen::now($n) { return $ident; })
+                            .unwrap(),
+                    );
+                }
+                //TODO: switch interchangeables, need mutability info, too
+                //for name in method_info.interchangeables { }
+            }
+    }
+    if pre_stmts.is_empty() {
+        fold::noop_fold_block(block, m)
+    } else {
+        block.map(
+            |Block {
+                 stmts,
+                 id,
+                 rules,
+                 span,
+                 recovered,
+             }| {
+                let mut newstmts: Vec<Stmt> = Vec::with_capacity(pre_stmts.len() + stmts.len());
+                newstmts.extend(pre_stmts);
+                newstmts.extend(
+                    stmts
+                        .into_iter()
+                        .flat_map(|s| fold::noop_fold_stmt(s, m)),
+                );
+                Block {
+                    stmts: newstmts,
+                    id,
+                    rules,
+                    span,
+                    recovered,
+                }
+            },
+        )
+    }
+}
+
 fn add_mutations(
     cx: &ExtCtxt,
     mutations: &mut BufWriter<File>,
@@ -518,7 +525,6 @@ fn add_mutations(
     span: Span,
     descriptions: &[&str],
 ) {
-    //TODO: Write to a file instead
     let span_desc = cx.codemap().span_to_string(span);
     for desc in descriptions {
         writeln!(mutations, "{} @ {}", desc, span_desc).unwrap()
