@@ -210,7 +210,7 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                     );
                     pre_stmts.push(
                         quote_stmt!(cx,
-                    if mutagen::MU.now($n) { return Default::default(); })
+                    if mutagen::now($n) { return Default::default(); })
                             .unwrap(),
                     );
                 }
@@ -226,7 +226,7 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                     );
                     pre_stmts.push(
                         quote_stmt!(cx,
-                    if mutagen::MU.now($n) { return $ident; })
+                    if mutagen::now($n) { return $ident; })
                             .unwrap(),
                     );
                 }
@@ -292,7 +292,7 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                     }
                     let left = left.map(|e| fold::noop_fold_expr(e, self));
                     let right = right.map(|e| fold::noop_fold_expr(e, self));
-                    quote_expr!(self.cx, mutagen::MU.and(|| $left, || $right, $n))
+                    quote_expr!(self.cx, mutagen::and(|| $left, || $right, $n))
                 }
                 BinOpKind::Or => {
                     let n;
@@ -314,7 +314,7 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                     }
                     let left = left.map(|e| fold::noop_fold_expr(e, self));
                     let right = right.map(|e| fold::noop_fold_expr(e, self));
-                    quote_expr!(self.cx, mutagen::MU.or(|| $left, || $right, $n))
+                    quote_expr!(self.cx, mutagen::or(|| $left, || $right, $n))
                 }
                 BinOpKind::Eq => {
                     let n;
@@ -334,7 +334,7 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                     }
                     let left = left.map(|e| fold::noop_fold_expr(e, self));
                     let right = right.map(|e| fold::noop_fold_expr(e, self));
-                    quote_expr!(self.cx, mutagen::MU.eq(|| $left, || $right, $n))
+                    quote_expr!(self.cx, mutagen::eq(|| $left, || $right, $n))
                 }
                 BinOpKind::Ne => {
                     let n;
@@ -354,7 +354,7 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                     }
                     let left = left.map(|e| fold::noop_fold_expr(e, self));
                     let right = right.map(|e| fold::noop_fold_expr(e, self));
-                    quote_expr!(self.cx, mutagen::MU.ne(|| $left, || $right, $n))
+                    quote_expr!(self.cx, mutagen::ne(|| $left, || $right, $n))
                 }
                 BinOpKind::Gt => {
                     let n;
@@ -378,7 +378,7 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                     }
                     let left = left.map(|e| fold::noop_fold_expr(e, self));
                     let right = right.map(|e| fold::noop_fold_expr(e, self));
-                    quote_expr!(self.cx, mutagen::MU.gt(|| $left, || $right, $n))
+                    quote_expr!(self.cx, mutagen::gt(|| $left, || $right, $n))
                 }
                 BinOpKind::Lt => {
                     let n;
@@ -402,7 +402,7 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                     }
                     let left = left.map(|e| fold::noop_fold_expr(e, self));
                     let right = right.map(|e| fold::noop_fold_expr(e, self));
-                    quote_expr!(self.cx, mutagen::MU.gt(|| $right, || $left, $n))
+                    quote_expr!(self.cx, mutagen::gt(|| $right, || $left, $n))
                 }
                 BinOpKind::Ge => {
                     let n;
@@ -426,7 +426,7 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                     }
                     let left = left.map(|e| fold::noop_fold_expr(e, self));
                     let right = right.map(|e| fold::noop_fold_expr(e, self));
-                    quote_expr!(self.cx, mutagen::MU.ge(|| $left, || $right, $n))
+                    quote_expr!(self.cx, mutagen::ge(|| $left, || $right, $n))
                 }
                 BinOpKind::Le => {
                     let n;
@@ -450,7 +450,7 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                     }
                     let left = left.map(|e| fold::noop_fold_expr(e, self));
                     let right = right.map(|e| fold::noop_fold_expr(e, self));
-                    quote_expr!(self.cx, mutagen::MU.ge(|| $right, || $left, $n))
+                    quote_expr!(self.cx, mutagen::ge(|| $right, || $left, $n))
                 }
                 _ => P(fold::noop_fold_expr(
                     Expr {
@@ -486,7 +486,7 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                 let cond = cond.map(|e| fold::noop_fold_expr(e, self));
                 let then = fold::noop_fold_block(then, self);
                 let opt_else = opt_else.map(|p_else| p_else.map(|e| fold::noop_fold_expr(e, self)));
-                let mut_cond = quote_expr!(self.cx, mutagen::MU.t($cond, $n));
+                let mut_cond = quote_expr!(self.cx, mutagen::t($cond, $n));
                 P(Expr {
                     id,
                     node: ExprKind::If(mut_cond, then, opt_else),
