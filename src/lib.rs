@@ -164,3 +164,79 @@ impl Mutagen {
         }
     }
 }
+
+/// get the current mutation count
+pub fn get() -> usize {
+    MU.get()
+}
+
+/// check if the argument matches the current mutation count
+///
+/// this simplifies operations like `if mutagen::MU.now(42) { .. }`
+pub fn now(n: usize) -> bool {
+    MU.now(n)
+}
+
+/// increment the mutation count
+pub fn next() {
+    MU.next()
+}
+
+/// insert the original or an alternate value, e.g. `MU.select(&[2, 0], 42)`
+pub fn select<T, S: Selector<T>>(selector: S, n: usize) -> T {
+    MU.select(selector, n)
+}
+
+/// use with if expressions, e.g. `if MU.t(..) { .. } else { .. }`
+pub fn t(t: bool, n: usize) -> bool {
+    MU.t(t, n)
+}
+
+/// use with while expressions, e.g. `while Mu.w(..) { .. }`
+///
+/// this never leads to infinite loops
+pub fn w(t: bool, n: usize) -> bool {
+    MU.w(t, n)
+}
+
+/// use instead of `&&`
+///
+/// upholds the invariant that g() is not called unless f() == true
+pub fn and<X, Y>(f: X, g: Y, n: usize) -> bool
+where
+    X: FnOnce() -> bool,
+    Y: FnOnce() -> bool,
+{
+    MU.and(f, g, n)
+}
+
+/// use instead of `||`
+///
+/// upholds the invariant that g() is not called unless f() == false
+pub fn or<X, Y>(f: X, g: Y, n: usize) -> bool
+where
+    X: FnOnce() -> bool,
+    Y: FnOnce() -> bool,
+{
+    MU.or(f, g, n)
+}
+
+/// use instead of `==`
+pub fn eq<T: PartialEq>(x: T, y: T, n: usize) -> bool {
+    MU.eq(x, y, n)
+}
+
+/// use instead of `!=`
+pub fn ne<T: PartialEq>(x: T, y: T, n: usize) -> bool {
+    MU.ne(x, y, n)
+}
+
+/// use instead of `>` (or, switching operand order `<`)
+pub fn gt<T: PartialOrd>(x: T, y: T, n: usize) -> bool {
+    MU.gt(x, y, n)
+}
+
+/// use instead of `>=` (or, switching operand order `<=`)
+pub fn ge<T: PartialOrd>(x: T, y: T, n: usize) -> bool {
+    MU.ge(x, y, n)
+}
