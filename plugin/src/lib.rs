@@ -6,6 +6,8 @@ extern crate syntax;
 use rustc_plugin::registry::Registry;
 use std::collections::HashMap;
 use std::convert::TryFrom;
+use std::fs::{create_dir_all, File};
+use std::io::{BufWriter, Write};
 use syntax::ast::*;
 use syntax::codemap::Span;
 use syntax::ext::base::{Annotatable, ExtCtxt, SyntaxExtension};
@@ -22,9 +24,19 @@ pub fn plugin_registrar(reg: &mut Registry) {
     );
 }
 
+static TARGET_MUTAGEN : &'static str = "target/mutagen";
+static MUTATIONS_LIST : &'static str = "mutations.txt";
+
 /// create a MutatorPlugin and let it fold the items/trait items/impl items
 pub fn mutator(cx: &mut ExtCtxt, _span: Span, _mi: &MetaItem, a: Annotatable) -> Annotatable {
-    let mut p = MutatorPlugin::new(cx);
+    // create target/mutagen path if it doesn't exist
+    let mutagen_dir = cx.root_path.join(TARGET_MUTAGEN);
+    if !mutagen_dir.exists() {
+        create_dir_all(&mutagen_dir).unwrap();
+    }
+    let mutation_file = File::create(mutagen_dir.join(MUTATIONS_LIST)).unwrap();
+    let mutations = BufWriter::new(mutation_file);
+    let mut p = MutatorPlugin::new(cx, mutations);
     match a {
         Annotatable::Item(i) => {
             Annotatable::Item(p.fold_item(i).expect_one("expected exactly one item"))
@@ -64,17 +76,17 @@ pub struct MutatorPlugin<'a, 'cx: 'a> {
     /// information about the context
     info: MutatorInfo,
     /// a sequence of mutations
-    mutations: Vec<String>,
+    mutations: BufWriter<File>,
     /// the current mutation count, starting from 1
     current_count: usize,
 }
 
 impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
-    fn new(cx: &'a mut ExtCtxt<'cx>) -> Self {
+    fn new(cx: &'a mut ExtCtxt<'cx>, mutations: BufWriter<File>) -> Self {
         MutatorPlugin {
             cx,
             info: Default::default(),
-            mutations: vec![],
+            mutations,
             current_count: 1,
         }
     }
@@ -501,18 +513,16 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
 
 fn add_mutations(
     cx: &ExtCtxt,
-    mutations: &mut Vec<String>,
+    mutations: &mut BufWriter<File>,
     count: &mut usize,
     span: Span,
     descriptions: &[&str],
 ) {
     //TODO: Write to a file instead
     let span_desc = cx.codemap().span_to_string(span);
-    mutations.extend(
-        descriptions
-            .iter()
-            .map(|desc| format!("{} @ {}", desc, span_desc)),
-    );
+    for desc in descriptions {
+        writeln!(mutations, "{} @ {}", desc, span_desc).unwrap()
+    }
     *count += descriptions.len();
 }
 
