@@ -11,4 +11,4 @@ This repo has two components at the moment: A helper library and a procedural ma
 
 ### Contributing
 
-issues and PRs welcome! See [CONTRIBUTING.md] on how to help.
+issues and PRs welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) on how to help.
