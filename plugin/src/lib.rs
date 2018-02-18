@@ -37,7 +37,7 @@ pub fn mutator(cx: &mut ExtCtxt, _span: Span, _mi: &MetaItem, a: Annotatable) ->
     let mutation_file = File::create(mutagen_dir.join(MUTATIONS_LIST)).unwrap();
     let mutations = BufWriter::new(mutation_file);
     let mut p = MutatorPlugin::new(cx, mutations);
-    match a {
+    let result = match a {
         Annotatable::Item(i) => {
             Annotatable::Item(p.fold_item(i).expect_one("expected exactly one item"))
         }
@@ -47,7 +47,9 @@ pub fn mutator(cx: &mut ExtCtxt, _span: Span, _mi: &MetaItem, a: Annotatable) ->
         Annotatable::ImplItem(i) => Annotatable::ImplItem(i.map(|i| {
             p.fold_impl_item(i).expect_one("expected exactly one item")
         })),
-    }
+    };
+    p.mutations.flush().unwrap();
+    result
 }
 
 /// information about the current method
@@ -101,30 +103,30 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
         // arguments of output type
         let mut have_output_type = vec![];
         // add arguments of same type, so we can switch them?
-        let mut argtypes: HashMap<Symbol, &Ty> = HashMap::new();
-        let mut typeargs: HashMap<&Ty, Vec<Symbol>> = HashMap::new();
+        let mut argtypes: HashMap<Symbol, (Mutability, &Ty)> = HashMap::new();
+        let mut typeargs: HashMap<(Mutability, &Ty), Vec<Symbol>> = HashMap::new();
         for arg in &decl.inputs {
-            if let Some(name) = get_pat_name(&arg.pat) {
-                argtypes.insert(name, &*arg.ty);
-                typeargs.entry(&arg.ty).or_insert(vec![]).push(name);
+            if let Some((name, mutability)) = get_pat_name_mut(&arg.pat) {
+                argtypes.insert(name, (mutability, &*arg.ty));
+                typeargs.entry((mutability, &arg.ty)).or_insert(vec![]).push(name);
                 if Some(&*arg.ty) == out_ty {
                     have_output_type.push(name);
                 }
             }
         }
-        let mut replaceables = HashMap::new();
-        for (arg, ty) in argtypes {
-            if typeargs[ty].len() > 1 {
-                replaceables.insert(
+        let mut interchangeables = HashMap::new();
+        for (arg, mut_ty) in argtypes {
+            if typeargs[&mut_ty].len() > 1 {
+                interchangeables.insert(
                     arg,
-                    typeargs[ty].iter().cloned().filter(|a| a != &arg).collect(),
+                    typeargs[&mut_ty].iter().cloned().filter(|a| a != &arg).collect(),
                 );
             }
         }
         self.info.method_infos.push(MethodInfo {
             is_default,
             have_output_type,
-            interchangeables: replaceables,
+            interchangeables
         });
     }
 
@@ -451,42 +453,41 @@ fn fold_first_block(block: P<Block>, m: &mut MutatorPlugin) -> P<Block> {
             is_default,
             ref have_output_type,
             ref interchangeables,
-        }) = info.method_infos.last()
-            {
-                if is_default {
-                    let n = *current_count;
-                    add_mutations(
-                        cx,
-                        mutations,
-                        current_count,
-                        block.span,
-                        &["insert return default()"],
-                    );
-                    pre_stmts.push(
-                        quote_stmt!(cx,
-                    if mutagen::now($n) { return Default::default(); })
-                            .unwrap(),
-                    );
-                }
-                for name in have_output_type {
-                    let n = *current_count;
-                    let ident = name.to_ident();
-                    add_mutations(
-                        cx,
-                        mutations,
-                        current_count,
-                        block.span,
-                        &[&format!("insert return {}", name)],
-                    );
-                    pre_stmts.push(
-                        quote_stmt!(cx,
-                    if mutagen::now($n) { return $ident; })
-                            .unwrap(),
-                    );
-                }
-                //TODO: switch interchangeables, need mutability info, too
-                //for name in method_info.interchangeables { }
+        }) = info.method_infos.last() {
+            if is_default {
+                let n = *current_count;
+                add_mutations(
+                    cx,
+                    mutations,
+                    current_count,
+                    block.span,
+                    &["insert return default()"],
+                );
+                pre_stmts.push(
+                    quote_stmt!(cx,
+                if mutagen::now($n) { return Default::default(); })
+                        .unwrap(),
+                );
             }
+            for name in have_output_type {
+                let n = *current_count;
+                let ident = name.to_ident();
+                add_mutations(
+                    cx,
+                    mutations,
+                    current_count,
+                    block.span,
+                    &[&format!("insert return {}", name)],
+                );
+                pre_stmts.push(
+                    quote_stmt!(cx,
+                if mutagen::now($n) { return $ident; })
+                        .unwrap(),
+                );
+            }
+            //TODO: switch interchangeables, need mutability info, too
+            //for name in method_info.interchangeables { }
+        }
     }
     if pre_stmts.is_empty() {
         fold::noop_fold_block(block, m)
@@ -532,9 +533,9 @@ fn add_mutations(
     *count += descriptions.len();
 }
 
-fn get_pat_name(pat: &Pat) -> Option<Symbol> {
-    if let PatKind::Ident(_, i, _) = pat.node {
-        Some(i.node.name)
+fn get_pat_name_mut(pat: &Pat) -> Option<(Symbol, Mutability)> {
+    if let PatKind::Ident(mode, i, _) = pat.node {
+        Some((i.node.name, match mode { BindingMode::ByRef(m) | BindingMode::ByValue(m) => m }))
     } else {
         None
     }
