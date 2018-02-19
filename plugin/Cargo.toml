@@ -11,4 +11,4 @@ crate-type = [ "dylib" ]
 plugin = true
 
 [dependencies]
-mutator = "0.1.0"
+mutagen = { version = "0.1.0", path = ".." }
