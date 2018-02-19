@@ -3,18 +3,10 @@ rust: nightly
 os:
   - linux
   - osx
-env:
-  - ARCH=x86_64
-  - ARCH=i686
-addons:
-  apt:
-    packages:
-      - gcc-multilib
 cache: cargo
 sudo: false
 script: |
-  curl -sSL https://raw.githubusercontent.com/carllerche/travis-rust-matrix/master/test | bash
-  cargo test && cargo test --release
+  cargo test
   pushd plugin
   cargo test
   popd
