@@ -30,7 +30,11 @@ static MUTATIONS_LIST : &'static str = "mutations.txt";
 /// create a MutatorPlugin and let it fold the items/trait items/impl items
 pub fn mutator(cx: &mut ExtCtxt, _span: Span, _mi: &MetaItem, a: Annotatable) -> Annotatable {
     // create target/mutagen path if it doesn't exist
-    let mutagen_dir = cx.root_path.join(TARGET_MUTAGEN);
+    let mutagen_dir = if cx.root_path.ends_with("src") {
+        cx.root_path.parent().unwrap_or(::std::path::Path::new("."))
+    } else {
+        cx.root_path.as_path()
+    }.join(TARGET_MUTAGEN);
     if !mutagen_dir.exists() {
         create_dir_all(&mutagen_dir).unwrap();
     }
