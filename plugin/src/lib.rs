@@ -477,6 +477,10 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
             e => P(fold::noop_fold_expr(e, self)),
         }) //TODO: more expr mutations
     }
+
+    fn fold_mac(&mut self, mac: Mac) -> Mac {
+        fold::noop_fold_mac(mac, self)
+    }
 }
 
 fn fold_first_block(block: P<Block>, m: &mut MutatorPlugin) -> P<Block> {
