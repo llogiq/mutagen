@@ -6,8 +6,9 @@ extern crate syntax;
 use rustc_plugin::registry::Registry;
 use std::collections::HashMap;
 use std::convert::TryFrom;
-use std::fs::{create_dir_all, File};
+use std::fs::{create_dir_all, File, OpenOptions};
 use std::io::{BufWriter, Write};
+use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
 use syntax::ast::*;
 use syntax::codemap::Span;
 use syntax::ext::base::{Annotatable, ExtCtxt, SyntaxExtension};
@@ -26,6 +27,7 @@ pub fn plugin_registrar(reg: &mut Registry) {
 
 static TARGET_MUTAGEN : &'static str = "target/mutagen";
 static MUTATIONS_LIST : &'static str = "mutations.txt";
+static MUTATION_COUNT : AtomicUsize = AtomicUsize::new(0);
 
 /// create a MutatorPlugin and let it fold the items/trait items/impl items
 pub fn mutator(cx: &mut ExtCtxt, _span: Span, _mi: &MetaItem, a: Annotatable) -> Annotatable {
@@ -38,9 +40,14 @@ pub fn mutator(cx: &mut ExtCtxt, _span: Span, _mi: &MetaItem, a: Annotatable) ->
     if !mutagen_dir.exists() {
         create_dir_all(&mutagen_dir).unwrap();
     }
-    let mutation_file = File::create(mutagen_dir.join(MUTATIONS_LIST)).unwrap();
+    let mutation_fpath = mutagen_dir.join(MUTATIONS_LIST);
+    let mutation_file = if MUTATION_COUNT.compare_and_swap(0, 1, SeqCst) > 0 {
+        OpenOptions::new().append(true).open(mutation_fpath)
+    } else {
+        File::create(mutation_fpath)
+    }.unwrap();
     let mutations = BufWriter::new(mutation_file);
-    let mut p = MutatorPlugin::new(cx, mutations);
+    let mut p = MutatorPlugin::new(cx, mutations, MUTATION_COUNT.load(SeqCst));
     let result = match a {
         Annotatable::Item(i) => {
             Annotatable::Item(p.fold_item(i).expect_one("expected exactly one item"))
@@ -53,6 +60,7 @@ pub fn mutator(cx: &mut ExtCtxt, _span: Span, _mi: &MetaItem, a: Annotatable) ->
         })),
     };
     p.mutations.flush().unwrap();
+    MUTATION_COUNT.store(p.current_count, SeqCst);
     result
 }
 
@@ -63,7 +71,7 @@ struct MethodInfo {
     /// which inputs have the same type as the output?
     have_output_type: Vec<Symbol>,
     /// which inputs have the same type and could be switched?
-    /// TODO mutability
+    /// TODO refs vs. values
     interchangeables: HashMap<Symbol, Vec<Symbol>>,
 }
 
@@ -88,12 +96,12 @@ pub struct MutatorPlugin<'a, 'cx: 'a> {
 }
 
 impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
-    fn new(cx: &'a mut ExtCtxt<'cx>, mutations: BufWriter<File>) -> Self {
+    fn new(cx: &'a mut ExtCtxt<'cx>, mutations: BufWriter<File>, count: usize) -> Self {
         MutatorPlugin {
             cx,
             info: Default::default(),
             mutations,
-            current_count: 1,
+            current_count: count,
         }
     }
 
@@ -425,7 +433,7 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                             "replacing if condition with false",
                             "replacing if condition with true",
                             "inverting if condition",
-                        ],
+                        ]
                     );
                 }
                 let cond = cond.map(|e| fold::noop_fold_expr(e, self));
@@ -436,7 +444,34 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                     id,
                     node: ExprKind::If(mut_cond, then, opt_else),
                     span,
-                    attrs,
+                    attrs
+                })
+            }
+            Expr {
+                id,
+                node: ExprKind::While(cond, block, opt_label),
+                span,
+                attrs,
+            } => {
+                let n;
+                {
+                    n = self.current_count;
+                    add_mutations(
+                        &self.cx,
+                        &mut self.mutations,
+                        &mut self.current_count,
+                        cond.span,
+                        &["replacing while condition with false"]
+                    );
+                }
+                let cond = cond.map(|e| fold::noop_fold_expr(e, self));
+                let block = fold::noop_fold_block(block, self);
+                let mut_cond = quote_expr!(self.cx, mutagen::w($cond, $n));
+                P(Expr {
+                    id,
+                    node: ExprKind::While(mut_cond, block, opt_label),
+                    span,
+                    attrs
                 })
             }
             e => P(fold::noop_fold_expr(e, self)),
