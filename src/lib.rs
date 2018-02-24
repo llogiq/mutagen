@@ -1,3 +1,8 @@
+
+#[macro_use]
+extern crate lazy_static;
+
+use std::env;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// A helper trait to select a value from a same-typed tuple
@@ -32,18 +37,20 @@ impl<T> Selector<T> for (T, T, T, T) {
     }
 }
 
+lazy_static! {
+    static ref MU: Mutagen = {
+        let count = env::var("MUTATION_COUNT").map(|s|s.parse().unwrap_or(0)).unwrap_or(0);
+        Mutagen { x: AtomicUsize::new(count) }
+    };
+}
+
 /// A global helper struct to keep a mutation count
 ///
 /// This is used by the Mutagen crate to simplify the code it inserts.
 /// You should have no business using it manually.
-///
-/// TODO: Use a lazy_static instead?
 pub struct Mutagen {
     x: AtomicUsize
 }
-
-/// The global mutation count
-pub static MU: Mutagen = Mutagen { x: AtomicUsize::new(0) };
 
 impl Mutagen {
     /// get the current mutation count
