@@ -6,3 +6,6 @@ description = "Mutation testing for Rust – Support library"
 repository = "https://github.com/llogiq/mutator"
 license = "Apache-2.0/MIT"
 readme = "README.md"
+
+[dependencies]
+lazy_static = "1.0"
