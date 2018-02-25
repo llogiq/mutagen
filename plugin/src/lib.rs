@@ -10,12 +10,13 @@ use std::fs::{create_dir_all, File, OpenOptions};
 use std::io::{BufWriter, Write};
 use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
 use syntax::ast::*;
-use syntax::codemap::Span;
+use syntax::codemap::{Span, Spanned};
 use syntax::ext::base::{Annotatable, ExtCtxt, SyntaxExtension};
 use syntax::fold::{self, Folder};
 use syntax::ptr::P;
 use syntax::symbol::Symbol;
 use syntax::util::small_vector::SmallVector;
+use syntax::ast::{LitKind, LitIntType, IntTy, UnOp};
 
 #[plugin_registrar]
 pub fn plugin_registrar(reg: &mut Registry) {
@@ -154,6 +155,71 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
     fn end_impl(&mut self) {
         let ty = self.info.self_tys.pop();
         assert!(ty.is_some());
+    }
+
+    fn mutate_numeric_constant_expression(&mut self, lit: &Lit, is_negative: bool) -> Option<P<Expr>> {
+        match lit {
+            &Spanned{
+                node: LitKind::Int(i, ty),
+                span: s,
+            } => {
+                let mut mut_expression = quote_expr!(self.cx, $lit);
+
+                let mut numeric_constant = i as i64;
+                if is_negative {
+                    numeric_constant = -numeric_constant;
+                }
+
+                if int_constant_can_subtract_one(numeric_constant, ty) {
+                    let n;
+                    {
+                        n = self.current_count;
+                        add_mutations(
+                            &self.cx,
+                            &mut self.mutations,
+                            &mut self.current_count,
+                            s,
+                            &[
+                                "sub one to int constant",
+                            ],
+                        );
+                    }
+
+                    mut_expression = quote_expr!(self.cx,
+                                    {
+                                        if mutagen::now($n) { $lit - 1 }
+                                        else { $mut_expression }
+                                    });
+                }
+
+                if int_constant_can_add_one(numeric_constant as u64, ty) {
+                    let n;
+                    {
+                        n = self.current_count;
+                        add_mutations(
+                            &self.cx,
+                            &mut self.mutations,
+                            &mut self.current_count,
+                            s,
+                            &[
+                                "add one to int constant",
+                            ],
+                        );
+                    }
+
+                    mut_expression = quote_expr!(self.cx,
+                                    {
+                                        if mutagen::now($n) { $lit + 1 }
+                                        else { $mut_expression }
+                                    });
+                }
+
+                Some(mut_expression)
+            },
+            _ => {
+                None
+            }
+        }
     }
 }
 
@@ -483,14 +549,94 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                     span,
                     attrs
                 })
-            }
-            e => P(fold::noop_fold_expr(e, self)),
+            },
+            Expr {
+                id,
+                node: ExprKind::Unary(UnOp::Neg, exp),
+                span,
+                attrs,
+            } => {
+                let exp = exp.and_then(|e| {
+                    let maybe_exp = match &e.node {
+                        &ExprKind::Lit(ref lit) => {
+                            self.mutate_numeric_constant_expression(&lit, true)
+                        },
+                        _ => None,
+                    };
+
+                    maybe_exp.unwrap_or_else(|| {
+                        P(e)
+                    })
+                });
+
+                P(Expr {
+                    id,
+                    node: ExprKind::Unary(UnOp::Neg, exp),
+                    span,
+                    attrs,
+                })
+            },
+            Expr {
+                id,
+                node: ExprKind::Lit(lit),
+                span,
+                attrs,
+            } => {
+                let exp = lit.and_then(|l| {
+                    self.mutate_numeric_constant_expression(&l, false)
+                        .unwrap_or_else(|| P(Expr{
+                            id,
+                            node: ExprKind::Lit(P(l)),
+                            span,
+                            attrs,
+                        }))
+                });
+
+                exp
+
+            },
+            e => {
+                P(fold::noop_fold_expr(e, self))
+            },
         }) //TODO: more expr mutations
     }
 
     fn fold_mac(&mut self, mac: Mac) -> Mac {
         mac
     }
+}
+
+fn int_constant_can_subtract_one(i: i64, ty: LitIntType) -> bool{
+    let min: i64 = match ty {
+        LitIntType::Unsuffixed | LitIntType::Unsigned(_) => 0,
+        LitIntType::Signed(IntTy::Isize) => std::i32::MIN as i64,
+        LitIntType::Signed(IntTy::I8) => std::i8::MIN as i64,
+        LitIntType::Signed(IntTy::I16) => std::i16::MIN as i64,
+        LitIntType::Signed(IntTy::I32) => std::i32::MIN as i64,
+        LitIntType::Signed(IntTy::I64) => std::i64::MIN as i64,
+        _ => std::i64::MIN,
+    };
+
+    i as i64 > min
+}
+
+fn int_constant_can_add_one(i: u64, ty: LitIntType) -> bool {
+    let max: u64 = match ty {
+        LitIntType::Unsuffixed => std::u8::MAX as u64,
+        LitIntType::Unsigned(UintTy::Usize) => std::u32::MAX as u64,
+        LitIntType::Unsigned(UintTy::U8) => std::u8::MAX as u64,
+        LitIntType::Unsigned(UintTy::U16) => std::u16::MAX as u64,
+        LitIntType::Unsigned(UintTy::U32) => std::u32::MAX as u64,
+        LitIntType::Unsigned(UintTy::U64) => std::u64::MAX as u64,
+        LitIntType::Signed(IntTy::Isize) => std::i32::MAX as u64,
+        LitIntType::Signed(IntTy::I8) => std::i8::MAX as u64,
+        LitIntType::Signed(IntTy::I16) => std::i16::MAX as u64,
+        LitIntType::Signed(IntTy::I32) => std::i32::MAX as u64,
+        LitIntType::Signed(IntTy::I64) => std::i64::MAX as u64,
+        _ => std::u64::MAX,
+    };
+
+    i < max
 }
 
 fn fold_first_block(block: P<Block>, m: &mut MutatorPlugin) -> P<Block> {
@@ -755,4 +901,44 @@ fn get_lit(expr: &Expr) -> Option<usize> {
         }
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use syntax::ast::{LitIntType, IntTy};
+
+    #[test]
+    fn test_can_add_one() {
+        let examples = [
+            ((std::u8::MAX as u64) + 1, LitIntType::Unsuffixed, false),
+            ((std::u8::MAX as u64) - 1, LitIntType::Unsuffixed, true),
+            ((std::i64::MAX as u64), LitIntType::Signed(IntTy::I64), false),
+            ((std::u64::MAX) - 1, LitIntType::Unsigned(UintTy::U64), true),
+        ];
+
+        examples.iter().for_each(|test| {
+            let actual = int_constant_can_add_one(test.0, test.1);
+
+            assert_eq!(actual, test.2);
+        });
+    }
+
+    #[test]
+    fn test_can_subtract_one() {
+        let examples = [
+            (1 as i64, LitIntType::Unsuffixed, true),
+            (0 as i64, LitIntType::Unsuffixed, false),
+            (std::i8::MIN as i64, LitIntType::Signed(IntTy::I8), false),
+            (std::i8::MIN as i64 + 1, LitIntType::Signed(IntTy::I8), true),
+            (std::i64::MIN as i64, LitIntType::Signed(IntTy::I64), false),
+            (std::i64::MIN as i64 + 1, LitIntType::Signed(IntTy::I64), true),
+        ];
+
+        examples.iter().for_each(|test| {
+            let actual = int_constant_can_subtract_one(test.0, test.1);
+
+            assert_eq!(actual, test.2);
+        });
+    }
 }
