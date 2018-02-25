@@ -219,6 +219,16 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
 
     fn fold_expr(&mut self, expr: P<Expr>) -> P<Expr> {
         expr.and_then(|expr| match expr {
+            e@Expr {
+                id: _,
+                node: ExprKind::Mac(_),
+                span: _,
+                attrs: _,
+            } => {
+                // self.cx.expander().fold_expr(P(e)).map(|e| fold::noop_fold_expr(e, self))
+                // ignore macros for now
+                P(e)
+            }
             Expr {
                 id,
                 node: ExprKind::Binary(op, left, right),
@@ -479,7 +489,7 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
     }
 
     fn fold_mac(&mut self, mac: Mac) -> Mac {
-        fold::noop_fold_mac(mac, self)
+        mac
     }
 }
 
