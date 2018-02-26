@@ -5,8 +5,8 @@ os:
   - osx
 cache: cargo
 sudo: false
-script: |
-  cargo test
-  pushd plugin
-  cargo test
-  popd
+script:
+  - cargo test
+  - pushd plugin
+  - cargo test
+  - popd
