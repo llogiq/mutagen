@@ -30,7 +30,7 @@ pub fn count_alphabetic_chars(c: char, string: &str) -> usize {
     let chars = string.chars().collect::<Vec<char>>();
 
     // Check if within bounds
-    if (ord < 0x41 || ord > 0x5A) && (ord < 0x71 || ord > 0x7A) {
+    if (ord < 0x41 || ord > 0x5A) && (ord < 0x61 || ord > 0x7A) {
         return 0;
     }
 
@@ -45,33 +45,93 @@ pub fn count_alphabetic_chars(c: char, string: &str) -> usize {
 
 #[cfg(test)]
 mod tests {
+    #![allow(non_snake_case)]
 
     use super::count_alphabetic_chars;
-    use super::mutagen;
 
     #[test]
     fn test_count_alphabetic_chars() {
         let string = "AsfwrgebrtSSNNfegerhLLSL4243";
-        let mut results = vec![];
 
-        for _ in 0..100 {
-            mutagen::next();
+        let result = count_alphabetic_chars('S', string);
+        assert_eq!(3, result);
+    }
 
-            //Actual test
-            let result = 3 == count_alphabetic_chars('S', string);
+    #[test]
+    fn test_count_lt_a() {
+        let string = "AsfwragebrtSSNNfegerhLLSL`4243";
 
-            println!(
-                "Test {}: {} == {} => {}",
-                mutagen::get(),
-                3,
-                count_alphabetic_chars('S', string),
-                result
-            );
+        let result = count_alphabetic_chars('`', string);
+        assert_eq!(0, result);
+    }
 
-            results.push(result);
-        }
+    #[test]
+    fn test_count_a() {
+        let string = "AsfwragebrtSSNNfegerhLLS1L4243";
 
-        // All results should be false
-        assert_eq!(true, results.iter().all(|x| !*x));
+        let result = count_alphabetic_chars('a', string);
+        assert_eq!(1, result);
+    }
+
+    #[test]
+    fn test_count_z() {
+        let string = "AsfwragebrtSSNNfegezrhLLSL4243";
+
+        let result = count_alphabetic_chars('z', string);
+        assert_eq!(1, result);
+    }
+
+    #[test]
+    fn test_count_gt_z() {
+        let string = "AsfwragebrtSSNNfegezrhLLS{L4243";
+
+        let result = count_alphabetic_chars('{', string);
+        assert_eq!(0, result);
+    }
+
+    #[test]
+    fn test_count_lt_A() {
+        let string = "AsfwragebrtSSNNfeg@erhLLSL4243";
+
+        let result = count_alphabetic_chars('@', string);
+        assert_eq!(0, result);
+    }
+
+    #[test]
+    fn test_count_A() {
+        let string = "AsfwragebrtSSNNfegerhLLSL4243";
+
+        let result = count_alphabetic_chars('A', string);
+        assert_eq!(1, result);
+    }
+
+    #[test]
+    fn test_count_Z() {
+        let string = "AsfwragebrtSSNNfegeZzrhLLSL4243";
+
+        let result = count_alphabetic_chars('Z', string);
+        assert_eq!(1, result);
+    }
+
+    #[test]
+    fn test_count_gt_Z() {
+        let string = "AsfwragebrtSSNNfegeZz[rhLLSL4243";
+
+        let result = count_alphabetic_chars('[', string);
+        assert_eq!(0, result);
+    }
+
+    #[test]
+    fn test_count_empty() {
+        let string = "";
+
+        assert_eq!(0, count_alphabetic_chars('S', string));
+    }
+
+    #[test]
+    fn test_count_non_ascii() {
+        let string = "Adwfwrec DW34542";
+
+        assert_eq!(0, count_alphabetic_chars(' ', string));
     }
 }

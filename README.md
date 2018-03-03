@@ -22,8 +22,6 @@ This project is basically an experiment to see what mutations we can still apply
 
 ### Running mutagen
 
-We plan to have a test runner at some point, but until we get there, you'll need to call mutagen manually.
-
 Again, remember you need a nightly `rustc` to compile the plugin. Add the plugin and helper library as a dev-dependency to your `Cargo.toml`:
 
 ```
@@ -50,6 +48,8 @@ Now you can advise mutagen to mutate any function, method, impl, trait impl or w
 ```
 
 This ensures the mutation will only be active in test mode. Now you can run `cargo test` as always, which will mutate your code and write a list of mutations in `target/mutagen/mutations.txt`. For every mutation, counting from one, you can run the test binary with the environment variable `MUTATION_COUNT=1 target/debug/myproj-123456`, `MUTATION_COUNT=2 ..`, etc.
+
+To automate this install the runner. Run `cargo install` in the runner dir. Compile the test for the project under test (`cargo +nightly test --no-run`). Run `cargo mutagen`.
 
 ### Contributing
 
