@@ -10,20 +10,20 @@ use std::str::from_utf8;
 static TARGET_MUTAGEN: &'static str = "target/mutagen";
 static MUTATIONS_LIST: &'static str = "mutations.txt";
 
-fn run_mutation(i: usize) -> Result<String, String> {
+fn run_mutation(mutation_count: usize) -> Result<String, String> {
     let output = Command::new("cargo")
         .args(&["test"])
         // 0 is actually no mutations so we need i + 1 here
-        .env("MUTATION_COUNT", (i + 1).to_string())
+        .env("MUTATION_COUNT", mutation_count.to_string())
         .output()
         .expect("failed to execute process");
 
     let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
 
     if output.status.success() {
-        Err(stdout)
-    } else {
         Ok(stdout)
+    } else {
+        Err(stdout)
     }
 }
 
@@ -36,9 +36,12 @@ fn run_mutations(list: Vec<String>) {
     for i in 0..max_mutation {
         print!("{}", list[i]);
 
-        let result = run_mutation(i);
+        // Mutation count starts from 1 (0 is not mutations)
+        let result = run_mutation(i + 1);
 
-        if let Err(stdout) = result {
+        if let Ok(stdout) = result {
+            // A succeeding test suite is actually a failure for us.
+            // At least on test should have failed
             println!(" ... FAILED");
             failures.push((&list[i], stdout))
         } else {
@@ -123,5 +126,11 @@ fn main() {
     compile_tests();
     let filename = get_mutations_filename();
     let list = read_mutations(filename);
+
+    if let Err(_) = run_mutation(0){
+        println!("You need to make sure you don't have failing tests before running 'cargo mutagen'");
+        return;
+    }
+
     run_mutations(list)
 }
