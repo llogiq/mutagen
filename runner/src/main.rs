@@ -1,19 +1,14 @@
-#[macro_use]
-extern crate serde_derive;
-extern crate serde_json;
+extern crate json;
+
 
 use std::process::Command;
 use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::str::from_utf8;
 
 static TARGET_MUTAGEN: &'static str = "target/mutagen";
 static MUTATIONS_LIST: &'static str = "mutations.txt";
-
-#[derive(Deserialize)]
-struct Metadata {
-    workspace_root: String,
-}
 
 fn run_mutation(i: usize) -> Result<String, String> {
     let output = Command::new("cargo")
@@ -47,7 +42,6 @@ fn run_mutations(list: Vec<String>) {
             println!(" ... FAILED");
             failures.push((&list[i], stdout))
         } else {
-            //failures.push((&list[i], result.unwrap()));
             println!(" ... ok");
         }
     }
@@ -79,17 +73,21 @@ fn run_mutations(list: Vec<String>) {
 }
 
 fn get_mutations_filename() -> PathBuf {
-    // TODO can we improve this without needing serde etc 
-    // to basically get the root dir of the crate?
     let metadata = Command::new("cargo")
-        .args(&["metadata"])
+        .arg("metadata")
         .output()
-        .expect("failed to execute process")
-        .stdout;
-    let metadata: Metadata = serde_json::from_slice(&metadata).unwrap();
-    let root_dir = metadata.workspace_root;
-
-    let mutagen_dir = Path::new(&root_dir).join(TARGET_MUTAGEN);
+        .expect("failed to fetch metadata. Is this a Rust project?");
+    if !metadata.status.success() {
+        println!("failed to fetch metadata, cargo returned non-zero status.");
+        panic!("{}", from_utf8(&metadata.stderr).unwrap());
+    }
+    let meta_json = json::parse(from_utf8(&metadata.stdout)
+                                                   .expect("non-UTF8 cargo output"))
+                                  .unwrap();
+    let root_dir = Path::new(meta_json["workspace_root"]
+                                  .as_str()
+                                  .expect("cargo metadata misses workspace_root"));
+    let mutagen_dir = root_dir.join(TARGET_MUTAGEN);
     if !mutagen_dir.exists() {
         panic!("Mutations are missing");
     }
