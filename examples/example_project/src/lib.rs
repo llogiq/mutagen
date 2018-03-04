@@ -65,13 +65,15 @@ mod tests {
         assert_eq!(0, result);
     }
 
-    #[test]
-    fn test_count_a() {
-        let string = "AsfwragebrtSSNNfegerhLLS1L4243";
+    //  This test is intentionally disabled to show mutagen finding a missing test
 
-        let result = count_alphabetic_chars('a', string);
-        assert_eq!(1, result);
-    }
+    // #[test]
+    // fn test_count_a() {
+    //     let string = "AsfwragebrtSSNNfegerhLLS1L4243";
+
+    //     let result = count_alphabetic_chars('a', string);
+    //     assert_eq!(1, result);
+    // }
 
     #[test]
     fn test_count_z() {
