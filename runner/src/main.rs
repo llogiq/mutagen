@@ -12,7 +12,7 @@ static MUTATIONS_LIST: &'static str = "mutations.txt";
 
 fn run_mutation(mutation_count: usize) -> Result<String, String> {
     let output = Command::new("cargo")
-        .args(&["test"])
+        .args(&["test", "--", "--nocapture"])
         // 0 is actually no mutations so we need i + 1 here
         .env("MUTATION_COUNT", mutation_count.to_string())
         .output()
@@ -34,16 +34,18 @@ fn run_mutations(list: Vec<String>) {
 
     println!("Running {} mutations", max_mutation);
     for i in 0..max_mutation {
-        print!("{}", list[i]);
-
         // Mutation count starts from 1 (0 is not mutations)
-        let result = run_mutation(i + 1);
+        let mutation_count = i + 1;
+
+        print!("{} ({})", list[i], mutation_count);
+
+        let result = run_mutation(mutation_count);
 
         if let Ok(stdout) = result {
             // A succeeding test suite is actually a failure for us.
             // At least on test should have failed
+            failures.push((&list[i], mutation_count, stdout));
             println!(" ... FAILED");
-            failures.push((&list[i], stdout))
         } else {
             println!(" ... ok");
         }
@@ -52,8 +54,8 @@ fn run_mutations(list: Vec<String>) {
     if !failures.is_empty() {
         println!("\nFailures:\n");
 
-        for &(ref mutation, ref failure) in &failures {
-            println!("---- {} stdout ----", mutation);
+        for &(ref mutation, ref m_count, ref failure) in &failures {
+            println!("---- {} ({}) stdout ----", mutation, m_count);
             for line in failure.split("\n") {
                 println!("  {}", line);
             }
@@ -62,8 +64,8 @@ fn run_mutations(list: Vec<String>) {
 
         println!("\nFailures:\n");
 
-        for &(mutation, _) in &failures {
-            println!("\t{}", mutation);
+        for &(mutation, m_count, _) in &failures {
+            println!("\t{} ({})", mutation, m_count);
         }
     }
 
