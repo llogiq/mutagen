@@ -73,12 +73,12 @@ impl Mutagen {
 
     /// insert the original or an alternate value, e.g. `MU.select(&[2, 0], 42)`
     pub fn select<T, S: Selector<T>>(&self, selector: S, n: usize) -> T {
-        selector.get(n.wrapping_sub(self.get()))
+        selector.get(self.get().wrapping_sub(n))
     }
 
     /// use with if expressions, e.g. `if MU.t(..) { .. } else { .. }`
     pub fn t(&self, t: bool, n: usize) -> bool {
-        match n.wrapping_sub(self.get()) {
+        match self.get().wrapping_sub(n) {
             0 => true,
             1 => false,
             2 => !t,
@@ -98,7 +98,7 @@ impl Mutagen {
     /// upholds the invariant that g() is not called unless f() == true
     pub fn and<X, Y>(&self, f: X, g: Y, n: usize) -> bool
         where X: FnOnce() -> bool, Y: FnOnce() -> bool {
-        match n.wrapping_sub(self.get()) {
+        match self.get().wrapping_sub(n) {
             0 => false,
             1 => true,
             2 => f(),
@@ -113,7 +113,7 @@ impl Mutagen {
     /// upholds the invariant that g() is not called unless f() == false
     pub fn or<X, Y>(&self, f: X, g: Y, n: usize) -> bool
         where X: FnOnce() -> bool, Y: FnOnce() -> bool {
-        match n.wrapping_sub(self.get()) {
+        match self.get().wrapping_sub(n) {
             0 => false,
             1 => true,
             2 => f(),
@@ -126,7 +126,7 @@ impl Mutagen {
     /// use instead of `==`
     pub fn eq<X, Y, T: PartialEq>(&self, x: X, y: Y, n: usize) -> bool
     where X: FnOnce() -> T, Y: FnOnce() -> T {
-        match n.wrapping_sub(self.get()) {
+        match self.get().wrapping_sub(n) {
             0 => true,
             1 => false,
             2 => x() != y(),
@@ -137,7 +137,7 @@ impl Mutagen {
     /// use instead of `!=`
     pub fn ne<X, Y, T: PartialEq>(&self, x: X, y: Y, n: usize) -> bool
         where X: FnOnce() -> T, Y: FnOnce() -> T {
-        match n.wrapping_sub(self.get()) {
+        match self.get().wrapping_sub(n) {
             0 => true,
             1 => false,
             2 => x() == y(),
@@ -147,7 +147,7 @@ impl Mutagen {
 
     /// use instead of `>` (or, switching operand order `<`)
     pub fn gt<T: PartialOrd>(&self, x: T, y: T, n: usize) -> bool {
-        match n.wrapping_sub(self.get()) {
+        match self.get().wrapping_sub(n) {
             0 => false,
             1 => true,
             2 => x < y,
@@ -161,7 +161,7 @@ impl Mutagen {
 
     /// use instead of `>=` (or, switching operand order `<=`)
     pub fn ge<T: PartialOrd>(&self, x: T, y: T, n: usize) -> bool {
-        match n.wrapping_sub(self.get()) {
+        match self.get().wrapping_sub(n) {
             0 => false,
             1 => true,
             2 => x < y,
