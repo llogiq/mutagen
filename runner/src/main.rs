@@ -1,7 +1,7 @@
 extern crate json;
 
 
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -10,16 +10,14 @@ use std::str::from_utf8;
 static TARGET_MUTAGEN: &'static str = "target/mutagen";
 static MUTATIONS_LIST: &'static str = "mutations.txt";
 
-fn run_mutation(mutation_count: usize) -> Result<String, String> {
-    let output = Command::new("cargo")
-        .args(&["test", "--", "--nocapture"])
+fn run_mutation(test_executable: &Path, mutation_count: usize) -> Result<String, String> {
+    let output = Command::new(test_executable)
         // 0 is actually no mutations so we need i + 1 here
         .env("MUTATION_COUNT", mutation_count.to_string())
         .output()
         .expect("failed to execute process");
 
     let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
-
     if output.status.success() {
         Ok(stdout)
     } else {
@@ -27,7 +25,7 @@ fn run_mutation(mutation_count: usize) -> Result<String, String> {
     }
 }
 
-fn run_mutations(list: Vec<String>) {
+fn run_mutations(test_executable: &Path, list: Vec<String>) {
     let max_mutation = list.len();
 
     let mut failures = Vec::new();
@@ -39,7 +37,7 @@ fn run_mutations(list: Vec<String>) {
 
         print!("{} ({})", list[i], mutation_count);
 
-        let result = run_mutation(mutation_count);
+        let result = run_mutation(test_executable, mutation_count);
 
         if let Ok(stdout) = result {
             // A succeeding test suite is actually a failure for us.
@@ -99,18 +97,30 @@ fn get_mutations_filename() -> PathBuf {
     mutagen_dir.join(MUTATIONS_LIST)
 }
 
-fn compile_tests() {
-    // TODO make this actually work
-    let compiled_tests = Command::new("cargo")
-        .args(&["test", "--no-run"])
+fn compile_tests() -> PathBuf {
+    let compile_out = Command::new("cargo")
+        .args(&["test", "--no-run", "--message-format=json"])
+        .stderr(Stdio::inherit())
         .output()
-        .expect("failed to execute process")
-        .status
-        .success();
+        .expect("Could not compile test");
 
-    if !compiled_tests {
-        panic!("Could not compile tests");
+    if !compile_out.status.success() {
+        panic!("cargo test returned non-zero status");
     }
+    let compile_stdout = from_utf8(&compile_out.stdout).expect("non-utf8 in cargo test messages");
+    for line in compile_stdout.lines() {
+        let msg_json = json::parse(line).expect(compile_stdout);
+        if msg_json["reason"].as_str().unwrap() == "compiler-artifact"
+            && msg_json["profile"]["test"].as_bool().unwrap_or(false) {
+            for filename in msg_json["filenames"].members() {
+                let f = filename.as_str().unwrap();
+                if !f.ends_with(".rlib") {
+                    return f.to_string().into()
+                }
+            }
+        }
+    }
+    panic!("executable path not found");
 }
 
 fn read_mutations(filename: PathBuf) -> Vec<String> {
@@ -125,14 +135,13 @@ fn read_mutations(filename: PathBuf) -> Vec<String> {
 }
 
 fn main() {
-    compile_tests();
+    let test_executable = compile_tests();
+    println!("test executable at {:?}", test_executable);
     let filename = get_mutations_filename();
     let list = read_mutations(filename);
-
-    if let Err(_) = run_mutation(0){
+    if let Err(_) = run_mutation(&test_executable, 0){
         println!("You need to make sure you don't have failing tests before running 'cargo mutagen'");
         return;
     }
-
-    run_mutations(list)
+    run_mutations(&test_executable, list)
 }
