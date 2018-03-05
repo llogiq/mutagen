@@ -11,3 +11,6 @@ keywords = ["testing"]
 
 [dependencies]
 lazy_static = "1.0"
+
+[badges]
+travis-ci = { repository = "llogiq/mutagen", branch = "master" }
