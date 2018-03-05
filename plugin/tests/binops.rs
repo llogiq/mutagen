@@ -26,6 +26,10 @@ fn mutated_function() {
     if (2 != 3) {
         // Do something
     }
+
+    if (ord < 2) {
+        // Do something
+    }
 }
 
 #[test]
@@ -83,4 +87,21 @@ fn test_binop_ne() {
     ];
 
     assert!(checker.has_multiple(noneq_msgs, "26:9: 26:15"));
+}
+
+#[test]
+fn test_lt() {
+    let checker = MutationsChecker::new("tests/binops.rs").unwrap();
+
+    let lt_msgs = &[
+        "replacing _ < _ with false",
+        "replacing _ < _ with true",
+        "replacing x < y with x > y",
+        "replacing x < y with x >= y",
+        "replacing x < y with x <= y",
+        "replacing x < y with x == y",
+        "replacing x < y with x != y",
+    ];
+
+    assert!(checker.has_multiple(lt_msgs, "30"));
 }
