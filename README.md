@@ -12,7 +12,7 @@ This is a work in progress mutation testing framework. Not all components are th
 The idea behind mutation testing is to insert changes into your code to see if they make your tests fail. If not, your tests obviously fail to test the changed code.
 The difference to line or branch coverage is that those measure if the code under test was *executed*, but that says nothing about whether the tests would have caught any error.
 
-This repo has two components at the moment: A helper library and a procedural macro that mutates your code.
+This repo has three components at the moment: The mutagen test runner, a helper library and a procedural macro that mutates your code.
 
 ### How mutagen Works
 
@@ -25,11 +25,11 @@ It also will only see the bare AST, no inferred types, no control flow or data f
 
 This project is basically an experiment to see what mutations we can still apply under those constraints.
 
-### Running mutagen
+### Using mutagen
 
 Again, remember you need a nightly `rustc` to compile the plugin. Add the plugin and helper library as a dev-dependency to your `Cargo.toml`:
 
-```
+```rust
 [dev-dependencies]
 mutagen = "0.1.0"
 mutagen-plugin = "0.1.0"
@@ -37,7 +37,7 @@ mutagen-plugin = "0.1.0"
 
 Now, you can add the plugin to your crate by prepending the following:
 
-```
+```rust
 #![cfg_attr(test, feature(plugin))]
 #![cfg_attr(test, plugin(mutagen_plugin))]
 #![feature(custom_attribute)]
@@ -48,14 +48,20 @@ extern crate mutagen;
 
 Now you can advise mutagen to mutate any function, method, impl, trait impl or whole module (but *not* the whole crate, this is a restriction of procedural macros for now) by prepending:
 
-```
+```rust
 #[cfg_attr(test, mutate)]
 ```
 
-This ensures the mutation will only be active in test mode. Now you can run `cargo test` as always, which will mutate your code and write a list of mutations in `target/mutagen/mutations.txt`. For every mutation, counting from one, you can run the test binary with the environment variable `MUTATION_COUNT=1 target/debug/myproj-123456`, `MUTATION_COUNT=2 ..`, etc.
+This ensures the mutation will only be active in test mode.
 
-To automate this install the runner. Run `cargo install` in the runner dir. Compile the test for the project under test (`cargo +nightly test --no-run`). Run `cargo mutagen`.
+### Running mutagen
+
+Install `cargo-mutagen`. Run `cargo mutagen` on the project under test.
+
+If you want the development version, run `cargo install` in the runner dir.
+
+If you want to do this manually you can run `cargo test` as always, which will mutate your code and write a list of mutations in `target/mutagen/mutations.txt`. For every mutation, counting from one, you can run the test binary with the environment variable `MUTATION_COUNT=1 target/debug/myproj-123456`, `MUTATION_COUNT=2 ..`, etc.
 
 ### Contributing
 
-issues and PRs welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) on how to help.
+Issues and PRs welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) on how to help.
