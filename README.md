@@ -1,5 +1,10 @@
 # Breaking your Rust code for fun & profit
 
+[![Build Status](https://travis-ci.org/llogiq/mutagen.svg?branch=master)](https://travis-ci.org/llogiq/mutagen)
+[![Downloads](https://img.shields.io/crates/d/mutagen.svg?style=flat-square)](https://crates.io/crates/mutagen/)
+[![Version](https://img.shields.io/crates/v/mutagen.svg?style=flat-square)](https://crates.io/crates/mutagen/)
+[![License](https://img.shields.io/crates/l/mutagen.svg?style=flat-square)](https://crates.io/crates/mutagen/)
+
 This is a work in progress mutation testing framework. Not all components are there, those that are there aren't finished, but you can see the broad direction it's going to take.
 
 ### Mutation Testing
