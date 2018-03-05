@@ -596,7 +596,7 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
 
             },
             e => {
-                P(self.fold_expr(P(e)))
+                P(fold::noop_fold_expr(e, self))
             },
         }) //TODO: more expr mutations
     }
