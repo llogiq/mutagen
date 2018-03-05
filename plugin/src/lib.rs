@@ -355,8 +355,8 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                             &mut self.current_count,
                             expr.span,
                             &[
-                                "replacing _ == _ with false",
                                 "replacing _ == _ with true",
+                                "replacing _ == _ with false",
                                 "replacing x == y with x != y",
                             ],
                         );
@@ -375,8 +375,8 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                             &mut self.current_count,
                             expr.span,
                             &[
-                                "replacing _ != _ with false",
                                 "replacing _ != _ with true",
+                                "replacing _ != _ with false",
                                 "replacing x != y with x == y",
                             ],
                         );
@@ -506,8 +506,8 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                         &mut self.current_count,
                         cond.span,
                         &[
-                            "replacing if condition with false",
                             "replacing if condition with true",
+                            "replacing if condition with false",
                             "inverting if condition",
                         ]
                     );
