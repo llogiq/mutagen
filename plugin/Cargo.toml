@@ -13,7 +13,7 @@ crate-type = [ "dylib" ]
 plugin = true
 
 [dependencies]
-mutagen = "0.1.0"
+mutagen = {"version" = "0.1.0", "path" = ".."}
 
 [badges]
 travis-ci = { repository = "llogiq/mutagen", branch = "master" }

@@ -146,30 +146,50 @@ impl Mutagen {
     }
 
     /// use instead of `>` (or, switching operand order `<`)
-    pub fn gt<T: PartialOrd>(&self, x: T, y: T, n: usize) -> bool {
+    pub fn gt<X, Y, T: PartialOrd>(&self, x: X, y: Y, n: usize) -> bool
+        where X: FnOnce() -> T, Y: FnOnce() -> T {
         match self.get().wrapping_sub(n) {
             0 => false,
             1 => true,
-            2 => x < y,
-            3 => x <= y,
-            4 => x >= y,
-            5 => x <= y && x >= y, // == with PartialOrd
-            6 => x < y || x > y, // != with PartialOrd
-            _ => x > y
+            2 => x() < y(),
+            3 => x() <= y(),
+            4 => x() >= y(),
+            5 => {
+                let xv = x();
+                let yv = y();
+                xv <= yv && xv >= yv
+            }, // == with PartialOrd
+            6 => {
+                let xv = x();
+                let yv = y();
+
+                xv < yv || xv > yv
+            }, // != with PartialOrd
+            _ => x() > y()
         }
     }
 
     /// use instead of `>=` (or, switching operand order `<=`)
-    pub fn ge<T: PartialOrd>(&self, x: T, y: T, n: usize) -> bool {
+    pub fn ge<X, Y, T: PartialOrd>(&self, x: X, y: Y, n: usize) -> bool
+        where X: FnOnce() -> T, Y: FnOnce() -> T {
         match self.get().wrapping_sub(n) {
             0 => false,
             1 => true,
-            2 => x < y,
-            3 => x <= y,
-            4 => x > y,
-            5 => x <= y && x >= y, // == with PartialOrd
-            6 => x < y || x > y, // != with PartialOrd
-            _ => x >= y
+            2 => x() < y(),
+            3 => x() <= y(),
+            4 => x() > y(),
+            5 => {
+                let xv = x();
+                let yv = y();
+                xv <= yv && xv >= yv
+            }, // == with PartialOrd
+            6 => {
+                let xv = x();
+                let yv = y();
+
+                xv < yv || xv > yv
+            }, // != with PartialOrd
+            _ => x() >= y()
         }
     }
 }
@@ -243,12 +263,14 @@ pub fn ne<X, Y, T: PartialEq>(x: X, y: Y, n: usize) -> bool
 }
 
 /// use instead of `>` (or, switching operand order `<`)
-pub fn gt<T: PartialOrd>(x: T, y: T, n: usize) -> bool {
+pub fn gt<X, Y, T: PartialOrd>(x: X, y: Y, n: usize) -> bool
+    where X: FnOnce() -> T, Y: FnOnce() -> T {
     MU.gt(x, y, n)
 }
 
 /// use instead of `>=` (or, switching operand order `<=`)
-pub fn ge<T: PartialOrd>(x: T, y: T, n: usize) -> bool {
+pub fn ge<X, Y, T: PartialOrd>(x: X, y: Y, n: usize) -> bool
+    where X: FnOnce() -> T, Y: FnOnce() -> T {
     MU.ge(x, y, n)
 }
 
