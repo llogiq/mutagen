@@ -196,6 +196,8 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
 
                     mut_expression = quote_expr!(self.cx,
                                     {
+                                        ::mutagen::report_coverage();
+
                                         if ::mutagen::now($n) { $lit - 1 }
                                         else { $mut_expression }
                                     });
@@ -216,6 +218,8 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
 
                     mut_expression = quote_expr!(self.cx,
                                     {
+                                        ::mutagen::report_coverage();
+
                                         if ::mutagen::now($n) { $lit + 1 }
                                         else { $mut_expression }
                                     });
@@ -349,14 +353,16 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                     }
                     let left = self.fold_expr(left);
                     let right = self.fold_expr(right);
-                    quote_expr!(self.cx,
-                                (match ($left, ::mutagen::diff($n)) {
-                                        (_, 0) => false,
-                                        (_, 1) => true,
-                                        (x, 2) => x,
-                                        (x, 3) => !x,
-                                        (x, n) => x && ($right) == (n != 4),
-                                }))
+                    quote_expr!(self.cx, {
+                        ::mutagen::report_coverage();
+                        (match ($left, ::mutagen::diff($n)) {
+                                (_, 0) => false,
+                                (_, 1) => true,
+                                (x, 2) => x,
+                                (x, 3) => !x,
+                                (x, n) => x && ($right) == (n != 4),
+                        })
+                    })
                 }
                 BinOpKind::Or => {
                     let n;
@@ -378,14 +384,16 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                     }
                     let left = self.fold_expr(left);
                     let right = self.fold_expr(right);
-                    quote_expr!(self.cx,
-                                (match ($left, ::mutagen::diff($n)) {
-                                        (_, 0) => false,
-                                        (_, 1) => true,
-                                        (x, 2) => x,
-                                        (x, 3) => !x,
-                                        (x, n) => x || ($right) == (n != 4),
-                                }))
+                    quote_expr!(self.cx, {
+                        ::mutagen::report_coverage();
+                        (match ($left, ::mutagen::diff($n)) {
+                            (_, 0) => false,
+                            (_, 1) => true,
+                            (x, 2) => x,
+                            (x, 3) => !x,
+                            (x, n) => x || ($right) == (n != 4),
+                        })
+                    })
                 }
                 BinOpKind::Eq => {
                     let n;
@@ -405,7 +413,10 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                     }
                     let left = self.fold_expr(left);
                     let right = self.fold_expr(right);
-                    quote_expr!(self.cx, ::mutagen::eq($left, $right, $n))
+                    quote_expr!(self.cx, {
+                        ::mutagen::report_coverage();
+                        ::mutagen::eq($left, $right, $n)
+                    })
                 }
                 BinOpKind::Ne => {
                     let n;
@@ -425,7 +436,10 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                     }
                     let left = self.fold_expr(left);
                     let right = self.fold_expr(right);
-                    quote_expr!(self.cx, ::mutagen::ne($left, $right, $n))
+                    quote_expr!(self.cx, {
+                        ::mutagen::report_coverage();
+                        ::mutagen::ne($left, $right, $n)
+                    })
                 }
                 BinOpKind::Gt => {
                     let n;
@@ -449,7 +463,10 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                     }
                     let left = self.fold_expr(left);
                     let right = self.fold_expr(right);
-                    quote_expr!(self.cx, ::mutagen::gt($left, $right, $n))
+                    quote_expr!(self.cx, {
+                        ::mutagen::report_coverage();
+                        ::mutagen::gt($left, $right, $n)
+                    })
                 }
                 BinOpKind::Lt => {
                     let n;
@@ -473,7 +490,10 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                     }
                     let left = self.fold_expr(left);
                     let right = self.fold_expr(right);
-                    quote_expr!(self.cx, ::mutagen::gt($right, $left, $n))
+                    quote_expr!(self.cx, {
+                        ::mutagen::report_coverage();
+                        ::mutagen::gt($right, $left, $n)
+                    })
                 }
                 BinOpKind::Ge => {
                     let n;
@@ -497,7 +517,10 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                     }
                     let left = self.fold_expr(left);
                     let right = self.fold_expr(right);
-                    quote_expr!(self.cx, ::mutagen::ge($left, $right, $n))
+                    quote_expr!(self.cx, {
+                        ::mutagen::report_coverage();
+                        ::mutagen::ge($left, $right, $n)
+                    })
                 }
                 BinOpKind::Le => {
                     let n;
@@ -521,7 +544,10 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                     }
                     let left = self.fold_expr(left);
                     let right = self.fold_expr(right);
-                    quote_expr!(self.cx, ::mutagen::ge($right, $left, $n))
+                    quote_expr!(self.cx, {
+                        ::mutagen::report_coverage();
+                        ::mutagen::ge($right, $left, $n)
+                    })
                 }
                 _ => P(fold::noop_fold_expr(
                     Expr {
@@ -557,7 +583,11 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                 let cond = self.fold_expr(cond);
                 let then = fold::noop_fold_block(then, self);
                 let opt_else = opt_else.map(|p_else| self.fold_expr(p_else));
-                let mut_cond = quote_expr!(self.cx, ::mutagen::t($cond, $n));
+                let mut_cond = quote_expr!(self.cx, {
+                    ::mutagen::report_coverage();
+                    ::mutagen::t($cond, $n)
+                });
+
                 P(Expr {
                     id,
                     node: ExprKind::If(mut_cond, then, opt_else),
@@ -584,7 +614,10 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                 }
                 let cond = self.fold_expr(cond);
                 let block = fold::noop_fold_block(block, self);
-                let mut_cond = quote_expr!(self.cx, ::mutagen::w($cond, $n));
+                let mut_cond = quote_expr!(self.cx, {
+                    ::mutagen::report_coverage();
+                    ::mutagen::w($cond, $n)
+                });
                 P(Expr {
                     id,
                     node: ExprKind::While(mut_cond, block, opt_label),

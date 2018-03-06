@@ -10,6 +10,9 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 mod ops;
 pub use ops::*;
 
+mod coverage;
+pub use coverage::report_coverage;
+
 /// A helper trait to select a value from a same-typed tuple
 #[doc(hidden)]
 pub trait Selector<T> {

@@ -122,11 +122,7 @@ fn test_binop_eq_and_off_by_one() {
 
     assert!(checker.has_multiple(eq_msgs, "34:8: 34:16"));
 
-
-    let eq_msgs = &[
-        "sub one to int constant",
-        "add one to int constant",
-    ];
+    let eq_msgs = &["sub one to int constant", "add one to int constant"];
 
     assert!(checker.has_multiple(eq_msgs, "34:15: 34:16"));
 }

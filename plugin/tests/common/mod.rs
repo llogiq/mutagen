@@ -29,10 +29,7 @@ impl<'a> MutationsChecker<'a> {
 
         self.mutations
             .iter()
-            .find(|current| {
-                current.contains(msg) &&
-                    current.contains(&location)
-            })
+            .find(|current| current.contains(msg) && current.contains(&location))
             .is_some()
     }
 

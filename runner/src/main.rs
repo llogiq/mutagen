@@ -1,30 +1,18 @@
 extern crate json;
 
+mod runner;
+
 use std::process::{Command, Stdio};
 use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::str::from_utf8;
+use runner::{FullSuiteRunner, CoverageRunner, Runner};
 
 static TARGET_MUTAGEN: &'static str = "target/mutagen";
 static MUTATIONS_LIST: &'static str = "mutations.txt";
 
-fn run_mutation(test_executable: &Path, mutation_count: usize) -> Result<String, String> {
-    let output = Command::new(test_executable)
-        // 0 is actually no mutations so we need i + 1 here
-        .env("MUTATION_COUNT", mutation_count.to_string())
-        .output()
-        .expect("failed to execute process");
-
-    let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
-    if output.status.success() {
-        Ok(stdout)
-    } else {
-        Err(stdout)
-    }
-}
-
-fn run_mutations(test_executable: &Path, list: Vec<String>) {
+fn run_mutations(runner: Box<Runner>, list: &[String]) {
     let max_mutation = list.len();
 
     let mut failures = Vec::new();
@@ -36,7 +24,7 @@ fn run_mutations(test_executable: &Path, list: Vec<String>) {
 
         print!("{} ({})", list[i], mutation_count);
 
-        let result = run_mutation(test_executable, mutation_count);
+        let result = runner.run(mutation_count);
 
         if let Ok(stdout) = result {
             // A succeeding test suite is actually a failure for us.
@@ -125,7 +113,7 @@ fn compile_tests() -> PathBuf {
     panic!("executable path not found");
 }
 
-fn read_mutations(filename: PathBuf) -> Vec<String> {
+fn read_mutations(filename: &PathBuf) -> Vec<String> {
     let mut file = File::open(filename).expect("Mutations are missing");
     let mut s = String::new();
     file.read_to_string(&mut s)
@@ -136,16 +124,29 @@ fn read_mutations(filename: PathBuf) -> Vec<String> {
         .collect()
 }
 
+fn has_flag(flag: &str) -> bool {
+    let mut args = std::env::args_os();
+
+    args.find(|f| f == flag).is_some()
+}
+
 fn main() {
     let test_executable = compile_tests();
     println!("test executable at {:?}", test_executable);
     let filename = get_mutations_filename();
-    let list = read_mutations(filename);
-    if let Err(_) = run_mutation(&test_executable, 0) {
-        println!(
-            "You need to make sure you don't have failing tests before running 'cargo mutagen'"
-        );
+    let list = read_mutations(&filename);
+
+    let with_coverage = has_flag("--coverage");
+    let runner: Box<Runner> = if with_coverage {
+        Box::new(CoverageRunner::new(test_executable.clone()))
+    } else {
+        Box::new(FullSuiteRunner::new(test_executable.clone()))
+    };
+
+    if let Err(_) = runner.run(0) {
+        println!("You need to make sure you don't have failing tests before running 'cargo mutagen'");
         return;
     }
-    run_mutations(&test_executable, list)
+
+    run_mutations(runner, &list)
 }
