@@ -5,10 +5,15 @@ authors = ["Andre Bogus <bogusandre@gmail.com>"]
 description = "Mutation testing for Rust – mutator plugin"
 repository = "https://github.com/llogiq/mutagen"
 license = "Apache-2.0/MIT"
+categories = ["development-tools::testing"]
+keywords = ["testing"]
 
 [lib]
 crate-type = [ "dylib" ]
 plugin = true
 
 [dependencies]
-mutagen = "0.1.0"
+mutagen = {"version" = "0.1.0", "path" = ".."}
+
+[badges]
+travis-ci = { repository = "llogiq/mutagen", branch = "master" }

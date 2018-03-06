@@ -187,7 +187,7 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
 
                     mut_expression = quote_expr!(self.cx,
                                     {
-                                        if mutagen::now($n) { $lit - 1 }
+                                        if ::mutagen::now($n) { $lit - 1 }
                                         else { $mut_expression }
                                     });
                 }
@@ -209,7 +209,7 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
 
                     mut_expression = quote_expr!(self.cx,
                                     {
-                                        if mutagen::now($n) { $lit + 1 }
+                                        if ::mutagen::now($n) { $lit + 1 }
                                         else { $mut_expression }
                                     });
                 }
@@ -355,8 +355,8 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                             &mut self.current_count,
                             expr.span,
                             &[
-                                "replacing _ == _ with false",
                                 "replacing _ == _ with true",
+                                "replacing _ == _ with false",
                                 "replacing x == y with x != y",
                             ],
                         );
@@ -375,8 +375,8 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                             &mut self.current_count,
                             expr.span,
                             &[
-                                "replacing _ != _ with false",
                                 "replacing _ != _ with true",
+                                "replacing _ != _ with false",
                                 "replacing x != y with x == y",
                             ],
                         );
@@ -506,8 +506,8 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                         &mut self.current_count,
                         cond.span,
                         &[
-                            "replacing if condition with false",
                             "replacing if condition with true",
+                            "replacing if condition with false",
                             "inverting if condition",
                         ]
                     );
@@ -542,7 +542,7 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                 }
                 let cond = self.fold_expr(cond);
                 let block = fold::noop_fold_block(block, self);
-                let mut_cond = quote_expr!(self.cx, mutagen::w($cond, $n));
+                let mut_cond = quote_expr!(self.cx, ::mutagen::w($cond, $n));
                 P(Expr {
                     id,
                     node: ExprKind::While(mut_cond, block, opt_label),
@@ -664,7 +664,7 @@ fn fold_first_block(block: P<Block>, m: &mut MutatorPlugin) -> P<Block> {
                 );
                 pre_stmts.push(
                     quote_stmt!(cx,
-                if mutagen::now($n) { return Default::default(); })
+                if ::mutagen::now($n) { return Default::default(); })
                         .unwrap(),
                 );
             }
@@ -680,7 +680,7 @@ fn fold_first_block(block: P<Block>, m: &mut MutatorPlugin) -> P<Block> {
                 );
                 pre_stmts.push(
                     quote_stmt!(cx,
-                if mutagen::now($n) { return $ident; })
+                if ::mutagen::now($n) { return $ident; })
                         .unwrap(),
                 );
             }

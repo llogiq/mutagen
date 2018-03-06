@@ -27,10 +27,13 @@ fn mutated_function() {
         // Do something
     }
 
+    if (ord < 2) {
+        // Do something
+    }
+
     if ord == 2 {
         // Some
     }
-
 }
 
 #[test]
@@ -90,6 +93,22 @@ fn test_binop_ne() {
     assert!(checker.has_multiple(noneq_msgs, "26:9: 26:15"));
 }
 
+fn test_lt() {
+    let checker = MutationsChecker::new("tests/binops.rs").unwrap();
+
+    let lt_msgs = &[
+        "replacing _ < _ with false",
+        "replacing _ < _ with true",
+        "replacing x < y with x > y",
+        "replacing x < y with x >= y",
+        "replacing x < y with x <= y",
+        "replacing x < y with x == y",
+        "replacing x < y with x != y",
+    ];
+
+    assert!(checker.has_multiple(lt_msgs, "30"));
+}
+
 #[test]
 fn test_binop_eq_and_off_by_one() {
     let checker = MutationsChecker::new("tests/binops.rs").unwrap();
@@ -100,7 +119,7 @@ fn test_binop_eq_and_off_by_one() {
         "replacing if condition with true",
     ];
 
-    assert!(checker.has_multiple(eq_msgs, "30:8: 30:16"));
+    assert!(checker.has_multiple(eq_msgs, "34:8: 34:16"));
 
 
     let eq_msgs = &[
@@ -108,6 +127,5 @@ fn test_binop_eq_and_off_by_one() {
         "add one to int constant",
     ];
 
-    assert!(checker.has_multiple(eq_msgs, "30:15: 30:16"));
-
+    assert!(checker.has_multiple(eq_msgs, "34:15: 34:16"));
 }

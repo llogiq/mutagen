@@ -146,30 +146,50 @@ impl Mutagen {
     }
 
     /// use instead of `>` (or, switching operand order `<`)
-    pub fn gt<T: PartialOrd>(&self, x: T, y: T, n: usize) -> bool {
+    pub fn gt<X, Y, T: PartialOrd>(&self, x: X, y: Y, n: usize) -> bool
+        where X: FnOnce() -> T, Y: FnOnce() -> T {
         match self.get().wrapping_sub(n) {
             0 => false,
             1 => true,
-            2 => x < y,
-            3 => x <= y,
-            4 => x >= y,
-            5 => x <= y && x >= y, // == with PartialOrd
-            6 => x < y || x > y, // != with PartialOrd
-            _ => x > y
+            2 => x() < y(),
+            3 => x() <= y(),
+            4 => x() >= y(),
+            5 => {
+                let xv = x();
+                let yv = y();
+                xv <= yv && xv >= yv
+            }, // == with PartialOrd
+            6 => {
+                let xv = x();
+                let yv = y();
+
+                xv < yv || xv > yv
+            }, // != with PartialOrd
+            _ => x() > y()
         }
     }
 
     /// use instead of `>=` (or, switching operand order `<=`)
-    pub fn ge<T: PartialOrd>(&self, x: T, y: T, n: usize) -> bool {
+    pub fn ge<X, Y, T: PartialOrd>(&self, x: X, y: Y, n: usize) -> bool
+        where X: FnOnce() -> T, Y: FnOnce() -> T {
         match self.get().wrapping_sub(n) {
             0 => false,
             1 => true,
-            2 => x < y,
-            3 => x <= y,
-            4 => x > y,
-            5 => x <= y && x >= y, // == with PartialOrd
-            6 => x < y || x > y, // != with PartialOrd
-            _ => x >= y
+            2 => x() < y(),
+            3 => x() <= y(),
+            4 => x() > y(),
+            5 => {
+                let xv = x();
+                let yv = y();
+                xv <= yv && xv >= yv
+            }, // == with PartialOrd
+            6 => {
+                let xv = x();
+                let yv = y();
+
+                xv < yv || xv > yv
+            }, // != with PartialOrd
+            _ => x() >= y()
         }
     }
 }
@@ -243,12 +263,14 @@ pub fn ne<X, Y, T: PartialEq>(x: X, y: Y, n: usize) -> bool
 }
 
 /// use instead of `>` (or, switching operand order `<`)
-pub fn gt<T: PartialOrd>(x: T, y: T, n: usize) -> bool {
+pub fn gt<X, Y, T: PartialOrd>(x: X, y: Y, n: usize) -> bool
+    where X: FnOnce() -> T, Y: FnOnce() -> T {
     MU.gt(x, y, n)
 }
 
 /// use instead of `>=` (or, switching operand order `<=`)
-pub fn ge<T: PartialOrd>(x: T, y: T, n: usize) -> bool {
+pub fn ge<X, Y, T: PartialOrd>(x: X, y: Y, n: usize) -> bool
+    where X: FnOnce() -> T, Y: FnOnce() -> T {
     MU.ge(x, y, n)
 }
 
@@ -256,62 +278,47 @@ pub fn ge<T: PartialOrd>(x: T, y: T, n: usize) -> bool {
 mod tests {
     use super::*;
 
-    struct CounterWithSideEffect {
-        counter: u32,
-    }
-
-    impl CounterWithSideEffect {
-        pub fn new() -> CounterWithSideEffect {
-            CounterWithSideEffect { counter: 0 }
-        }
-
-        pub fn get(&mut self) -> u32 {
-            let current = self.counter;
-            self.counter = self.counter + 1;
-
-            current
-        }
-    }
-
     #[test]
     fn eq_mutation() {
         let mu = Mutagen { x: AtomicUsize::new(0) };
-        let mut counter = CounterWithSideEffect::new();
 
         // Always true
-        assert_eq!(true, mu.eq(|| 10, || counter.get(), 0));    // Counter = 0
+        assert_eq!(true, mu.eq(|| 1, || 0, 0));
 
         // Always false
-        assert_eq!(false, mu.eq(|| 10, || counter.get(), 1));   // Counter = 0
-
-        // Checks equality
-        assert_eq!(true, mu.eq(|| 0, || counter.get(), 3));     // Counter = 0
-        assert_eq!(true, mu.eq(|| 1, || counter.get(), 3));     // Counter = 1
-        assert_eq!(false, mu.eq(|| 1, || counter.get(), 3));    // Counter = 2
+        mu.next();
+        assert_eq!(false, mu.eq(|| 1, || 0, 0));
 
         // Checks inequality
-        assert_eq!(true, mu.eq(|| 0, || counter.get(), 2));     // Counter = 3
-        assert_eq!(false, mu.eq(|| 4, || counter.get(), 2));    // Counter = 4
+        mu.next();
+        assert_eq!(true, mu.eq(|| 0, || 1, 0));
+        assert_eq!(false, mu.eq(|| 1, || 1, 0));
+
+        // Checks equality
+        mu.next();
+        assert_eq!(true, mu.eq(|| 0, || 0, 0));
+        assert_eq!(false, mu.eq(|| 1, || 0, 0));
     }
 
     #[test]
     fn ne_mutation() {
         let mu = Mutagen { x: AtomicUsize::new(0) };
-        let mut counter = CounterWithSideEffect::new();
 
         // Always true
-        assert_eq!(true, mu.ne(|| 10, || counter.get(), 0));    // Counter = 0
+        assert_eq!(true, mu.ne(|| 1, || 0, 0));
 
         // Always false
-        assert_eq!(false, mu.ne(|| 10, || counter.get(), 1));   // Counter = 0
-
-        // Checks inequality
-        assert_eq!(false, mu.ne(|| 0, || counter.get(), 3));    // Counter = 0
-        assert_eq!(false, mu.ne(|| 1, || counter.get(), 3));    // Counter = 1
-        assert_eq!(true, mu.ne(|| 1, || counter.get(), 3));     // Counter = 2
+        mu.next();
+        assert_eq!(false, mu.ne(|| 1, || 0, 0));
 
         // Checks equality
-        assert_eq!(false, mu.ne(|| 0, || counter.get(), 2));     // Counter = 3
-        assert_eq!(true, mu.ne(|| 4, || counter.get(), 2));      // Counter = 4
+        mu.next();
+        assert_eq!(false, mu.ne(|| 0, || 1, 0));
+        assert_eq!(true, mu.ne(|| 1, || 1, 0));
+
+        // Checks inequality
+        mu.next();
+        assert_eq!(false, mu.ne(|| 0, || 0, 0));
+        assert_eq!(true, mu.ne(|| 1, || 0, 0));
     }
 }
