@@ -93,6 +93,7 @@ fn test_binop_ne() {
     assert!(checker.has_multiple(noneq_msgs, "26:9: 26:15"));
 }
 
+#[test]
 fn test_lt() {
     let checker = MutationsChecker::new("tests/binops.rs").unwrap();
 
