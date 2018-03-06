@@ -30,6 +30,10 @@ fn mutated_function() {
     if (ord < 2) {
         // Do something
     }
+
+    if ord == 2 {
+        // Some
+    }
 }
 
 #[test]
@@ -104,4 +108,25 @@ fn test_lt() {
     ];
 
     assert!(checker.has_multiple(lt_msgs, "30"));
+}
+
+#[test]
+fn test_binop_eq_and_off_by_one() {
+    let checker = MutationsChecker::new("tests/binops.rs").unwrap();
+
+    let eq_msgs = &[
+        "inverting if condition",
+        "replacing if condition with false",
+        "replacing if condition with true",
+    ];
+
+    assert!(checker.has_multiple(eq_msgs, "34:8: 34:16"));
+
+
+    let eq_msgs = &[
+        "sub one to int constant",
+        "add one to int constant",
+    ];
+
+    assert!(checker.has_multiple(eq_msgs, "34:15: 34:16"));
 }
