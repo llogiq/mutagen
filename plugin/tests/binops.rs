@@ -26,6 +26,11 @@ fn mutated_function() {
     if (2 != 3) {
         // Do something
     }
+
+    if ord == 2 {
+        // Some
+    }
+
 }
 
 #[test]
@@ -83,4 +88,26 @@ fn test_binop_ne() {
     ];
 
     assert!(checker.has_multiple(noneq_msgs, "26:9: 26:15"));
+}
+
+#[test]
+fn test_binop_eq_and_off_by_one() {
+    let checker = MutationsChecker::new("tests/binops.rs").unwrap();
+
+    let eq_msgs = &[
+        "inverting if condition",
+        "replacing if condition with false",
+        "replacing if condition with true",
+    ];
+
+    assert!(checker.has_multiple(eq_msgs, "30:8: 30:16"));
+
+
+    let eq_msgs = &[
+        "sub one to int constant",
+        "add one to int constant",
+    ];
+
+    assert!(checker.has_multiple(eq_msgs, "30:15: 30:16"));
+
 }
