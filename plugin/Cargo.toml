@@ -15,5 +15,8 @@ plugin = true
 [dependencies]
 mutagen = {"version" = "0.1.0", "path" = ".."}
 
+[dev-dependencies]
+compiletest_rs = "*"
+
 [badges]
 travis-ci = { repository = "llogiq/mutagen", branch = "master" }
