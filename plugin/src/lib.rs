@@ -16,7 +16,7 @@ use syntax::fold::{self, Folder};
 use syntax::ptr::P;
 use syntax::symbol::Symbol;
 use syntax::util::small_vector::SmallVector;
-use syntax::ast::{LitKind, LitIntType, IntTy, UnOp};
+use syntax::ast::{IntTy, LitIntType, LitKind, UnOp};
 
 #[plugin_registrar]
 pub fn plugin_registrar(reg: &mut Registry) {
@@ -26,9 +26,9 @@ pub fn plugin_registrar(reg: &mut Registry) {
     );
 }
 
-static TARGET_MUTAGEN : &'static str = "target/mutagen";
-static MUTATIONS_LIST : &'static str = "mutations.txt";
-static MUTATION_COUNT : AtomicUsize = AtomicUsize::new(0);
+static TARGET_MUTAGEN: &'static str = "target/mutagen";
+static MUTATIONS_LIST: &'static str = "mutations.txt";
+static MUTATION_COUNT: AtomicUsize = AtomicUsize::new(0);
 
 /// create a MutatorPlugin and let it fold the items/trait items/impl items
 pub fn mutator(cx: &mut ExtCtxt, _span: Span, _mi: &MetaItem, a: Annotatable) -> Annotatable {
@@ -121,7 +121,10 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
         for arg in &decl.inputs {
             if let Some((name, mutability)) = get_pat_name_mut(&arg.pat) {
                 argtypes.insert(name, (mutability, &*arg.ty));
-                typeargs.entry((mutability, &arg.ty)).or_insert(vec![]).push(name);
+                typeargs
+                    .entry((mutability, &arg.ty))
+                    .or_insert(vec![])
+                    .push(name);
                 if Some(&*arg.ty) == out_ty {
                     have_output_type.push(name);
                 }
@@ -132,14 +135,18 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
             if typeargs[&mut_ty].len() > 1 {
                 interchangeables.insert(
                     arg,
-                    typeargs[&mut_ty].iter().cloned().filter(|a| a != &arg).collect(),
+                    typeargs[&mut_ty]
+                        .iter()
+                        .cloned()
+                        .filter(|a| a != &arg)
+                        .collect(),
                 );
             }
         }
         self.info.method_infos.push(MethodInfo {
             is_default,
             have_output_type,
-            interchangeables
+            interchangeables,
         });
     }
 
@@ -157,9 +164,13 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
         assert!(ty.is_some());
     }
 
-    fn mutate_numeric_constant_expression(&mut self, lit: &Lit, is_negative: bool) -> Option<P<Expr>> {
+    fn mutate_numeric_constant_expression(
+        &mut self,
+        lit: &Lit,
+        is_negative: bool,
+    ) -> Option<P<Expr>> {
         match lit {
-            &Spanned{
+            &Spanned {
                 node: LitKind::Int(i, ty),
                 span: s,
             } => {
@@ -179,9 +190,7 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
                             &mut self.mutations,
                             &mut self.current_count,
                             s,
-                            &[
-                                "sub one to int constant",
-                            ],
+                            &["sub one to int constant"],
                         );
                     }
 
@@ -201,9 +210,7 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
                             &mut self.mutations,
                             &mut self.current_count,
                             s,
-                            &[
-                                "add one to int constant",
-                            ],
+                            &["add one to int constant"],
                         );
                     }
 
@@ -215,10 +222,8 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
                 }
 
                 Some(mut_expression)
-            },
-            _ => {
-                None
             }
+            _ => None,
         }
     }
 }
@@ -246,7 +251,7 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                 generics,
                 node: TraitItemKind::Method(sig, Some(block)),
                 span,
-                tokens
+                tokens,
             } => {
                 self.start_fn(&sig.decl);
                 let ti = TraitItem {
@@ -256,36 +261,59 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                     generics,
                     node: TraitItemKind::Method(sig, Some(fold_first_block(block, self))),
                     span,
-                    tokens
+                    tokens,
                 };
                 self.end_fn();
                 ti
-            },
-            ti => ti
+            }
+            ti => ti,
         })
     }
 
     fn fold_item_kind(&mut self, i: ItemKind) -> ItemKind {
         match i {
-            ItemKind::Impl(unsafety, polarity, defaultness, generics, opt_trait_ref, ty, impl_items) => {
-                self.start_impl( & ty);
-                let k = ItemKind::Impl(unsafety, polarity, defaultness, generics, opt_trait_ref, ty, impl_items);
+            ItemKind::Impl(
+                unsafety,
+                polarity,
+                defaultness,
+                generics,
+                opt_trait_ref,
+                ty,
+                impl_items,
+            ) => {
+                self.start_impl(&ty);
+                let k = ItemKind::Impl(
+                    unsafety,
+                    polarity,
+                    defaultness,
+                    generics,
+                    opt_trait_ref,
+                    ty,
+                    impl_items,
+                );
                 self.end_impl();
                 k
-            },
+            }
             ItemKind::Fn(decl, unsafety, constness, abi, generics, block) => {
                 self.start_fn(&decl);
-                let k = ItemKind::Fn(decl, unsafety, constness, abi, generics, fold_first_block(block, self));
+                let k = ItemKind::Fn(
+                    decl,
+                    unsafety,
+                    constness,
+                    abi,
+                    generics,
+                    fold_first_block(block, self),
+                );
                 self.end_fn();
                 k
-            },
-            k => k
+            }
+            k => k,
         }
     }
 
     fn fold_expr(&mut self, expr: P<Expr>) -> P<Expr> {
         expr.and_then(|expr| match expr {
-            e@Expr {
+            e @ Expr {
                 id: _,
                 node: ExprKind::Mac(_),
                 span: _,
@@ -321,7 +349,14 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                     }
                     let left = self.fold_expr(left);
                     let right = self.fold_expr(right);
-                    quote_expr!(self.cx, ::mutagen::and(|| $left, || $right, $n))
+                    quote_expr!(self.cx,
+                                (match ($left, ::mutagen::diff($n)) {
+                                        (_, 0) => false,
+                                        (_, 1) => true,
+                                        (x, 2) => x,
+                                        (x, 3) => !x,
+                                        (x, n) => x && ($right) == (n != 4),
+                                }))
                 }
                 BinOpKind::Or => {
                     let n;
@@ -343,7 +378,14 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                     }
                     let left = self.fold_expr(left);
                     let right = self.fold_expr(right);
-                    quote_expr!(self.cx, ::mutagen::or(|| $left, || $right, $n))
+                    quote_expr!(self.cx,
+                                (match ($left, ::mutagen::diff($n)) {
+                                        (_, 0) => false,
+                                        (_, 1) => true,
+                                        (x, 2) => x,
+                                        (x, 3) => !x,
+                                        (x, n) => x || ($right) == (n != 4),
+                                }))
                 }
                 BinOpKind::Eq => {
                     let n;
@@ -363,7 +405,7 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                     }
                     let left = self.fold_expr(left);
                     let right = self.fold_expr(right);
-                    quote_expr!(self.cx, ::mutagen::eq(|| $left, || $right, $n))
+                    quote_expr!(self.cx, ::mutagen::eq($left, $right, $n))
                 }
                 BinOpKind::Ne => {
                     let n;
@@ -383,7 +425,7 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                     }
                     let left = self.fold_expr(left);
                     let right = self.fold_expr(right);
-                    quote_expr!(self.cx, ::mutagen::ne(|| $left, || $right, $n))
+                    quote_expr!(self.cx, ::mutagen::ne($left, $right, $n))
                 }
                 BinOpKind::Gt => {
                     let n;
@@ -407,7 +449,7 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                     }
                     let left = self.fold_expr(left);
                     let right = self.fold_expr(right);
-                    quote_expr!(self.cx, ::mutagen::gt(|| $left, || $right, $n))
+                    quote_expr!(self.cx, ::mutagen::gt($left, $right, $n))
                 }
                 BinOpKind::Lt => {
                     let n;
@@ -431,7 +473,7 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                     }
                     let left = self.fold_expr(left);
                     let right = self.fold_expr(right);
-                    quote_expr!(self.cx, ::mutagen::gt(|| $right, || $left, $n))
+                    quote_expr!(self.cx, ::mutagen::gt($right, $left, $n))
                 }
                 BinOpKind::Ge => {
                     let n;
@@ -455,7 +497,7 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                     }
                     let left = self.fold_expr(left);
                     let right = self.fold_expr(right);
-                    quote_expr!(self.cx, ::mutagen::ge(|| $left, || $right, $n))
+                    quote_expr!(self.cx, ::mutagen::ge($left, $right, $n))
                 }
                 BinOpKind::Le => {
                     let n;
@@ -479,7 +521,7 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                     }
                     let left = self.fold_expr(left);
                     let right = self.fold_expr(right);
-                    quote_expr!(self.cx, ::mutagen::ge(|| $right, || $left, $n))
+                    quote_expr!(self.cx, ::mutagen::ge($right, $left, $n))
                 }
                 _ => P(fold::noop_fold_expr(
                     Expr {
@@ -509,7 +551,7 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                             "replacing if condition with true",
                             "replacing if condition with false",
                             "inverting if condition",
-                        ]
+                        ],
                     );
                 }
                 let cond = self.fold_expr(cond);
@@ -520,7 +562,7 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                     id,
                     node: ExprKind::If(mut_cond, then, opt_else),
                     span,
-                    attrs
+                    attrs,
                 })
             }
             Expr {
@@ -537,7 +579,7 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                         &mut self.mutations,
                         &mut self.current_count,
                         cond.span,
-                        &["replacing while condition with false"]
+                        &["replacing while condition with false"],
                     );
                 }
                 let cond = self.fold_expr(cond);
@@ -547,9 +589,9 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                     id,
                     node: ExprKind::While(mut_cond, block, opt_label),
                     span,
-                    attrs
+                    attrs,
                 })
-            },
+            }
             Expr {
                 id,
                 node: ExprKind::Unary(UnOp::Neg, exp),
@@ -560,13 +602,11 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                     let maybe_exp = match &e.node {
                         &ExprKind::Lit(ref lit) => {
                             self.mutate_numeric_constant_expression(&lit, true)
-                        },
+                        }
                         _ => None,
                     };
 
-                    maybe_exp.unwrap_or_else(|| {
-                        P(e)
-                    })
+                    maybe_exp.unwrap_or_else(|| P(e))
                 });
 
                 P(Expr {
@@ -575,7 +615,7 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                     span,
                     attrs,
                 })
-            },
+            }
             Expr {
                 id,
                 node: ExprKind::Lit(lit),
@@ -584,20 +624,19 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
             } => {
                 let exp = lit.and_then(|l| {
                     self.mutate_numeric_constant_expression(&l, false)
-                        .unwrap_or_else(|| P(Expr{
-                            id,
-                            node: ExprKind::Lit(P(l)),
-                            span,
-                            attrs,
-                        }))
+                        .unwrap_or_else(|| {
+                            P(Expr {
+                                id,
+                                node: ExprKind::Lit(P(l)),
+                                span,
+                                attrs,
+                            })
+                        })
                 });
 
                 exp
-
-            },
-            e => {
-                P(fold::noop_fold_expr(e, self))
-            },
+            }
+            e => P(fold::noop_fold_expr(e, self)),
         }) //TODO: more expr mutations
     }
 
@@ -606,7 +645,7 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
     }
 }
 
-fn int_constant_can_subtract_one(i: i64, ty: LitIntType) -> bool{
+fn int_constant_can_subtract_one(i: i64, ty: LitIntType) -> bool {
     let min: i64 = match ty {
         LitIntType::Unsuffixed | LitIntType::Unsigned(_) => 0,
         LitIntType::Signed(IntTy::Isize) => std::i32::MIN as i64,
@@ -652,7 +691,8 @@ fn fold_first_block(block: P<Block>, m: &mut MutatorPlugin) -> P<Block> {
             is_default,
             ref have_output_type,
             ref interchangeables,
-        }) = info.method_infos.last() {
+        }) = info.method_infos.last()
+        {
             if is_default {
                 let n = *current_count;
                 add_mutations(
@@ -701,11 +741,7 @@ fn fold_first_block(block: P<Block>, m: &mut MutatorPlugin) -> P<Block> {
              }| {
                 let mut newstmts: Vec<Stmt> = Vec::with_capacity(pre_stmts.len() + stmts.len());
                 newstmts.extend(pre_stmts);
-                newstmts.extend(
-                    stmts
-                        .into_iter()
-                        .flat_map(|s| fold::noop_fold_stmt(s, m)),
-                );
+                newstmts.extend(stmts.into_iter().flat_map(|s| fold::noop_fold_stmt(s, m)));
                 Block {
                     stmts: newstmts,
                     id,
@@ -734,7 +770,12 @@ fn add_mutations(
 
 fn get_pat_name_mut(pat: &Pat) -> Option<(Symbol, Mutability)> {
     if let PatKind::Ident(mode, i, _) = pat.node {
-        Some((i.node.name, match mode { BindingMode::ByRef(m) | BindingMode::ByValue(m) => m }))
+        Some((
+            i.node.name,
+            match mode {
+                BindingMode::ByRef(m) | BindingMode::ByValue(m) => m,
+            },
+        ))
     } else {
         None
     }
@@ -906,14 +947,18 @@ fn get_lit(expr: &Expr) -> Option<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use syntax::ast::{LitIntType, IntTy};
+    use syntax::ast::{IntTy, LitIntType};
 
     #[test]
     fn test_can_add_one() {
         let examples = [
             ((std::u8::MAX as u64) + 1, LitIntType::Unsuffixed, false),
             ((std::u8::MAX as u64) - 1, LitIntType::Unsuffixed, true),
-            ((std::i64::MAX as u64), LitIntType::Signed(IntTy::I64), false),
+            (
+                (std::i64::MAX as u64),
+                LitIntType::Signed(IntTy::I64),
+                false,
+            ),
             ((std::u64::MAX) - 1, LitIntType::Unsigned(UintTy::U64), true),
         ];
 
@@ -932,7 +977,11 @@ mod tests {
             (std::i8::MIN as i64, LitIntType::Signed(IntTy::I8), false),
             (std::i8::MIN as i64 + 1, LitIntType::Signed(IntTy::I8), true),
             (std::i64::MIN as i64, LitIntType::Signed(IntTy::I64), false),
-            (std::i64::MIN as i64 + 1, LitIntType::Signed(IntTy::I64), true),
+            (
+                std::i64::MIN as i64 + 1,
+                LitIntType::Signed(IntTy::I64),
+                true,
+            ),
         ];
 
         examples.iter().for_each(|test| {
