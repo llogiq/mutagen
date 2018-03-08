@@ -13,3 +13,6 @@ Cargo.lock
 
 # Generated file from integration tests
 **/mutations.txt
+
+# Generated file from build script
+/src/ops.rs

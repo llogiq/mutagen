@@ -349,7 +349,7 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                     }
                     let left = self.fold_expr(left);
                     let right = self.fold_expr(right);
-                    quote_expr!(self.cx, 
+                    quote_expr!(self.cx,
                                 (match ($left, ::mutagen::diff($n)) {
                                         (_, 0) => false,
                                         (_, 1) => true,
@@ -378,7 +378,7 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                     }
                     let left = self.fold_expr(left);
                     let right = self.fold_expr(right);
-                    quote_expr!(self.cx, 
+                    quote_expr!(self.cx,
                                 (match ($left, ::mutagen::diff($n)) {
                                         (_, 0) => false,
                                         (_, 1) => true,

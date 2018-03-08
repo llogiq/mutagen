@@ -1,3 +1,4 @@
+#![feature(specialization)]
 /// Welcome to the mutagen crate. Your entry point will probably be cargo-mutagen, so install it
 /// right away.
 #[macro_use]
@@ -5,6 +6,9 @@ extern crate lazy_static;
 
 use std::env;
 use std::sync::atomic::{AtomicUsize, Ordering};
+
+mod ops;
+pub use ops::*;
 
 /// A helper trait to select a value from a same-typed tuple
 #[doc(hidden)]
@@ -136,7 +140,7 @@ impl Mutagen {
             3 => x <= y,
             4 => x >= y,
             5 => x == y,
-            6 => x != y, // != with PartialOrd
+            6 => x != y,
             _ => x > y,
         }
     }
