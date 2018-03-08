@@ -1,6 +1,5 @@
 extern crate json;
 
-
 use std::process::{Command, Stdio};
 use std::fs::File;
 use std::io::Read;
@@ -84,12 +83,13 @@ fn get_mutations_filename() -> PathBuf {
         println!("failed to fetch metadata, cargo returned non-zero status.");
         panic!("{}", from_utf8(&metadata.stderr).unwrap());
     }
-    let meta_json = json::parse(from_utf8(&metadata.stdout)
-                                                   .expect("non-UTF8 cargo output"))
-                                  .unwrap();
-    let root_dir = Path::new(meta_json["workspace_root"]
-                                  .as_str()
-                                  .expect("cargo metadata misses workspace_root"));
+    let meta_json =
+        json::parse(from_utf8(&metadata.stdout).expect("non-UTF8 cargo output")).unwrap();
+    let root_dir = Path::new(
+        meta_json["workspace_root"]
+            .as_str()
+            .expect("cargo metadata misses workspace_root"),
+    );
     let mutagen_dir = root_dir.join(TARGET_MUTAGEN);
     if !mutagen_dir.exists() {
         panic!("Mutations are missing");
@@ -100,6 +100,7 @@ fn get_mutations_filename() -> PathBuf {
 fn compile_tests() -> PathBuf {
     let compile_out = Command::new("cargo")
         .args(&["test", "--no-run", "--message-format=json"])
+        .args(std::env::args_os())
         .stderr(Stdio::inherit())
         .output()
         .expect("Could not compile test");
@@ -111,11 +112,12 @@ fn compile_tests() -> PathBuf {
     for line in compile_stdout.lines() {
         let msg_json = json::parse(line).expect(compile_stdout);
         if msg_json["reason"].as_str().unwrap() == "compiler-artifact"
-            && msg_json["profile"]["test"].as_bool().unwrap_or(false) {
+            && msg_json["profile"]["test"].as_bool().unwrap_or(false)
+        {
             for filename in msg_json["filenames"].members() {
                 let f = filename.as_str().unwrap();
                 if !f.ends_with(".rlib") {
-                    return f.to_string().into()
+                    return f.to_string().into();
                 }
             }
         }
@@ -139,8 +141,10 @@ fn main() {
     println!("test executable at {:?}", test_executable);
     let filename = get_mutations_filename();
     let list = read_mutations(filename);
-    if let Err(_) = run_mutation(&test_executable, 0){
-        println!("You need to make sure you don't have failing tests before running 'cargo mutagen'");
+    if let Err(_) = run_mutation(&test_executable, 0) {
+        println!(
+            "You need to make sure you don't have failing tests before running 'cargo mutagen'"
+        );
         return;
     }
     run_mutations(&test_executable, list)
