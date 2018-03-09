@@ -194,9 +194,10 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
                         );
                     }
 
+                    let current = self.current_count;
                     mut_expression = quote_expr!(self.cx,
                                     {
-                                        ::mutagen::report_coverage();
+                                        ::mutagen::report_coverage($n..$current);
 
                                         if ::mutagen::now($n) { $lit - 1 }
                                         else { $mut_expression }
@@ -216,9 +217,10 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
                         );
                     }
 
+                    let current = self.current_count;
                     mut_expression = quote_expr!(self.cx,
                                     {
-                                        ::mutagen::report_coverage();
+                                        ::mutagen::report_coverage($n..$current);
 
                                         if ::mutagen::now($n) { $lit + 1 }
                                         else { $mut_expression }
@@ -351,10 +353,11 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                             ],
                         );
                     }
+                    let current = self.current_count;
                     let left = self.fold_expr(left);
                     let right = self.fold_expr(right);
                     quote_expr!(self.cx, {
-                        ::mutagen::report_coverage();
+                        ::mutagen::report_coverage($n..$current);
                         (match ($left, ::mutagen::diff($n)) {
                                 (_, 0) => false,
                                 (_, 1) => true,
@@ -382,10 +385,11 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                             ],
                         );
                     }
+                    let current = self.current_count;
                     let left = self.fold_expr(left);
                     let right = self.fold_expr(right);
                     quote_expr!(self.cx, {
-                        ::mutagen::report_coverage();
+                        ::mutagen::report_coverage($n..$current);
                         (match ($left, ::mutagen::diff($n)) {
                             (_, 0) => false,
                             (_, 1) => true,
@@ -411,10 +415,11 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                             ],
                         );
                     }
+                    let current = self.current_count;
                     let left = self.fold_expr(left);
                     let right = self.fold_expr(right);
                     quote_expr!(self.cx, {
-                        ::mutagen::report_coverage();
+                        ::mutagen::report_coverage($n..$current);
                         ::mutagen::eq($left, $right, $n)
                     })
                 }
@@ -434,10 +439,11 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                             ],
                         );
                     }
+                    let current = self.current_count;
                     let left = self.fold_expr(left);
                     let right = self.fold_expr(right);
                     quote_expr!(self.cx, {
-                        ::mutagen::report_coverage();
+                        ::mutagen::report_coverage($n..$current);
                         ::mutagen::ne($left, $right, $n)
                     })
                 }
@@ -461,10 +467,11 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                             ],
                         );
                     }
+                    let current = self.current_count;
                     let left = self.fold_expr(left);
                     let right = self.fold_expr(right);
                     quote_expr!(self.cx, {
-                        ::mutagen::report_coverage();
+                        ::mutagen::report_coverage($n..$current);
                         ::mutagen::gt($left, $right, $n)
                     })
                 }
@@ -488,10 +495,11 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                             ],
                         );
                     }
+                    let current = self.current_count;
                     let left = self.fold_expr(left);
                     let right = self.fold_expr(right);
                     quote_expr!(self.cx, {
-                        ::mutagen::report_coverage();
+                        ::mutagen::report_coverage($n..$current);
                         ::mutagen::gt($right, $left, $n)
                     })
                 }
@@ -515,10 +523,11 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                             ],
                         );
                     }
+                    let current = self.current_count;
                     let left = self.fold_expr(left);
                     let right = self.fold_expr(right);
                     quote_expr!(self.cx, {
-                        ::mutagen::report_coverage();
+                        ::mutagen::report_coverage($n..$current);
                         ::mutagen::ge($left, $right, $n)
                     })
                 }
@@ -542,10 +551,11 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                             ],
                         );
                     }
+                    let current = self.current_count;
                     let left = self.fold_expr(left);
                     let right = self.fold_expr(right);
                     quote_expr!(self.cx, {
-                        ::mutagen::report_coverage();
+                        ::mutagen::report_coverage($n...$current);
                         ::mutagen::ge($right, $left, $n)
                     })
                 }
@@ -580,11 +590,12 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                         ],
                     );
                 }
+                let current = self.current_count;
                 let cond = self.fold_expr(cond);
                 let then = fold::noop_fold_block(then, self);
                 let opt_else = opt_else.map(|p_else| self.fold_expr(p_else));
                 let mut_cond = quote_expr!(self.cx, {
-                    ::mutagen::report_coverage();
+                    ::mutagen::report_coverage($n..$current);
                     ::mutagen::t($cond, $n)
                 });
 
@@ -612,10 +623,11 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                         &["replacing while condition with false"],
                     );
                 }
+                let current = self.current_count;
                 let cond = self.fold_expr(cond);
                 let block = fold::noop_fold_block(block, self);
                 let mut_cond = quote_expr!(self.cx, {
-                    ::mutagen::report_coverage();
+                    ::mutagen::report_coverage($n..$current);
                     ::mutagen::w($cond, $n)
                 });
                 P(Expr {
