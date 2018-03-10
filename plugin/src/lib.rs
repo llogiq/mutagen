@@ -724,8 +724,8 @@ fn fold_first_block(block: P<Block>, m: &mut MutatorPlugin) -> P<Block> {
                         .unwrap(),
                 );
             }
-            for (ref key, ref values) in (&interchangeables).iter() {
-                for value in (&values).iter() {
+            for (ref key, ref values) in interchangeables {
+                for value in values.iter() {
                     let n = *current_count;
                     let key_ident = key.to_ident();
                     let value_ident = value.to_ident();
@@ -734,13 +734,7 @@ fn fold_first_block(block: P<Block>, m: &mut MutatorPlugin) -> P<Block> {
                         mutations,
                         current_count,
                         block.span,
-                        &[
-                            &format!(
-                                "exchange {} with {}",
-                                key_ident.as_str(),
-                                value_ident.as_str()
-                            ),
-                        ],
+                        &[&format!("exchange {} with {}", key.as_str(), value_ident)],
                     );
                     pre_stmts.push(
                         quote_stmt!(cx,
