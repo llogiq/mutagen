@@ -116,13 +116,13 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
         // arguments of output type
         let mut have_output_type = vec![];
         // add arguments of same type, so we can switch them?
-        let mut argtypes: HashMap<Symbol, (Mutability, &Ty)> = HashMap::new();
-        let mut typeargs: HashMap<(Mutability, &Ty), Vec<Symbol>> = HashMap::new();
+        let mut argtypes: HashMap<Symbol, (BindingMode, &Ty)> = HashMap::new();
+        let mut typeargs: HashMap<(BindingMode, &Ty), Vec<Symbol>> = HashMap::new();
         for arg in &decl.inputs {
-            if let Some((name, mutability)) = get_pat_name_mut(&arg.pat) {
-                argtypes.insert(name, (mutability, &*arg.ty));
+            if let Some((name, binding_mode)) = get_pat_name_mut(&arg.pat) {
+                argtypes.insert(name, (binding_mode, &*arg.ty));
                 typeargs
-                    .entry((mutability, &arg.ty))
+                    .entry((binding_mode, &arg.ty))
                     .or_insert(vec![])
                     .push(name);
                 if Some(&*arg.ty) == out_ty {
@@ -137,8 +137,8 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
                     arg,
                     typeargs[&mut_ty]
                         .iter()
+                        .filter(|a| a >= &&arg)
                         .cloned()
-                        .filter(|a| a != &arg)
                         .collect(),
                 );
             }
@@ -724,6 +724,27 @@ fn fold_first_block(block: P<Block>, m: &mut MutatorPlugin) -> P<Block> {
                         .unwrap(),
                 );
             }
+            for (ref key, ref values) in interchangeables {
+                for value in values.iter() {
+                    let n = *current_count;
+                    let key_ident = key.to_ident();
+                    let value_ident = value.to_ident();
+                    add_mutations(
+                        cx,
+                        mutations,
+                        current_count,
+                        block.span,
+                        &[&format!("exchange {} with {}", key.as_str(), value_ident)],
+                    );
+                    pre_stmts.push(
+                        quote_stmt!(cx,
+                        if ::mutagen::now($n) { 
+                            let ($key_ident, $value_ident) = ($value_ident, $key_ident)
+                         }).unwrap(),
+                    );
+                }
+            }
+            //let ($a, $b) = if mutagen::now($n) { ($b, $a) } else { ($a, $b) };
             //TODO: switch interchangeables, need mutability info, too
             //for name in method_info.interchangeables { }
         }
@@ -768,14 +789,9 @@ fn add_mutations(
     *count += descriptions.len();
 }
 
-fn get_pat_name_mut(pat: &Pat) -> Option<(Symbol, Mutability)> {
+fn get_pat_name_mut(pat: &Pat) -> Option<(Symbol, BindingMode)> {
     if let PatKind::Ident(mode, i, _) = pat.node {
-        Some((
-            i.node.name,
-            match mode {
-                BindingMode::ByRef(m) | BindingMode::ByValue(m) => m,
-            },
-        ))
+        Some((i.node.name, mode))
     } else {
         None
     }
