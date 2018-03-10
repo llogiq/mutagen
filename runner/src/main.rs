@@ -138,7 +138,7 @@ fn main() {
 
     let with_coverage = has_flag("--coverage");
     let runner: Box<Runner> = if with_coverage {
-        Box::new(CoverageRunner::new(test_executable.clone()))
+        Box::new(CoverageRunner::new(test_executable.clone(), list.len()))
     } else {
         Box::new(FullSuiteRunner::new(test_executable.clone()))
     };

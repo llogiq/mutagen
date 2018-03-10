@@ -52,14 +52,16 @@ impl Runner for FullSuiteRunner {
 /// by test), which may be non-performant if almost all the tests are mutated
 pub struct CoverageRunner {
     test_executable: PathBuf,
+    mutation_amount: usize,
     tests_with_mutations: RefCell<Option<Rc<TestsByMutation>>>,
 }
 
 impl CoverageRunner {
     /// creates a runner from the test executable path
-    pub fn new(test_executable: PathBuf) -> CoverageRunner {
+    pub fn new(test_executable: PathBuf, mutation_amount: usize) -> CoverageRunner {
         CoverageRunner {
             test_executable,
+            mutation_amount,
             tests_with_mutations: RefCell::new(None),
         }
     }
@@ -118,6 +120,7 @@ impl CoverageRunner {
                 let cmd_result = Command::new(&self.test_executable)
                     .args(&[&test_name])
                     .env("MUTAGEN_COVERAGE", "file:target/mutagen/coverage.txt")
+                    .env("MUTAGEN_MUTATION_AMOUNT", self.mutation_amount.to_string())
                     .output();
 
                 let cmd_successful = cmd_result
@@ -128,7 +131,7 @@ impl CoverageRunner {
                     return;
                 }
 
-                let test_contains_mutation = File::open("target/mutagen/coverage.txt")
+                File::open("target/mutagen/coverage.txt")
                     .map(|mut file| {
                         let mut s = String::new();
                         file.read_to_string(&mut s).unwrap();
