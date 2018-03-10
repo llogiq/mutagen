@@ -25,6 +25,10 @@ It also will only see the bare AST, no inferred types, no control flow or data f
 
 This project is basically an experiment to see what mutations we can still apply under those constraints.
 
+### A Word of Warning
+
+mutagen will change the code you annotate with the `#[mutate]` attribute. As long as you use it with safe code, all is well. However, running mutagen against unsafe code will very probably break its invariants, with possible dire consequences. So don't run mutagen against modules containing unsafe code under any circumstances.
+
 ### Using mutagen
 
 Again, remember you need a nightly `rustc` to compile the plugin. Add the plugin and helper library as a dev-dependency to your `Cargo.toml`:
