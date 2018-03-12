@@ -115,7 +115,7 @@ impl CoverageRunner {
         tests
             .into_iter()
             .for_each(|test_name| {
-                remove_file("target/mutagen/coverage.txt");
+                let _res = remove_file("target/mutagen/coverage.txt");
 
                 let cmd_result = Command::new(&self.test_executable)
                     .args(&[&test_name])
@@ -131,7 +131,7 @@ impl CoverageRunner {
                     return;
                 }
 
-                File::open("target/mutagen/coverage.txt")
+                let _res = File::open("target/mutagen/coverage.txt")
                     .map(|mut file| {
                         let mut s = String::new();
                         file.read_to_string(&mut s).unwrap();
