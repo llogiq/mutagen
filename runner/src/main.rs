@@ -85,7 +85,8 @@ fn get_mutations_filename() -> PathBuf {
     mutagen_dir.join(MUTATIONS_LIST)
 }
 
-fn compile_tests() -> PathBuf {
+fn compile_tests() -> Vec<PathBuf> {
+    let mut tests: Vec<PathBuf> = Vec::new();
     let compile_out = Command::new("cargo")
         .args(&["test", "--no-run", "--message-format=json"])
         .args(std::env::args_os())
@@ -105,12 +106,12 @@ fn compile_tests() -> PathBuf {
             for filename in msg_json["filenames"].members() {
                 let f = filename.as_str().unwrap();
                 if !f.ends_with(".rlib") {
-                    return f.to_string().into();
+                    tests.push(f.to_string().into());
                 }
             }
         }
     }
-    panic!("executable path not found");
+    tests
 }
 
 fn read_mutations(filename: &PathBuf) -> Vec<String> {
@@ -131,22 +132,27 @@ fn has_flag(flag: &str) -> bool {
 }
 
 fn main() {
-    let test_executable = compile_tests();
-    println!("test executable at {:?}", test_executable);
+    let tests_executable = compile_tests();
+    if tests_executable.is_empty() {
+        panic!("executable path not found");
+    }
     let filename = get_mutations_filename();
     let list = read_mutations(&filename);
 
     let with_coverage = has_flag("--coverage");
-    let runner: Box<Runner> = if with_coverage {
-        Box::new(CoverageRunner::new(test_executable.clone(), list.len()))
-    } else {
-        Box::new(FullSuiteRunner::new(test_executable.clone()))
-    };
+    for test_executable in tests_executable {
+        println!("test executable at {:?}", test_executable);
+        let runner: Box<Runner> = if with_coverage {
+            Box::new(CoverageRunner::new(test_executable.clone(), list.len()))
+        } else {
+            Box::new(FullSuiteRunner::new(test_executable.clone()))
+        };
 
-    if let Err(_) = runner.run(0) {
-        println!("You need to make sure you don't have failing tests before running 'cargo mutagen'");
-        return;
+        if let Err(_) = runner.run(0) {
+            println!("You need to make sure you don't have failing tests before running 'cargo mutagen'");
+            return;
+        }
+
+        run_mutations(runner, &list)
     }
-
-    run_mutations(runner, &list)
 }
