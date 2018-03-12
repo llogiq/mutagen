@@ -2,9 +2,7 @@ use std::env;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::ops::Range;
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::collections::HashMap;
 
 lazy_static! {
     static ref COVERAGE_ALREADY_CHECKED: Vec<AtomicBool> = {
@@ -27,7 +25,7 @@ pub fn report_coverage(mutations: Range<usize>) {
                     .map(|n| format!("{}", n))
                     .collect();
 
-                OpenOptions::new()
+                let _res = OpenOptions::new()
                     .create(true)
                     .append(true)
                     .truncate(false)
