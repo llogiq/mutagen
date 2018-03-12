@@ -66,6 +66,8 @@ If you want the development version, run `cargo install` in the runner dir.
 
 If you want to do this manually you can run `cargo test` as always, which will mutate your code and write a list of mutations in `target/mutagen/mutations.txt`. For every mutation, counting from one, you can run the test binary with the environment variable `MUTATION_COUNT=1 target/debug/myproj-123456`, `MUTATION_COUNT=2 ..`, etc.
 
+You can run `cargo mutagen -- --coverage` in order to reduce the time it takes to run the mutated code. When running on this mode, it runs the testsuite at the beginning of the process and checks which tests are hitting mutated code. Then, for each mutation, instead of running the whole testsuite again, it executes only the tests that are affected by the current mutation. This mode is specially useful when the testsuite is slow or when the mutated code affects a little part of it.
+
 ### Contributing
 
 Issues and PRs welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) on how to help.
