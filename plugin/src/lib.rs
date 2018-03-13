@@ -116,19 +116,20 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
         // arguments of output type
         let mut have_output_type = vec![];
         // add arguments of same type, so we can switch them?
-        let mut argtypes: HashMap<Symbol, (BindingMode, &Ty)> = HashMap::new();
-        let mut typeargs: HashMap<(BindingMode, &Ty), Vec<Symbol>> = HashMap::new();
+        let mut argtypes: HashMap<Symbol, (BindingMode, &Ty, Vec<TyOcc>)> = HashMap::new();
+        let mut typeargs: HashMap<(BindingMode, &Ty, Vec<TyOcc>), Vec<Symbol>> = HashMap::new();
+        let mut argdefs = vec![];
         for arg in &decl.inputs {
-            if let Some((name, binding_mode)) = get_pat_name_mut(&arg.pat) {
-                argtypes.insert(name, (binding_mode, &*arg.ty));
-                typeargs
-                    .entry((binding_mode, &arg.ty))
-                    .or_insert(vec![])
-                    .push(name);
-                if Some(&*arg.ty) == out_ty {
-                    have_output_type.push(name);
-                }
+            destructure_bindings(&arg.pat, &*arg.ty, vec![], &mut argdefs);
+        }
+        for (sym, mode, ty, occs) in argdefs {
+            if occs.is_empty() && Some(ty) == out_ty {
+                have_output_type.push(sym);
             }
+            argtypes.insert(sym, (mode, ty, occs.clone()));
+            typeargs.entry((mode, ty, occs))
+                    .or_insert(vec![])
+                    .push(sym);
         }
         let mut interchangeables = HashMap::new();
         for (arg, mut_ty) in argtypes {
@@ -783,7 +784,7 @@ fn fold_first_block(block: P<Block>, m: &mut MutatorPlugin) -> P<Block> {
                     );
                     pre_stmts.push(
                         quote_stmt!(cx,
-                        if ::mutagen::now($n) { 
+                        if ::mutagen::now($n) {
                             let ($key_ident, $value_ident) = ($value_ident, $key_ident)
                          }).unwrap(),
                     );
@@ -834,12 +835,96 @@ fn add_mutations(
     *count += descriptions.len();
 }
 
-fn get_pat_name_mut(pat: &Pat) -> Option<(Symbol, BindingMode)> {
-    if let PatKind::Ident(mode, i, _) = pat.node {
-        Some((i.node.name, mode))
-    } else {
-        None
+/// additional position information  (which field in the given struct/enum)
+#[derive(Copy, Clone, Eq, Hash, Ord, PartialEq, PartialOrd)]
+enum TyOcc {
+    /// this is a subfield of a type, e.g. `Foo { x } : Foo` → `Field(x)`
+    Field(Symbol),
+    /// this is an index within a tuple or tuple type, e.g. `Foo(_, y): Foo` → `Index(1)`
+    Index(usize),
+    /// a &_ or &mut _
+    Deref,
+}
+
+fn destructure_with<'t>(pat: &Pat, ty: &'t Ty, mut occ: Vec<TyOcc>,
+        result: &mut Vec<(Symbol, BindingMode, &'t Ty, Vec<TyOcc>)>, w: TyOcc) {
+    occ.push(w);
+    destructure_bindings(pat, ty, occ.clone(), result);
+    occ.pop();
+}
+
+/// Walk a pattern, call a function on each named instance
+fn destructure_bindings<'t>(pat: &Pat, ty: &'t Ty, occ: Vec<TyOcc>,
+        result: &mut Vec<(Symbol, BindingMode, &'t Ty, Vec<TyOcc>)>) {
+    match pat.node {
+        PatKind::Ident(mode, sp_ident, ref opt_pat) => {
+            result.push((sp_ident.node.name, mode, ty, occ.clone()));
+            if let Some(ref pat) = *opt_pat {
+                destructure_bindings(pat, ty, occ, result);
+            }
+        }
+        PatKind::Ref(ref ref_pat, pat_mut) => {
+            if let TyKind::Rptr(_, MutTy { ty: ref ref_ty, mutbl }) = ty.node {
+                if pat_mut == mutbl && occ.is_empty() {
+                    destructure_bindings(ref_pat, ref_ty, occ, result);
+                    return;
+                }
+            }
+            destructure_with(ref_pat, ty, occ, result, TyOcc::Deref);
+        }
+        PatKind::Slice(ref pats, None, _) => {
+            if occ.is_empty() && pats.len() == 1 {
+                if let TyKind::Slice(ref slice_ty) = ty.node {
+                    destructure_bindings(&pats[0], slice_ty, occ, result);
+                }
+            }
+        }
+        PatKind::Struct(_, ref fpats, _) => {
+            for fp in fpats {
+                destructure_with(&fp.node.pat, ty, occ.clone(), result, TyOcc::Field(fp.node.ident.name));
+            }
+        }
+        PatKind::TupleStruct(_, ref pats, _opt_size) => {
+            for (i, p) in pats.iter().enumerate() {
+                destructure_with(p, ty, occ.clone(), result, TyOcc::Index(i));
+            }
+        }
+        PatKind::Tuple(ref pats, opt_usize) => {
+            if let (true, &TyKind::Tup(ref tup)) = (occ.is_empty(), &ty.node) {
+                for i in 0..opt_usize.unwrap_or(pats.len()) {
+                    destructure_bindings(&pats[i], &tup[i], vec![], result);
+                }
+            } else {
+                for (i, p) in pats.iter().enumerate() {
+                    destructure_with(p, ty, occ.clone(), result, TyOcc::Index(i));
+                }
+            }
+        }
+        PatKind::Box(ref boxed_pat) => {
+            if let Some(unbox_ty) = unbox(ty) {
+                destructure_bindings(boxed_pat, unbox_ty, occ, result);
+            } else {
+                destructure_with(boxed_pat, ty, occ, result, TyOcc::Deref);
+            }
+        }
+        _ => {} // wildcards, etc.
     }
+}
+
+fn unbox(ty: &Ty) -> Option<&Ty> {
+    if let TyKind::Path(_, ref path) = ty.node {
+        if let Some(box_seg) = path.segments.iter().last() {
+            if box_seg.identifier.name != "Box" {
+                return None;
+            }
+            if let Some(ref params) = box_seg.parameters {
+                if let PathParameters::AngleBracketed(ref data) = **params {
+                    return Some(&data.types[0]);
+                }
+            }
+        }
+    }
+    None
 }
 
 static ALWAYS_DEFAULT: &[&[&str]] = &[
