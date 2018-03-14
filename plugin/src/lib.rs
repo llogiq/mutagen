@@ -96,6 +96,16 @@ pub struct MutatorPlugin<'a, 'cx: 'a> {
     current_count: usize,
 }
 
+/// a combination of BindingMode, type and occurrence within the type
+#[derive(Clone, Eq, Hash)]
+struct ArgTy<'t>(BindingMode, &'t Ty, Vec<TyOcc>);
+
+impl<'t> PartialEq for ArgTy<'t> {
+    fn eq(&self, other: &ArgTy<'t>) -> bool {
+        self.0 == other.0 && ty_equal(self.1, other.1, false) && self.2 == other.2
+    }
+}
+
 impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
     fn new(cx: &'a mut ExtCtxt<'cx>, mutations: BufWriter<File>, count: usize) -> Self {
         MutatorPlugin {
@@ -116,20 +126,18 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
         // arguments of output type
         let mut have_output_type = vec![];
         // add arguments of same type, so we can switch them?
-        let mut argtypes: HashMap<Symbol, (BindingMode, &Ty, Vec<TyOcc>)> = HashMap::new();
-        let mut typeargs: HashMap<(BindingMode, &Ty, Vec<TyOcc>), Vec<Symbol>> = HashMap::new();
+        let mut argtypes: HashMap<Symbol, ArgTy> = HashMap::new();
+        let mut typeargs: HashMap<ArgTy, Vec<Symbol>> = HashMap::new();
         let mut argdefs = vec![];
         for arg in &decl.inputs {
             destructure_bindings(&arg.pat, &*arg.ty, vec![], &mut argdefs);
         }
-        for (sym, mode, ty, occs) in argdefs {
-            if occs.is_empty() && Some(ty) == out_ty {
+        for (sym, ty_args) in argdefs {
+            if ty_args.2.is_empty() && out_ty.map_or(false, |t| ty_equal(t, ty_args.1, decl.inputs.len() == 1)) {
                 have_output_type.push(sym);
             }
-            argtypes.insert(sym, (mode, ty, occs.clone()));
-            typeargs.entry((mode, ty, occs))
-                    .or_insert(vec![])
-                    .push(sym);
+            argtypes.insert(sym, ty_args.clone());
+            typeargs.entry(ty_args).or_insert(vec![]).push(sym);
         }
         let mut interchangeables = HashMap::new();
         for (arg, mut_ty) in argtypes {
@@ -846,25 +854,41 @@ enum TyOcc {
     Deref,
 }
 
-fn destructure_with<'t>(pat: &Pat, ty: &'t Ty, mut occ: Vec<TyOcc>,
-        result: &mut Vec<(Symbol, BindingMode, &'t Ty, Vec<TyOcc>)>, w: TyOcc) {
+fn destructure_with<'t>(
+    pat: &Pat,
+    ty: &'t Ty,
+    mut occ: Vec<TyOcc>,
+    result: &mut Vec<(Symbol, ArgTy<'t>)>,
+    w: TyOcc,
+) {
     occ.push(w);
     destructure_bindings(pat, ty, occ.clone(), result);
     occ.pop();
 }
 
 /// Walk a pattern, call a function on each named instance
-fn destructure_bindings<'t>(pat: &Pat, ty: &'t Ty, occ: Vec<TyOcc>,
-        result: &mut Vec<(Symbol, BindingMode, &'t Ty, Vec<TyOcc>)>) {
+fn destructure_bindings<'t>(
+    pat: &Pat,
+    ty: &'t Ty,
+    occ: Vec<TyOcc>,
+    result: &mut Vec<(Symbol, ArgTy<'t>)>,
+) {
     match pat.node {
         PatKind::Ident(mode, sp_ident, ref opt_pat) => {
-            result.push((sp_ident.node.name, mode, ty, occ.clone()));
+            result.push((sp_ident.node.name, ArgTy(mode, ty, occ.clone())));
             if let Some(ref pat) = *opt_pat {
                 destructure_bindings(pat, ty, occ, result);
             }
         }
         PatKind::Ref(ref ref_pat, pat_mut) => {
-            if let TyKind::Rptr(_, MutTy { ty: ref ref_ty, mutbl }) = ty.node {
+            if let TyKind::Rptr(
+                _,
+                MutTy {
+                    ty: ref ref_ty,
+                    mutbl,
+                },
+            ) = ty.node
+            {
                 if pat_mut == mutbl && occ.is_empty() {
                     destructure_bindings(ref_pat, ref_ty, occ, result);
                     return;
@@ -879,16 +903,18 @@ fn destructure_bindings<'t>(pat: &Pat, ty: &'t Ty, occ: Vec<TyOcc>,
                 }
             }
         }
-        PatKind::Struct(_, ref fpats, _) => {
-            for fp in fpats {
-                destructure_with(&fp.node.pat, ty, occ.clone(), result, TyOcc::Field(fp.node.ident.name));
-            }
-        }
-        PatKind::TupleStruct(_, ref pats, _opt_size) => {
-            for (i, p) in pats.iter().enumerate() {
-                destructure_with(p, ty, occ.clone(), result, TyOcc::Index(i));
-            }
-        }
+        PatKind::Struct(_, ref fpats, _) => for fp in fpats {
+            destructure_with(
+                &fp.node.pat,
+                ty,
+                occ.clone(),
+                result,
+                TyOcc::Field(fp.node.ident.name),
+            );
+        },
+        PatKind::TupleStruct(_, ref pats, _opt_size) => for (i, p) in pats.iter().enumerate() {
+            destructure_with(p, ty, occ.clone(), result, TyOcc::Index(i));
+        },
         PatKind::Tuple(ref pats, opt_usize) => {
             if let (true, &TyKind::Tup(ref tup)) = (occ.is_empty(), &ty.node) {
                 for i in 0..opt_usize.unwrap_or(pats.len()) {
@@ -925,6 +951,115 @@ fn unbox(ty: &Ty) -> Option<&Ty> {
         }
     }
     None
+}
+
+fn ty_equal(a: &Ty, b: &Ty, inout: bool) -> bool {
+    match (&a.node, &b.node) {
+        (&TyKind::Paren(ref aty), _) => ty_equal(&aty, b, inout),
+        (_, &TyKind::Paren(ref bty)) => ty_equal(a, &bty, inout),
+        (&TyKind::Slice(ref aslice), &TyKind::Slice(ref bslice)) => ty_equal(aslice, bslice, inout),
+        (&TyKind::Array(ref aty, ref alit), &TyKind::Array(ref bty, ref blit)) => {
+            ty_equal(&aty, &bty, inout) && get_lit(alit) == get_lit(blit)
+        }
+        (&TyKind::Ptr(ref amut), &TyKind::Ptr(ref bmut)) => ty_mut_equal(amut, bmut, inout),
+        (&TyKind::Rptr(ref alt, ref amut), &TyKind::Rptr(ref blt, ref bmut)) => {
+            if let (&Some(ref alt), &Some(ref blt)) = (alt, blt) {
+                lifetime_equal(alt, blt) && ty_mut_equal(amut, bmut, inout)
+            } else {
+                inout && alt.is_none() && blt.is_none() && ty_mut_equal(amut, bmut, inout)
+            }
+        }
+        (&TyKind::Never, &TyKind::Never) |
+        (&TyKind::ImplicitSelf, &TyKind::ImplicitSelf) => true,
+        (&TyKind::Tup(ref atys), &TyKind::Tup(ref btys)) => {
+            vecd(atys, btys, |a, b| ty_equal(a, b, inout))
+        }
+        (&TyKind::Path(ref aq, ref apath), &TyKind::Path(ref bq, ref bpath)) => {
+            optd(&aq, &bq, |a, b|
+                ty_equal(&a.ty, &b.ty, inout) && a.position == b.position) && path_equal(apath, bpath)
+        }
+        (&TyKind::TraitObject(ref abounds, ref asyn), &TyKind::TraitObject(ref bbounds, ref bsyn)) => {
+            asyn == bsyn && vecd(abounds, bbounds, |a, b| ty_param_bound_equal(a, b))
+        }
+        (&TyKind::ImplTrait(ref abounds), &TyKind::ImplTrait(ref bbounds)) => {
+            vecd(abounds, bbounds, | a, b| ty_param_bound_equal(a, b))
+        }
+        _ => false, // we can safely ignore inferred types, type macros and error types
+    }
+}
+
+fn vecd<T, F: Fn(&T, &T) -> bool>(a: &[T], b: &[T], f: F) -> bool {
+    a.len() == b.len() && a.into_iter().zip(b.into_iter()).all(|(x, y)| f(&*x, &*y))
+}
+
+fn optd<T, F: Fn(&T, &T) -> bool>(a: &Option<T>, b: &Option<T>, f: F) -> bool {
+    a.as_ref().map_or_else(|| b.is_none(), |aref| b.as_ref().map_or(false, |bref| f(aref, bref)))
+}
+
+fn ty_mut_equal(a: &MutTy, b: &MutTy, inout: bool) -> bool {
+    ty_equal(&a.ty, &b.ty, inout) && a.mutbl == b.mutbl
+}
+
+fn ty_bindings_equal(a: &TypeBinding, b: &TypeBinding) -> bool {
+    a.ident == b.ident && ty_equal(&a.ty, &b.ty, false)
+}
+
+fn path_equal(a: &Path, b: &Path) -> bool {
+    vecd(&a.segments, &b.segments, |a, b| path_segment_equal(a, b))
+}
+
+fn path_segment_equal(a: &PathSegment, b: &PathSegment) -> bool {
+    a.identifier == b.identifier && optd(&a.parameters, &b.parameters, |a, b| match (&**a, &**b) {
+        (&PathParameters::AngleBracketed(ref adata), &PathParameters::AngleBracketed(ref bdata)) => {
+            vecd(&adata.lifetimes, &bdata.lifetimes, |a, b| lifetime_equal(a, b)) &&
+                vecd(&adata.types, &bdata.types, |a, b| ty_equal(a, b, false)) &&
+                vecd(&adata.bindings, &bdata.bindings, |a, b| ty_bindings_equal(a, b))
+        }
+        (&PathParameters::Parenthesized(ref adata), &PathParameters::Parenthesized(ref bdata)) => {
+            vecd(&adata.inputs, &bdata.inputs, |a, b| ty_equal(a, b, false)) &&
+                optd(&adata.output, &bdata.output, |a, b| ty_equal(a, b, false))
+        }
+        _ => false
+    })
+}
+
+fn lifetime_equal(a: &Lifetime, b: &Lifetime) -> bool {
+    a.ident == b.ident
+}
+
+fn lifetime_def_equal(a: &LifetimeDef, b: &LifetimeDef) -> bool {
+    lifetime_equal(&a.lifetime, &b.lifetime) && vecd(&a.bounds, &b.bounds, lifetime_equal)
+}
+
+fn ty_param_equal(a: &TyParam, b: &TyParam) -> bool {
+    a.ident == b.ident && vecd(&a.bounds, &b.bounds, ty_param_bound_equal) && optd(&a.default, &b.default,
+        |a, b| ty_equal(a, b, false))
+}
+
+fn generic_param_equal(a: &GenericParam, b: &GenericParam) -> bool {
+    match (a, b) {
+        (&GenericParam::Lifetime(ref altdef), &GenericParam::Lifetime(ref bltdef)) =>
+            lifetime_def_equal(altdef, bltdef),
+        (&GenericParam::Type(ref aty), &GenericParam::Type(ref bty)) => ty_param_equal(aty, bty),
+        _ => false
+    }
+}
+
+fn trait_ref_equal(a: &PolyTraitRef, b: &PolyTraitRef) -> bool {
+    vecd(&a.bound_generic_params, &b.bound_generic_params, generic_param_equal) &&
+        path_equal(&a.trait_ref.path, &b.trait_ref.path)
+}
+
+fn ty_param_bound_equal(a: &TyParamBound, b: &TyParamBound) -> bool {
+    match (a, b) {
+        (&TraitTyParamBound(ref atrait, ref amod), &TraitTyParamBound(ref btrait, ref bmod)) => {
+            amod == bmod && trait_ref_equal(atrait, btrait)
+        }
+        (&RegionTyParamBound(ref alt), &RegionTyParamBound(ref blt)) => {
+            lifetime_equal(alt, blt)
+        }
+        _ => false
+    }
 }
 
 static ALWAYS_DEFAULT: &[&[&str]] = &[
