@@ -29,11 +29,33 @@ where T: {0}<Rhs>,
         }}
     }}
 }}
+
+pub trait {0}{2}Assign<Rhs=Self> {{
+    fn {1}_assign(&mut self, rhs: Rhs, mutation_count: usize);
+}}
+
+impl<T, R> {0}{2}Assign<R> for T where T: {0}Assign<R> {{
+    default fn {1}_assign(&mut self, rhs: R, _mutation_count: usize) {{
+        {0}Assign::{1}_assign(self, rhs);
+    }}
+}}
+
+impl<T, R> {0}{2}Assign<R> for T
+where T: {0}Assign<R>,
+      T: {2}Assign<R> {{
+    fn {1}_assign(&mut self, rhs: R, mutation_count: usize) {{
+        if super::now(mutation_count) {{
+            {2}Assign::{3}_assign(self, rhs);
+        }} else {{
+            {0}Assign::{1}_assign(self, rhs);
+        }}
+    }}
+}}
 ", o_trait, o_fn, mut_trait, mut_fn)
 }
 
 static BINOP_PAIRS: &[[&str; 4]] = &[
-    ["Add", "add", "Sub", "sub"],
+["Add", "add", "Sub", "sub"],
     ["Mul", "mul", "Div", "div"],
     ["Shl", "shl", "Shr", "shr"],
     ["BitAnd", "bitand", "BitOr", "bitor"],
