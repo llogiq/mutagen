@@ -959,7 +959,7 @@ fn ty_equal(a: &Ty, b: &Ty, inout: bool) -> bool {
         (_, &TyKind::Paren(ref bty)) => ty_equal(a, &bty, inout),
         (&TyKind::Slice(ref aslice), &TyKind::Slice(ref bslice)) => ty_equal(aslice, bslice, inout),
         (&TyKind::Array(ref aty, ref alit), &TyKind::Array(ref bty, ref blit)) => {
-            ty_equal(&aty, &bty, inout) && get_lit(alit) == get_lit(blit)
+            ty_equal(&aty, &bty, inout) && get_lit(alit).map_or(false, |a| Some(a) == get_lit(blit))
         }
         (&TyKind::Ptr(ref amut), &TyKind::Ptr(ref bmut)) => ty_mut_equal(amut, bmut, inout),
         (&TyKind::Rptr(ref alt, ref amut), &TyKind::Rptr(ref blt, ref bmut)) => {
@@ -976,13 +976,13 @@ fn ty_equal(a: &Ty, b: &Ty, inout: bool) -> bool {
         }
         (&TyKind::Path(ref aq, ref apath), &TyKind::Path(ref bq, ref bpath)) => {
             optd(&aq, &bq, |a, b|
-                ty_equal(&a.ty, &b.ty, inout) && a.position == b.position) && path_equal(apath, bpath)
+                ty_equal(&a.ty, &b.ty, inout) && a.position == b.position) && path_equal(apath, bpath, inout)
         }
         (&TyKind::TraitObject(ref abounds, ref asyn), &TyKind::TraitObject(ref bbounds, ref bsyn)) => {
-            asyn == bsyn && vecd(abounds, bbounds, |a, b| ty_param_bound_equal(a, b))
+            asyn == bsyn && vecd(abounds, bbounds, |a, b| ty_param_bound_equal(a, b, inout))
         }
         (&TyKind::ImplTrait(ref abounds), &TyKind::ImplTrait(ref bbounds)) => {
-            vecd(abounds, bbounds, | a, b| ty_param_bound_equal(a, b))
+            vecd(abounds, bbounds, | a, b| ty_param_bound_equal(a, b, inout))
         }
         _ => false, // we can safely ignore inferred types, type macros and error types
     }
@@ -1000,24 +1000,27 @@ fn ty_mut_equal(a: &MutTy, b: &MutTy, inout: bool) -> bool {
     ty_equal(&a.ty, &b.ty, inout) && a.mutbl == b.mutbl
 }
 
-fn ty_bindings_equal(a: &TypeBinding, b: &TypeBinding) -> bool {
-    a.ident == b.ident && ty_equal(&a.ty, &b.ty, false)
+fn ty_bindings_equal(a: &TypeBinding, b: &TypeBinding, inout: bool) -> bool {
+    a.ident == b.ident && ty_equal(&a.ty, &b.ty, inout)
 }
 
-fn path_equal(a: &Path, b: &Path) -> bool {
-    vecd(&a.segments, &b.segments, |a, b| path_segment_equal(a, b))
+fn path_equal(a: &Path, b: &Path, inout: bool) -> bool {
+    vecd(&a.segments, &b.segments, |a, b| path_segment_equal(a, b, inout))
 }
 
-fn path_segment_equal(a: &PathSegment, b: &PathSegment) -> bool {
+fn path_segment_equal(a: &PathSegment, b: &PathSegment, inout: bool) -> bool {
     a.identifier == b.identifier && optd(&a.parameters, &b.parameters, |a, b| match (&**a, &**b) {
         (&PathParameters::AngleBracketed(ref adata), &PathParameters::AngleBracketed(ref bdata)) => {
-            vecd(&adata.lifetimes, &bdata.lifetimes, |a, b| lifetime_equal(a, b)) &&
-                vecd(&adata.types, &bdata.types, |a, b| ty_equal(a, b, false)) &&
-                vecd(&adata.bindings, &bdata.bindings, |a, b| ty_bindings_equal(a, b))
+            (if adata.lifetimes.is_empty() {
+                inout && bdata.lifetimes.is_empty()
+            } else {
+                vecd(&adata.lifetimes, &bdata.lifetimes, |a, b| lifetime_equal(a, b))
+            }) && vecd(&adata.types, &bdata.types, |a, b| ty_equal(a, b, inout)) &&
+                vecd(&adata.bindings, &bdata.bindings, |a, b| ty_bindings_equal(a, b, inout))
         }
         (&PathParameters::Parenthesized(ref adata), &PathParameters::Parenthesized(ref bdata)) => {
-            vecd(&adata.inputs, &bdata.inputs, |a, b| ty_equal(a, b, false)) &&
-                optd(&adata.output, &bdata.output, |a, b| ty_equal(a, b, false))
+            vecd(&adata.inputs, &bdata.inputs, |a, b| ty_equal(a, b, inout)) &&
+                optd(&adata.output, &bdata.output, |a, b| ty_equal(a, b, inout))
         }
         _ => false
     })
@@ -1031,29 +1034,29 @@ fn lifetime_def_equal(a: &LifetimeDef, b: &LifetimeDef) -> bool {
     lifetime_equal(&a.lifetime, &b.lifetime) && vecd(&a.bounds, &b.bounds, lifetime_equal)
 }
 
-fn ty_param_equal(a: &TyParam, b: &TyParam) -> bool {
-    a.ident == b.ident && vecd(&a.bounds, &b.bounds, ty_param_bound_equal) && optd(&a.default, &b.default,
-        |a, b| ty_equal(a, b, false))
+fn ty_param_equal(a: &TyParam, b: &TyParam, inout: bool) -> bool {
+    a.ident == b.ident && vecd(&a.bounds, &b.bounds, |a, b| ty_param_bound_equal(a, b, inout))
+        && optd(&a.default, &b.default, |a, b| ty_equal(a, b, false))
 }
 
-fn generic_param_equal(a: &GenericParam, b: &GenericParam) -> bool {
+fn generic_param_equal(a: &GenericParam, b: &GenericParam, inout: bool) -> bool {
     match (a, b) {
         (&GenericParam::Lifetime(ref altdef), &GenericParam::Lifetime(ref bltdef)) =>
             lifetime_def_equal(altdef, bltdef),
-        (&GenericParam::Type(ref aty), &GenericParam::Type(ref bty)) => ty_param_equal(aty, bty),
+        (&GenericParam::Type(ref aty), &GenericParam::Type(ref bty)) => ty_param_equal(aty, bty, inout),
         _ => false
     }
 }
 
-fn trait_ref_equal(a: &PolyTraitRef, b: &PolyTraitRef) -> bool {
-    vecd(&a.bound_generic_params, &b.bound_generic_params, generic_param_equal) &&
-        path_equal(&a.trait_ref.path, &b.trait_ref.path)
+fn trait_ref_equal(a: &PolyTraitRef, b: &PolyTraitRef, inout: bool) -> bool {
+    vecd(&a.bound_generic_params, &b.bound_generic_params, |a, b| generic_param_equal(a, b, inout)) &&
+        path_equal(&a.trait_ref.path, &b.trait_ref.path, inout)
 }
 
-fn ty_param_bound_equal(a: &TyParamBound, b: &TyParamBound) -> bool {
+fn ty_param_bound_equal(a: &TyParamBound, b: &TyParamBound, inout: bool) -> bool {
     match (a, b) {
         (&TraitTyParamBound(ref atrait, ref amod), &TraitTyParamBound(ref btrait, ref bmod)) => {
-            amod == bmod && trait_ref_equal(atrait, btrait)
+            amod == bmod && trait_ref_equal(atrait, btrait, inout)
         }
         (&RegionTyParamBound(ref alt), &RegionTyParamBound(ref blt)) => {
             lifetime_equal(alt, blt)
