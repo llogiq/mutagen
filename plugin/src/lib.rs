@@ -1005,7 +1005,17 @@ fn ty_bindings_equal(a: &TypeBinding, b: &TypeBinding, inout: bool) -> bool {
 }
 
 fn path_equal(a: &Path, b: &Path, inout: bool) -> bool {
-    vecd(&a.segments, &b.segments, |a, b| path_segment_equal(a, b, inout))
+    vecd(&a.segments, &b.segments, |a, b| path_segment_equal(a, b, inout || is_whitelisted_path(a)))
+}
+
+// for now we restrict ourselves to primitive types, just to be sure
+static LIFETIME_LESS_PATHS: &[&[&str]] = &[
+	&["u8"], &["u16"], &["u32"], &["u64"], &["u128"], &["usize"],
+	&["i8"], &["i16"], &["i32"], &["i64"], &["i128"], &["isize"],
+	&["char"], &["bool"]];
+
+fn is_whitelisted_path(path: &Path) -> bool {
+    LIFETIME_LESS_PATHS.iter().any(|segs| match_path(path, segs))
 }
 
 fn path_segment_equal(a: &PathSegment, b: &PathSegment, inout: bool) -> bool {
