@@ -17,6 +17,7 @@ use syntax::ptr::P;
 use syntax::symbol::Symbol;
 use syntax::util::small_vector::SmallVector;
 use syntax::ast::{IntTy, LitIntType, LitKind, UnOp};
+use std::hash::{Hash, Hasher};
 
 #[plugin_registrar]
 pub fn plugin_registrar(reg: &mut Registry) {
@@ -97,12 +98,21 @@ pub struct MutatorPlugin<'a, 'cx: 'a> {
 }
 
 /// a combination of BindingMode, type and occurrence within the type
-#[derive(Clone, Eq, Hash)]
+#[derive(Clone, Eq, Debug)]
 struct ArgTy<'t>(BindingMode, &'t Ty, Vec<TyOcc>);
 
 impl<'t> PartialEq for ArgTy<'t> {
     fn eq(&self, other: &ArgTy<'t>) -> bool {
         self.0 == other.0 && ty_equal(self.1, other.1, false) && self.2 == other.2
+    }
+}
+
+impl<'t> Hash for ArgTy<'t> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.0.hash(state);
+        let s = format!("{:?}", self.1.node);
+        s.hash(state);
+        self.2.hash(state);
     }
 }
 
@@ -139,19 +149,15 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
             argtypes.insert(sym, ty_args.clone());
             typeargs.entry(ty_args).or_insert(vec![]).push(sym);
         }
+
         let mut interchangeables = HashMap::new();
-        for (arg, mut_ty) in argtypes {
-            if typeargs[&mut_ty].len() > 1 {
-                interchangeables.insert(
-                    arg,
-                    typeargs[&mut_ty]
-                        .iter()
-                        .filter(|a| a >= &&arg)
-                        .cloned()
-                        .collect(),
-                );
+        for (_, symbols) in typeargs {
+            if symbols.len() > 1 {
+                combine(&mut interchangeables, symbols);
             }
+
         }
+
         self.info.method_infos.push(MethodInfo {
             is_default,
             have_output_type,
@@ -793,7 +799,7 @@ fn fold_first_block(block: P<Block>, m: &mut MutatorPlugin) -> P<Block> {
                     pre_stmts.push(
                         quote_stmt!(cx,
                         if ::mutagen::now($n) {
-                            let ($key_ident, $value_ident) = ($value_ident, $key_ident)
+                            let ($key_ident, $value_ident) = ($value_ident, $key_ident);
                          }).unwrap(),
                     );
                 }
@@ -843,8 +849,20 @@ fn add_mutations(
     *count += descriptions.len();
 }
 
+/// combine the given `symbols` and add them to the interchangeables map
+fn combine<S: Hash + Eq + Copy>(interchangeables: &mut HashMap<S, Vec<S>>, symbols: Vec<S>) {
+    let symbol_amount = symbols.len();
+
+    for i in 0..symbol_amount {
+        let index = symbols[i];
+        let change_with = (i + 1..symbol_amount).map(|i| symbols[i]).collect();
+
+        interchangeables.insert(index, change_with);
+    }
+}
+
 /// additional position information  (which field in the given struct/enum)
-#[derive(Copy, Clone, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Copy, Clone, Eq, Hash, Ord, PartialEq, PartialOrd, Debug)]
 enum TyOcc {
     /// this is a subfield of a type, e.g. `Foo { x } : Foo` → `Field(x)`
     Field(Symbol),
@@ -1283,5 +1301,22 @@ mod tests {
 
             assert_eq!(actual, test.2);
         });
+    }
+
+    #[test]
+    fn test_combine() {
+        let a = "a";
+        let b = "b";
+        let c = "c";
+        let d = "d";
+
+        let symbols = vec![a, b, c, d];
+
+        let mut interchangeables = HashMap::new();
+        combine(&mut interchangeables, symbols);
+
+        assert_eq!(interchangeables[&a], &[b, c, d]);
+        assert_eq!(interchangeables[&b], &[c, d]);
+        assert_eq!(interchangeables[&c], &[d]);
     }
 }
