@@ -55,7 +55,7 @@ where T: {0}Assign<R>,
 }
 
 static BINOP_PAIRS: &[[&str; 4]] = &[
-["Add", "add", "Sub", "sub"],
+    ["Add", "add", "Sub", "sub"],
     ["Mul", "mul", "Div", "div"],
     ["Shl", "shl", "Shr", "shr"],
     ["BitAnd", "bitand", "BitOr", "bitor"],
