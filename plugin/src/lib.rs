@@ -1005,7 +1005,7 @@ fn ty_bindings_equal(a: &TypeBinding, b: &TypeBinding, inout: bool) -> bool {
 }
 
 fn path_equal(a: &Path, b: &Path, inout: bool) -> bool {
-    vecd(&a.segments, &b.segments, |a, b| path_segment_equal(a, b, inout || is_whitelisted_path(a)))
+    vecd(&a.segments, &b.segments, |aseg, bseg| path_segment_equal(aseg, bseg, inout || is_whitelisted_path(a)))
 }
 
 // for now we restrict ourselves to primitive types, just to be sure
