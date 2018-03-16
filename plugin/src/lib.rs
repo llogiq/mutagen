@@ -850,7 +850,7 @@ fn add_mutations(
 }
 
 /// combine the given `symbols` and add them to the interchangeables map
-fn combine(interchangeables: &mut HashMap<Symbol, Vec<Symbol>>, symbols: Vec<Symbol>) {
+fn combine<S: Hash + Eq + Copy>(interchangeables: &mut HashMap<S, Vec<S>>, symbols: Vec<S>) {
     let symbol_amount = symbols.len();
 
     for i in 0..symbol_amount {
@@ -1305,10 +1305,11 @@ mod tests {
 
     #[test]
     fn test_combine() {
-        let a = Symbol::intern("a");
-        let b = Symbol::intern("b");
-        let c = Symbol::intern("c");
-        let d = Symbol::intern("d");
+        let a = "a";
+        let b = "b";
+        let c = "c";
+        let d = "d";
+
         let symbols = vec![a, b, c, d];
 
         let mut interchangeables = HashMap::new();
