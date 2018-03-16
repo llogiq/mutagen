@@ -1,0 +1,105 @@
+insert return default() @ tests/mutagen/binops.rs:7:23: 33:2
+sub one to int constant @ tests/mutagen/binops.rs:8:15: 8:19
+add one to int constant @ tests/mutagen/binops.rs:8:15: 8:19
+replacing if condition with true @ tests/mutagen/binops.rs:10:8: 10:64
+replacing if condition with false @ tests/mutagen/binops.rs:10:8: 10:64
+inverting if condition @ tests/mutagen/binops.rs:10:8: 10:64
+replacing _ && _ with false @ tests/mutagen/binops.rs:10:8: 10:64
+replacing _ && _ with true @ tests/mutagen/binops.rs:10:8: 10:64
+replacing x && _ with x @ tests/mutagen/binops.rs:10:8: 10:64
+replacing x && _ with !x @ tests/mutagen/binops.rs:10:8: 10:64
+replacing x && y with x && !y @ tests/mutagen/binops.rs:10:8: 10:64
+replacing _ || _ with false @ tests/mutagen/binops.rs:10:9: 10:33
+replacing _ || _ with true @ tests/mutagen/binops.rs:10:9: 10:33
+replacing x || _ with x @ tests/mutagen/binops.rs:10:9: 10:33
+replacing x || _ with !x @ tests/mutagen/binops.rs:10:9: 10:33
+replacing x || y with x || !y @ tests/mutagen/binops.rs:10:9: 10:33
+replacing _ < _ with false @ tests/mutagen/binops.rs:10:9: 10:19
+replacing _ < _ with true @ tests/mutagen/binops.rs:10:9: 10:19
+replacing x < y with x > y @ tests/mutagen/binops.rs:10:9: 10:19
+replacing x < y with x >= y @ tests/mutagen/binops.rs:10:9: 10:19
+replacing x < y with x <= y @ tests/mutagen/binops.rs:10:9: 10:19
+replacing x < y with x == y @ tests/mutagen/binops.rs:10:9: 10:19
+replacing x < y with x != y @ tests/mutagen/binops.rs:10:9: 10:19
+sub one to int constant @ tests/mutagen/binops.rs:10:15: 10:19
+add one to int constant @ tests/mutagen/binops.rs:10:15: 10:19
+replacing _ > _ with false @ tests/mutagen/binops.rs:10:23: 10:33
+replacing _ > _ with true @ tests/mutagen/binops.rs:10:23: 10:33
+replacing x > y with x < y @ tests/mutagen/binops.rs:10:23: 10:33
+replacing x > y with x <= y @ tests/mutagen/binops.rs:10:23: 10:33
+replacing x > y with x >= y @ tests/mutagen/binops.rs:10:23: 10:33
+replacing x > y with x == y @ tests/mutagen/binops.rs:10:23: 10:33
+replacing x > y with x != y @ tests/mutagen/binops.rs:10:23: 10:33
+sub one to int constant @ tests/mutagen/binops.rs:10:29: 10:33
+add one to int constant @ tests/mutagen/binops.rs:10:29: 10:33
+replacing _ || _ with false @ tests/mutagen/binops.rs:10:39: 10:63
+replacing _ || _ with true @ tests/mutagen/binops.rs:10:39: 10:63
+replacing x || _ with x @ tests/mutagen/binops.rs:10:39: 10:63
+replacing x || _ with !x @ tests/mutagen/binops.rs:10:39: 10:63
+replacing x || y with x || !y @ tests/mutagen/binops.rs:10:39: 10:63
+replacing _ < _ with false @ tests/mutagen/binops.rs:10:39: 10:49
+replacing _ < _ with true @ tests/mutagen/binops.rs:10:39: 10:49
+replacing x < y with x > y @ tests/mutagen/binops.rs:10:39: 10:49
+replacing x < y with x >= y @ tests/mutagen/binops.rs:10:39: 10:49
+replacing x < y with x <= y @ tests/mutagen/binops.rs:10:39: 10:49
+replacing x < y with x == y @ tests/mutagen/binops.rs:10:39: 10:49
+replacing x < y with x != y @ tests/mutagen/binops.rs:10:39: 10:49
+sub one to int constant @ tests/mutagen/binops.rs:10:45: 10:49
+add one to int constant @ tests/mutagen/binops.rs:10:45: 10:49
+replacing _ > _ with false @ tests/mutagen/binops.rs:10:53: 10:63
+replacing _ > _ with true @ tests/mutagen/binops.rs:10:53: 10:63
+replacing x > y with x < y @ tests/mutagen/binops.rs:10:53: 10:63
+replacing x > y with x <= y @ tests/mutagen/binops.rs:10:53: 10:63
+replacing x > y with x >= y @ tests/mutagen/binops.rs:10:53: 10:63
+replacing x > y with x == y @ tests/mutagen/binops.rs:10:53: 10:63
+replacing x > y with x != y @ tests/mutagen/binops.rs:10:53: 10:63
+sub one to int constant @ tests/mutagen/binops.rs:10:59: 10:63
+add one to int constant @ tests/mutagen/binops.rs:10:59: 10:63
+replacing if condition with true @ tests/mutagen/binops.rs:14:8: 14:16
+replacing if condition with false @ tests/mutagen/binops.rs:14:8: 14:16
+inverting if condition @ tests/mutagen/binops.rs:14:8: 14:16
+replacing _ == _ with true @ tests/mutagen/binops.rs:14:9: 14:15
+replacing _ == _ with false @ tests/mutagen/binops.rs:14:9: 14:15
+replacing x == y with x != y @ tests/mutagen/binops.rs:14:9: 14:15
+sub one to int constant @ tests/mutagen/binops.rs:14:9: 14:10
+add one to int constant @ tests/mutagen/binops.rs:14:9: 14:10
+sub one to int constant @ tests/mutagen/binops.rs:14:14: 14:15
+add one to int constant @ tests/mutagen/binops.rs:14:14: 14:15
+replacing if condition with true @ tests/mutagen/binops.rs:18:8: 18:23
+replacing if condition with false @ tests/mutagen/binops.rs:18:8: 18:23
+inverting if condition @ tests/mutagen/binops.rs:18:8: 18:23
+replacing _ && _ with false @ tests/mutagen/binops.rs:18:9: 18:22
+replacing _ && _ with true @ tests/mutagen/binops.rs:18:9: 18:22
+replacing x && _ with x @ tests/mutagen/binops.rs:18:9: 18:22
+replacing x && _ with !x @ tests/mutagen/binops.rs:18:9: 18:22
+replacing x && y with x && !y @ tests/mutagen/binops.rs:18:9: 18:22
+replacing if condition with true @ tests/mutagen/binops.rs:22:8: 22:16
+replacing if condition with false @ tests/mutagen/binops.rs:22:8: 22:16
+inverting if condition @ tests/mutagen/binops.rs:22:8: 22:16
+replacing _ != _ with true @ tests/mutagen/binops.rs:22:9: 22:15
+replacing _ != _ with false @ tests/mutagen/binops.rs:22:9: 22:15
+replacing x != y with x == y @ tests/mutagen/binops.rs:22:9: 22:15
+sub one to int constant @ tests/mutagen/binops.rs:22:9: 22:10
+add one to int constant @ tests/mutagen/binops.rs:22:9: 22:10
+sub one to int constant @ tests/mutagen/binops.rs:22:14: 22:15
+add one to int constant @ tests/mutagen/binops.rs:22:14: 22:15
+replacing if condition with true @ tests/mutagen/binops.rs:26:8: 26:17
+replacing if condition with false @ tests/mutagen/binops.rs:26:8: 26:17
+inverting if condition @ tests/mutagen/binops.rs:26:8: 26:17
+replacing _ < _ with false @ tests/mutagen/binops.rs:26:9: 26:16
+replacing _ < _ with true @ tests/mutagen/binops.rs:26:9: 26:16
+replacing x < y with x > y @ tests/mutagen/binops.rs:26:9: 26:16
+replacing x < y with x >= y @ tests/mutagen/binops.rs:26:9: 26:16
+replacing x < y with x <= y @ tests/mutagen/binops.rs:26:9: 26:16
+replacing x < y with x == y @ tests/mutagen/binops.rs:26:9: 26:16
+replacing x < y with x != y @ tests/mutagen/binops.rs:26:9: 26:16
+sub one to int constant @ tests/mutagen/binops.rs:26:15: 26:16
+add one to int constant @ tests/mutagen/binops.rs:26:15: 26:16
+replacing if condition with true @ tests/mutagen/binops.rs:30:8: 30:16
+replacing if condition with false @ tests/mutagen/binops.rs:30:8: 30:16
+inverting if condition @ tests/mutagen/binops.rs:30:8: 30:16
+replacing _ == _ with true @ tests/mutagen/binops.rs:30:8: 30:16
+replacing _ == _ with false @ tests/mutagen/binops.rs:30:8: 30:16
+replacing x == y with x != y @ tests/mutagen/binops.rs:30:8: 30:16
+sub one to int constant @ tests/mutagen/binops.rs:30:15: 30:16
+add one to int constant @ tests/mutagen/binops.rs:30:15: 30:16
