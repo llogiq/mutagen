@@ -9,8 +9,8 @@ insert return default() @ tests/mutagen/interchange.rs:12:35: 12:37
 insert return default() @ tests/mutagen/interchange.rs:20:112: 22:2
 exchange a with c @ tests/mutagen/interchange.rs:20:112: 22:2
 exchange a with e @ tests/mutagen/interchange.rs:20:112: 22:2
-exchange c with e @ tests/mutagen/interchange.rs:20:112: 22:2
 exchange b with d @ tests/mutagen/interchange.rs:20:112: 22:2
+exchange c with e @ tests/mutagen/interchange.rs:20:112: 22:2
 insert return default() @ tests/mutagen/interchange.rs:26:1: 28:2
-exchange a with c @ tests/mutagen/interchange.rs:26:1: 28:2
 exchange b with d @ tests/mutagen/interchange.rs:26:1: 28:2
+exchange a with c @ tests/mutagen/interchange.rs:26:1: 28:2
