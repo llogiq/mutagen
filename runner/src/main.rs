@@ -1,16 +1,20 @@
+#[macro_use]
+extern crate failure;
 extern crate json;
 
 mod runner;
 
-use std::process::{Command, Stdio};
+use std::process::{self, Command, Stdio};
 use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::str::from_utf8;
-use runner::{FullSuiteRunner, CoverageRunner, Runner};
+use runner::{CoverageRunner, FullSuiteRunner, Runner};
 
 static TARGET_MUTAGEN: &'static str = "target/mutagen";
 static MUTATIONS_LIST: &'static str = "mutations.txt";
+
+type Result<T> = std::result::Result<T, failure::Error>;
 
 fn run_mutations(runner: Box<Runner>, list: &[String]) {
     let max_mutation = list.len();
@@ -62,17 +66,14 @@ fn run_mutations(runner: Box<Runner>, list: &[String]) {
     );
 }
 
-fn get_mutations_filename() -> PathBuf {
-    let metadata = Command::new("cargo")
-        .arg("metadata")
-        .output()
-        .expect("failed to fetch metadata. Is this a Rust project?");
+fn get_mutations_filename() -> Result<PathBuf> {
+    let metadata = Command::new("cargo").arg("metadata").output()?;
+    let stderr = from_utf8(&metadata.stderr)?;
     if !metadata.status.success() {
-        println!("failed to fetch metadata, cargo returned non-zero status.");
-        panic!("{}", from_utf8(&metadata.stderr).unwrap());
+        bail!("{}", stderr);
     }
-    let meta_json =
-        json::parse(from_utf8(&metadata.stdout).expect("non-UTF8 cargo output")).unwrap();
+    let stdout = from_utf8(&metadata.stdout)?;
+    let meta_json = json::parse(stdout)?;
     let root_dir = Path::new(
         meta_json["workspace_root"]
             .as_str()
@@ -80,26 +81,25 @@ fn get_mutations_filename() -> PathBuf {
     );
     let mutagen_dir = root_dir.join(TARGET_MUTAGEN);
     if !mutagen_dir.exists() {
-        panic!("Mutations are missing");
+        bail!("mutations are missing")
     }
-    mutagen_dir.join(MUTATIONS_LIST)
+    Ok(mutagen_dir.join(MUTATIONS_LIST))
 }
 
-fn compile_tests() -> Vec<PathBuf> {
+fn compile_tests() -> Result<Vec<PathBuf>> {
     let mut tests: Vec<PathBuf> = Vec::new();
     let compile_out = Command::new("cargo")
         .args(&["test", "--no-run", "--message-format=json"])
         .args(std::env::args_os())
         .stderr(Stdio::inherit())
-        .output()
-        .expect("Could not compile test");
+        .output()?;
 
     if !compile_out.status.success() {
-        panic!("cargo test returned non-zero status");
+        bail!("cargo test returned non-zero status");
     }
-    let compile_stdout = from_utf8(&compile_out.stdout).expect("non-utf8 in cargo test messages");
+    let compile_stdout = from_utf8(&compile_out.stdout)?;
     for line in compile_stdout.lines() {
-        let msg_json = json::parse(line).expect(compile_stdout);
+        let msg_json = json::parse(line)?;
         if msg_json["reason"].as_str().unwrap() == "compiler-artifact"
             && msg_json["profile"]["test"].as_bool().unwrap_or(false)
         {
@@ -111,18 +111,17 @@ fn compile_tests() -> Vec<PathBuf> {
             }
         }
     }
-    tests
+    Ok(tests)
 }
 
-fn read_mutations(filename: &PathBuf) -> Vec<String> {
-    let mut file = File::open(filename).expect("Mutations are missing");
+fn read_mutations(filename: &PathBuf) -> Result<Vec<String>> {
+    let mut file = File::open(filename)?;
     let mut s = String::new();
-    file.read_to_string(&mut s)
-        .expect("Failed reading mutations file");
-    s.split("\n")
+    file.read_to_string(&mut s)?;
+    Ok(s.split("\n")
         .filter(|l| !l.is_empty())
         .map(|l| l.to_string())
-        .collect()
+        .collect())
 }
 
 fn has_flag(flag: &str) -> bool {
@@ -131,13 +130,13 @@ fn has_flag(flag: &str) -> bool {
     args.find(|f| f == flag).is_some()
 }
 
-fn main() {
-    let tests_executable = compile_tests();
+fn run() -> Result<()> {
+    let tests_executable = compile_tests()?;
     if tests_executable.is_empty() {
-        panic!("executable path not found");
+        bail!("executable path not found");
     }
-    let filename = get_mutations_filename();
-    let list = read_mutations(&filename);
+    let filename = get_mutations_filename()?;
+    let list = read_mutations(&filename)?;
 
     let with_coverage = has_flag("--coverage");
     for test_executable in tests_executable {
@@ -149,10 +148,19 @@ fn main() {
         };
 
         if let Err(_) = runner.run(0) {
-            println!("You need to make sure you don't have failing tests before running 'cargo mutagen'");
-            return;
+            bail!(
+                "You need to make sure you don't have failing tests before running 'cargo mutagen'"
+            );
         }
 
         run_mutations(runner, &list)
+    }
+    Ok(())
+}
+
+fn main() {
+    if let Err(err) = run() {
+        eprintln!("{}", err);
+        process::exit(1);
     }
 }
