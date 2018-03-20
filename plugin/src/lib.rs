@@ -7,6 +7,7 @@ use rustc_plugin::registry::Registry;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::fs::{create_dir_all, File, OpenOptions};
+use std::hash::{Hash, Hasher};
 use std::io::{BufWriter, Write};
 use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
 use syntax::ast::*;
@@ -17,7 +18,6 @@ use syntax::ptr::P;
 use syntax::symbol::Symbol;
 use syntax::util::small_vector::SmallVector;
 use syntax::ast::{IntTy, LitIntType, LitKind, UnOp};
-use std::hash::{Hash, Hasher};
 
 #[plugin_registrar]
 pub fn plugin_registrar(reg: &mut Registry) {
@@ -99,20 +99,19 @@ pub struct MutatorPlugin<'a, 'cx: 'a> {
 
 /// a combination of BindingMode, type and occurrence within the type
 #[derive(Clone, Eq, Debug)]
-struct ArgTy<'t>(BindingMode, &'t Ty, Vec<TyOcc>);
+struct ArgTy<'t>(BindingMode, &'t Ty, usize, Vec<TyOcc>);
 
 impl<'t> PartialEq for ArgTy<'t> {
     fn eq(&self, other: &ArgTy<'t>) -> bool {
-        self.0 == other.0 && ty_equal(self.1, other.1, false) && self.2 == other.2
+        self.0 == other.0 && ty_equal(self.1, other.1, self.2 == other.2) && self.3 == other.3
     }
 }
 
 impl<'t> Hash for ArgTy<'t> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.0.hash(state);
-        let s = format!("{:?}", self.1.node);
-        s.hash(state);
-        self.2.hash(state);
+        ty_hash(self.1, self.2, state);
+        self.3.hash(state);
     }
 }
 
@@ -139,11 +138,12 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
         let mut argtypes: HashMap<Symbol, ArgTy> = HashMap::new();
         let mut typeargs: HashMap<ArgTy, Vec<Symbol>> = HashMap::new();
         let mut argdefs = vec![];
-        for arg in &decl.inputs {
-            destructure_bindings(&arg.pat, &*arg.ty, vec![], &mut argdefs);
+        let mut occs = vec![];
+        for (pos, arg) in decl.inputs.iter().enumerate() {
+            destructure_bindings(&arg.pat, &*arg.ty, &mut occs, pos, &mut argdefs);
         }
         for (sym, ty_args) in argdefs {
-            if ty_args.2.is_empty() && out_ty.map_or(false, |t| ty_equal(t, ty_args.1, decl.inputs.len() == 1)) {
+            if ty_args.3.is_empty() && out_ty.map_or(false, |t| ty_equal(t, ty_args.1, decl.inputs.len() == 1)) {
                 have_output_type.push(sym);
             }
             argtypes.insert(sym, ty_args.clone());
@@ -875,12 +875,13 @@ enum TyOcc {
 fn destructure_with<'t>(
     pat: &Pat,
     ty: &'t Ty,
-    mut occ: Vec<TyOcc>,
+    occ: &mut Vec<TyOcc>,
+    pos: usize,
     result: &mut Vec<(Symbol, ArgTy<'t>)>,
     w: TyOcc,
 ) {
     occ.push(w);
-    destructure_bindings(pat, ty, occ.clone(), result);
+    destructure_bindings(pat, ty, occ, pos, result);
     occ.pop();
 }
 
@@ -888,14 +889,15 @@ fn destructure_with<'t>(
 fn destructure_bindings<'t>(
     pat: &Pat,
     ty: &'t Ty,
-    occ: Vec<TyOcc>,
+    occ: &mut Vec<TyOcc>,
+    pos: usize,
     result: &mut Vec<(Symbol, ArgTy<'t>)>,
 ) {
     match pat.node {
         PatKind::Ident(mode, sp_ident, ref opt_pat) => {
-            result.push((sp_ident.node.name, ArgTy(mode, ty, occ.clone())));
+            result.push((sp_ident.node.name, ArgTy(mode, ty, pos, occ.clone())));
             if let Some(ref pat) = *opt_pat {
-                destructure_bindings(pat, ty, occ, result);
+                destructure_bindings(pat, ty, occ, pos, result);
             }
         }
         PatKind::Ref(ref ref_pat, pat_mut) => {
@@ -908,16 +910,16 @@ fn destructure_bindings<'t>(
             ) = ty.node
             {
                 if pat_mut == mutbl && occ.is_empty() {
-                    destructure_bindings(ref_pat, ref_ty, occ, result);
+                    destructure_bindings(ref_pat, ref_ty, occ, pos, result);
                     return;
                 }
             }
-            destructure_with(ref_pat, ty, occ, result, TyOcc::Deref);
+            destructure_with(ref_pat, ty, occ, pos, result, TyOcc::Deref);
         }
         PatKind::Slice(ref pats, None, _) => {
             if occ.is_empty() && pats.len() == 1 {
                 if let TyKind::Slice(ref slice_ty) = ty.node {
-                    destructure_bindings(&pats[0], slice_ty, occ, result);
+                    destructure_bindings(&pats[0], slice_ty, occ, pos, result);
                 }
             }
         }
@@ -925,30 +927,32 @@ fn destructure_bindings<'t>(
             destructure_with(
                 &fp.node.pat,
                 ty,
-                occ.clone(),
+                occ,
+                pos,
                 result,
                 TyOcc::Field(fp.node.ident.name),
             );
         },
         PatKind::TupleStruct(_, ref pats, _opt_size) => for (i, p) in pats.iter().enumerate() {
-            destructure_with(p, ty, occ.clone(), result, TyOcc::Index(i));
+            destructure_with(p, ty, occ, pos, result, TyOcc::Index(i));
         },
         PatKind::Tuple(ref pats, opt_usize) => {
             if let (true, &TyKind::Tup(ref tup)) = (occ.is_empty(), &ty.node) {
+                let mut new_occs = vec![];
                 for i in 0..opt_usize.unwrap_or(pats.len()) {
-                    destructure_bindings(&pats[i], &tup[i], vec![], result);
+                    destructure_bindings(&pats[i], &tup[i], &mut new_occs, pos, result);
                 }
             } else {
                 for (i, p) in pats.iter().enumerate() {
-                    destructure_with(p, ty, occ.clone(), result, TyOcc::Index(i));
+                    destructure_with(p, ty, occ, pos, result, TyOcc::Index(i));
                 }
             }
         }
         PatKind::Box(ref boxed_pat) => {
             if let Some(unbox_ty) = unbox(ty) {
-                destructure_bindings(boxed_pat, unbox_ty, occ, result);
+                destructure_bindings(boxed_pat, unbox_ty, occ, pos, result);
             } else {
-                destructure_with(boxed_pat, ty, occ, result, TyOcc::Deref);
+                destructure_with(boxed_pat, ty, occ, pos, result, TyOcc::Deref);
             }
         }
         _ => {} // wildcards, etc.
@@ -969,6 +973,55 @@ fn unbox(ty: &Ty) -> Option<&Ty> {
         }
     }
     None
+}
+
+fn ty_hash<H: Hasher>(ty: &Ty, pos: usize, h: &mut H) {
+    match ty.node {
+        TyKind::Paren(ref ty) => ty_hash(ty, pos, h),
+        TyKind::Slice(ref slice) => { h.write_u8(0); ty_hash(slice, pos, h) },
+        TyKind::Array(ref ty, ref lit) => { h.write_u8(1); ty_hash(ty, pos, h); get_lit(lit).hash(h) },
+        TyKind::Ptr(ref mutty) => { h.write_u8(2); mut_ty_hash(mutty, pos, h) },
+        TyKind::Rptr(ref lt, ref mutty) => {
+            h.write_u8(3);
+            if let Some(ref lt) = *lt {
+                lifetime_hash(lt, h);
+            } else {
+                h.write_usize(pos);
+            }
+            mut_ty_hash(mutty, pos, h)
+        }
+        TyKind::Never => h.write_u8(3),
+        TyKind::ImplicitSelf => h.write_u8(4),
+        TyKind::Tup(ref tys) => {
+            h.write_u8(5);
+            for ty in tys {
+                ty_hash(ty, pos, h);
+            }
+        }
+        TyKind::Path(ref qself, ref path) => {
+            h.write_u8(6);
+            if let Some(ref qself) = *qself {
+                h.write_usize(qself.position);
+                ty_hash(&qself.ty, pos, h);
+            }
+            path_hash(path, pos, h);
+        }
+        TyKind::TraitObject(ref bounds, ref syn) => {
+            h.write_u8(7);
+            for bound in bounds {
+                ty_param_bound_hash(bound, pos, h);
+            }
+            syn.hash(h);
+        }
+        TyKind::ImplTrait(ref bounds) => {
+            h.write_u8(8);
+            for bound in bounds {
+                ty_param_bound_hash(bound, pos, h);
+            }
+        }
+        // don't care about the other values
+        _ => ty.hash(h)
+    }
 }
 
 fn ty_equal(a: &Ty, b: &Ty, inout: bool) -> bool {
@@ -1014,6 +1067,11 @@ fn optd<T, F: Fn(&T, &T) -> bool>(a: &Option<T>, b: &Option<T>, f: F) -> bool {
     a.as_ref().map_or_else(|| b.is_none(), |aref| b.as_ref().map_or(false, |bref| f(aref, bref)))
 }
 
+fn mut_ty_hash<H: Hasher>(m: &MutTy, pos: usize, h: &mut H) {
+    ty_hash(&m.ty, pos, h);
+    m.mutbl.hash(h);
+}
+
 fn ty_mut_equal(a: &MutTy, b: &MutTy, inout: bool) -> bool {
     ty_equal(&a.ty, &b.ty, inout) && a.mutbl == b.mutbl
 }
@@ -1022,18 +1080,52 @@ fn ty_bindings_equal(a: &TypeBinding, b: &TypeBinding, inout: bool) -> bool {
     a.ident == b.ident && ty_equal(&a.ty, &b.ty, inout)
 }
 
+fn path_hash<H: Hasher>(p: &Path, pos: usize, h: &mut H) {
+    let pos = if is_whitelisted_path(p) { usize::max_value() } else { pos };
+    for segment in &p.segments {
+        path_segment_hash(segment, pos, h);
+    }
+}
+
 fn path_equal(a: &Path, b: &Path, inout: bool) -> bool {
     vecd(&a.segments, &b.segments, |aseg, bseg| path_segment_equal(aseg, bseg, inout || is_whitelisted_path(a)))
 }
 
 // for now we restrict ourselves to primitive types, just to be sure
 static LIFETIME_LESS_PATHS: &[&[&str]] = &[
-	&["u8"], &["u16"], &["u32"], &["u64"], &["u128"], &["usize"],
-	&["i8"], &["i16"], &["i32"], &["i64"], &["i128"], &["isize"],
-	&["char"], &["bool"]];
+    &["u8"], &["u16"], &["u32"], &["u64"], &["u128"], &["usize"],
+    &["i8"], &["i16"], &["i32"], &["i64"], &["i128"], &["isize"],
+    &["char"], &["bool"]];
 
 fn is_whitelisted_path(path: &Path) -> bool {
     LIFETIME_LESS_PATHS.iter().any(|segs| match_path(path, segs))
+}
+
+fn path_segment_hash<H: Hasher>(seg: &PathSegment, pos: usize, h: &mut H) {
+    seg.identifier.hash(h);
+    if let Some(ref params) = seg.parameters {
+        match **params {
+            PathParameters::AngleBracketed(ref data) => {
+                if data.lifetimes.is_empty() {
+                    h.write_u8(0);
+                    h.write_usize(pos);
+                } else {
+                    h.write_u8(1);
+                    for lt in &data.lifetimes {
+                        lifetime_hash(lt, h);
+                    }
+                }
+            }
+            PathParameters::Parenthesized(ref data) => {
+                for i in &data.inputs {
+                    ty_hash(i, pos, h);
+                }
+                if let Some(ref ty) = data.output {
+                    ty_hash(ty, pos, h);
+                }
+            }
+        }
+    }
 }
 
 fn path_segment_equal(a: &PathSegment, b: &PathSegment, inout: bool) -> bool {
@@ -1054,6 +1146,10 @@ fn path_segment_equal(a: &PathSegment, b: &PathSegment, inout: bool) -> bool {
     })
 }
 
+fn lifetime_hash<H: Hasher>(l: &Lifetime, h: &mut H) {
+    l.ident.name.hash(h)
+}
+
 fn lifetime_equal(a: &Lifetime, b: &Lifetime) -> bool {
     a.ident == b.ident
 }
@@ -1062,9 +1158,31 @@ fn lifetime_def_equal(a: &LifetimeDef, b: &LifetimeDef) -> bool {
     lifetime_equal(&a.lifetime, &b.lifetime) && vecd(&a.bounds, &b.bounds, lifetime_equal)
 }
 
+fn ty_param_hash<H: Hasher>(t: &TyParam, pos: usize, h: &mut H) {
+    t.ident.name.hash(h);
+    for b in &t.bounds {
+        ty_param_bound_hash(b, pos, h);
+    }
+    if let Some(ref default_ty) = t.default {
+        ty_hash(default_ty, pos, h);
+    }
+}
+
 fn ty_param_equal(a: &TyParam, b: &TyParam, inout: bool) -> bool {
     a.ident == b.ident && vecd(&a.bounds, &b.bounds, |a, b| ty_param_bound_equal(a, b, inout))
         && optd(&a.default, &b.default, |a, b| ty_equal(a, b, false))
+}
+
+fn generic_param_hash<H: Hasher>(p: &GenericParam, pos: usize, h: &mut H) {
+    match *p {
+        GenericParam::Lifetime(ref ltdef) => {
+            lifetime_hash(&ltdef.lifetime, h);
+            for lt in &ltdef.bounds {
+                lifetime_hash(lt, h);
+            }
+        }
+        GenericParam::Type(ref typaram) => ty_param_hash(typaram, pos, h),
+    }
 }
 
 fn generic_param_equal(a: &GenericParam, b: &GenericParam, inout: bool) -> bool {
@@ -1076,9 +1194,30 @@ fn generic_param_equal(a: &GenericParam, b: &GenericParam, inout: bool) -> bool 
     }
 }
 
+fn trait_ref_hash<H: Hasher>(t: &PolyTraitRef, pos: usize, h: &mut H) {
+    for gp in &t.bound_generic_params {
+        generic_param_hash(gp, pos, h);
+    }
+    path_hash(&t.trait_ref.path, pos, h);
+}
+
 fn trait_ref_equal(a: &PolyTraitRef, b: &PolyTraitRef, inout: bool) -> bool {
     vecd(&a.bound_generic_params, &b.bound_generic_params, |a, b| generic_param_equal(a, b, inout)) &&
         path_equal(&a.trait_ref.path, &b.trait_ref.path, inout)
+}
+
+fn ty_param_bound_hash<H: Hasher>(tpb: &TyParamBound, pos: usize, h: &mut H) {
+    match *tpb {
+        TraitTyParamBound(ref t, ref m) => {
+            h.write_u8(0);
+            trait_ref_hash(t, pos, h);
+            m.hash(h);
+        },
+        RegionTyParamBound(ref lifetime) => {
+            h.write_u8(1);
+            lifetime_hash(lifetime, h);
+        }
+    }
 }
 
 fn ty_param_bound_equal(a: &TyParamBound, b: &TyParamBound, inout: bool) -> bool {
