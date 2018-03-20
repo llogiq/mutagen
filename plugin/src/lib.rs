@@ -477,6 +477,37 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
             }
             Expr {
                 id,
+                node: ExprKind::ForLoop(pat, expr, block, ident),
+                span,
+                attrs,
+            } => {
+                let (n, current, sym, flag, mask) = self.add_mutations(
+                    expr.span,
+                    &[
+                        "empty iterator",
+                        "skip first element",
+                        "skip last element",
+                        "skip first and last element",
+                    ],
+                );
+                let pat = self.fold_pat(pat);
+                let expr = self.fold_expr(expr);
+                let block = fold::noop_fold_block(block, self);
+
+                let expr = quote_expr!(self.cx(), {
+                    ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
+                    ::mutagen::forloop($expr, $n)
+                });
+
+                P(Expr {
+                    id,
+                    node: ExprKind::ForLoop(pat, expr, block, ident),
+                    span,
+                    attrs,
+                })
+            }
+            Expr {
+                id,
                 node: ExprKind::Unary(UnOp::Neg, exp),
                 span,
                 attrs,
