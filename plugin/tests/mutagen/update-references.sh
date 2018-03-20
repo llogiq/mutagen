@@ -27,12 +27,8 @@ if [[ "$1" == "--help" || "$1" == "-h" || "$1" == "" || "$2" == "" ]]; then
 fi
 
 MYDIR=$(dirname $0)
-
 BUILD_DIR="$1"
-
-echo "My dir $MYDIR"
-echo "Buildd ir $BUILD_DIR"
-
+echo $BUILD_DIR
 shift
 
 while [[ "$1" != "" ]]; do
