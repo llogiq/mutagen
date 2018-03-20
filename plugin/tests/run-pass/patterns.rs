@@ -4,10 +4,10 @@
 extern crate mutagen;
 
 #[mutate]
-//~^ ERROR arbitrary expressions
 fn matches() {
     match 2 {
-        1...3 => (),    //~ ERROR [E0029]
+        1...3 => (),
+        a if 3 > 4 => (),
         _ => (),
     };
 
