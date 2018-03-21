@@ -10,6 +10,8 @@ use std::sync::mpsc::channel;
 use test::{MonitorMsg, TestResult};
 use std::io::{Error, Read};
 use std::path::Path;
+use std::fs;
+use std::ffi::OsStr;
 
 fn run_mode(mode: &'static str) {
     let mut config = create_config(mode);
@@ -52,7 +54,6 @@ fn compile(filename: &str) {
             panic!("Failed to run {}", std::str::from_utf8(&result.2).unwrap());
         }
     }
-
 }
 
 
@@ -64,7 +65,7 @@ fn compile_test() {
 
 #[test]
 fn compile_mutations() {
-    let files = ["binops", "interchange"];
+    let files = examples(PathBuf::from("tests/mutagen"));
     let mut results = Vec::new();
     std::fs::create_dir_all("target/mutagen").unwrap();
 
@@ -87,6 +88,22 @@ fn compile_mutations() {
     if errors {
         panic!()
     }
+}
+
+fn examples(path: PathBuf) -> Vec<String> {
+    let paths = fs::read_dir(path).unwrap();
+
+    paths
+        .filter_map(|p| {
+            p.ok().map(|current| current.path())
+        })
+        .filter(|path| {
+            path.extension() == Some(OsStr::new("rs"))
+        })
+        .map(|path| {
+            path.file_stem().unwrap().to_str().unwrap().to_string()
+        })
+        .collect()
 }
 
 type TestErr<'a> = (&'a str, String);
