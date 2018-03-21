@@ -61,8 +61,8 @@ pub fn mutator(cx: &mut ExtCtxt, _span: Span, _mi: &MetaItem, a: Annotatable) ->
             p.fold_impl_item(i).expect_one("expected exactly one item")
         })),
     };
-    p.mutations.flush().unwrap();
-    MUTATION_COUNT.store(p.current_count, SeqCst);
+    p.m.mutations.flush().unwrap();
+    MUTATION_COUNT.store(p.m.current_count, SeqCst);
     result
 }
 
@@ -85,16 +85,33 @@ struct MutatorInfo {
     self_tys: Vec<Ty>,
 }
 
-/// The MutatorPlugin
-pub struct MutatorPlugin<'a, 'cx: 'a> {
+struct Mutator<'a, 'cx: 'a> {
     /// context for quoting
     cx: &'a mut ExtCtxt<'cx>,
-    /// information about the context
-    info: MutatorInfo,
     /// a sequence of mutations
     mutations: BufWriter<File>,
     /// the current mutation count, starting from 1
     current_count: usize,
+}
+
+impl<'a, 'cx: 'a> Mutator<'a, 'cx> {
+    fn add_mutations(&mut self, span: Span, descriptions: &[&str]) -> (usize, usize) {
+        let initial_count = self.current_count;
+        let span_desc = self.cx.codemap().span_to_string(span);
+        for desc in descriptions {
+            writeln!(&mut self.mutations, "{} @ {}", desc, span_desc).unwrap()
+        }
+        self.current_count += descriptions.len();
+        (initial_count, self.current_count)
+    }
+}
+
+/// The MutatorPlugin
+pub struct MutatorPlugin<'a, 'cx: 'a> {
+    /// information about the context
+    info: MutatorInfo,
+    /// the mutator itself
+    m: Mutator<'a, 'cx>,
 }
 
 /// a combination of BindingMode, type and occurrence within the type
@@ -118,11 +135,21 @@ impl<'t> Hash for ArgTy<'t> {
 impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
     fn new(cx: &'a mut ExtCtxt<'cx>, mutations: BufWriter<File>, count: usize) -> Self {
         MutatorPlugin {
-            cx,
             info: Default::default(),
-            mutations,
-            current_count: count,
+            m: Mutator {
+                cx,
+                mutations,
+                current_count: count,
+            }
         }
+    }
+
+    fn add_mutations(&mut self, span: Span, descriptions: &[&str]) -> (usize, usize) {
+        self.m.add_mutations(span, descriptions)
+    }
+
+    fn cx(&mut self) -> &mut ExtCtxt<'cx> {
+        self.m.cx
     }
 
     fn start_fn(&mut self, decl: &FnDecl) {
@@ -189,7 +216,7 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
                 node: LitKind::Int(i, ty),
                 span: s,
             } => {
-                let mut mut_expression = quote_expr!(self.cx, $lit);
+                let mut mut_expression = quote_expr!(self.cx(), $lit);
 
                 let mut numeric_constant = i as i64;
                 if is_negative {
@@ -197,20 +224,10 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
                 }
 
                 if int_constant_can_subtract_one(numeric_constant, ty) {
-                    let n;
-                    {
-                        n = self.current_count;
-                        add_mutations(
-                            &self.cx,
-                            &mut self.mutations,
-                            &mut self.current_count,
-                            s,
+                    let (n, current) = self.add_mutations(s,
                             &["sub one to int constant"],
                         );
-                    }
-
-                    let current = self.current_count;
-                    mut_expression = quote_expr!(self.cx,
+                    mut_expression = quote_expr!(self.cx(),
                                     {
                                         ::mutagen::report_coverage($n..$current);
 
@@ -220,20 +237,11 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
                 }
 
                 if int_constant_can_add_one(numeric_constant as u64, ty) {
-                    let n;
-                    {
-                        n = self.current_count;
-                        add_mutations(
-                            &self.cx,
-                            &mut self.mutations,
-                            &mut self.current_count,
+                    let (n, current) = self.add_mutations(
                             s,
                             &["add one to int constant"],
                         );
-                    }
-
-                    let current = self.current_count;
-                    mut_expression = quote_expr!(self.cx,
+                    mut_expression = quote_expr!(self.cx(),
                                     {
                                         ::mutagen::report_coverage($n..$current);
 
@@ -245,6 +253,160 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
                 Some(mut_expression)
             }
             _ => None,
+        }
+    }
+
+    fn fold_binop(&mut self, id: NodeId, op: BinOp, left: P<Expr>, right: P<Expr>, span: Span, attrs: ThinVec<Attribute>) -> P<Expr> {
+        match op.node {
+            BinOpKind::And => {
+                let (n, current) = self.add_mutations(span,
+                        &[
+                            "replacing _ && _ with false",
+                            "replacing _ && _ with true",
+                            "replacing x && _ with x",
+                            "replacing x && _ with !x",
+                            "replacing x && y with x && !y",
+                        ],
+                    );
+                quote_expr!(self.cx(), {
+                    ::mutagen::report_coverage($n..$current);
+                    (match ($left, ::mutagen::diff($n)) {
+                            (_, 0) => false,
+                            (_, 1) => true,
+                            (x, 2) => x,
+                            (x, 3) => !x,
+                            (x, n) => x && ($right) == (n != 4),
+                    })
+                })
+            }
+            BinOpKind::Or => {
+                let (n, current) = self.add_mutations(
+                        span,
+                        &[
+                            "replacing _ || _ with false",
+                            "replacing _ || _ with true",
+                            "replacing x || _ with x",
+                            "replacing x || _ with !x",
+                            "replacing x || y with x || !y",
+                        ],
+                    );
+                quote_expr!(self.cx(), {
+                    ::mutagen::report_coverage($n..$current);
+                    (match ($left, ::mutagen::diff($n)) {
+                        (_, 0) => false,
+                        (_, 1) => true,
+                        (x, 2) => x,
+                        (x, 3) => !x,
+                        (x, n) => x || ($right) == (n != 4),
+                    })
+                })
+            }
+            BinOpKind::Eq => {
+                let (n, current) = self.add_mutations(
+                        span,
+                        &[
+                            "replacing _ == _ with true",
+                            "replacing _ == _ with false",
+                            "replacing x == y with x != y",
+                        ],
+                    );
+                quote_expr!(self.cx(), {
+                    ::mutagen::report_coverage($n..$current);
+                    ::mutagen::eq($left, $right, $n)
+                })
+            }
+            BinOpKind::Ne => {
+                let (n, current) = self.add_mutations(
+                        span,
+                        &[
+                            "replacing _ != _ with true",
+                            "replacing _ != _ with false",
+                            "replacing x != y with x == y",
+                        ],
+                    );
+                quote_expr!(self.cx(), {
+                    ::mutagen::report_coverage($n..$current);
+                    ::mutagen::ne($left, $right, $n)
+                })
+            }
+            BinOpKind::Gt => {
+                let (n, current) = self.add_mutations(
+                        span,
+                        &[
+                            "replacing _ > _ with false",
+                            "replacing _ > _ with true",
+                            "replacing x > y with x < y",
+                            "replacing x > y with x <= y",
+                            "replacing x > y with x >= y",
+                            "replacing x > y with x == y",
+                            "replacing x > y with x != y",
+                        ],
+                    );
+                quote_expr!(self.cx(), {
+                    ::mutagen::report_coverage($n..$current);
+                    ::mutagen::gt($left, $right, $n)
+                })
+            }
+            BinOpKind::Lt => {
+                let (n, current) = self.add_mutations(
+                        span,
+                        &[
+                            "replacing _ < _ with false",
+                            "replacing _ < _ with true",
+                            "replacing x < y with x > y",
+                            "replacing x < y with x >= y",
+                            "replacing x < y with x <= y",
+                            "replacing x < y with x == y",
+                            "replacing x < y with x != y",
+                        ],
+                    );
+                quote_expr!(self.cx(), {
+                    ::mutagen::report_coverage($n..$current);
+                    ::mutagen::gt($right, $left, $n)
+                })
+            }
+            BinOpKind::Ge => {
+                let (n, current) = self.add_mutations(
+                        span,
+                        &[
+                            "replacing _ >= _ with false",
+                            "replacing _ >= _ with true",
+                            "replacing x >= y with x < y",
+                            "replacing x >= y with x <= y",
+                            "replacing x >= y with x > y",
+                            "replacing x >= y with x == y",
+                            "replacing x >= y with x != y",
+                        ],
+                    );
+                quote_expr!(self.cx(), {
+                    ::mutagen::report_coverage($n..$current);
+                    ::mutagen::ge($left, $right, $n)
+                })
+            }
+            BinOpKind::Le => {
+                let (n, current) = self.add_mutations(
+                    span,
+                    &[
+                        "replacing _ <= _ with false",
+                        "replacing _ <= _ with true",
+                        "replacing x <= y with x > y",
+                        "replacing x <= y with x >= y",
+                        "replacing x <= y with x < y",
+                        "replacing x <= y with x == y",
+                        "replacing x <= y with x != y",
+                    ],
+                );
+                quote_expr!(self.cx(), {
+                    ::mutagen::report_coverage($n...$current);
+                    ::mutagen::ge($right, $left, $n)
+                })
+            }
+            _ => P(Expr {
+                    id,
+                    node: ExprKind::Binary(op, left, right),
+                    span,
+                    attrs,
+                })
         }
     }
 }
@@ -349,271 +511,32 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                 node: ExprKind::Binary(op, left, right),
                 span,
                 attrs,
-            } => match op.node {
-                BinOpKind::And => {
-                    let n;
-                    {
-                        n = self.current_count;
-                        add_mutations(
-                            &self.cx,
-                            &mut self.mutations,
-                            &mut self.current_count,
-                            expr.span,
-                            &[
-                                "replacing _ && _ with false",
-                                "replacing _ && _ with true",
-                                "replacing x && _ with x",
-                                "replacing x && _ with !x",
-                                "replacing x && y with x && !y",
-                            ],
-                        );
-                    }
-                    let current = self.current_count;
-                    let left = self.fold_expr(left);
-                    let right = self.fold_expr(right);
-                    quote_expr!(self.cx, {
-                        ::mutagen::report_coverage($n..$current);
-                        (match ($left, ::mutagen::diff($n)) {
-                                (_, 0) => false,
-                                (_, 1) => true,
-                                (x, 2) => x,
-                                (x, 3) => !x,
-                                (x, n) => x && ($right) == (n != 4),
-                        })
-                    })
-                }
-                BinOpKind::Or => {
-                    let n;
-                    {
-                        n = self.current_count;
-                        add_mutations(
-                            &self.cx,
-                            &mut self.mutations,
-                            &mut self.current_count,
-                            expr.span,
-                            &[
-                                "replacing _ || _ with false",
-                                "replacing _ || _ with true",
-                                "replacing x || _ with x",
-                                "replacing x || _ with !x",
-                                "replacing x || y with x || !y",
-                            ],
-                        );
-                    }
-                    let current = self.current_count;
-                    let left = self.fold_expr(left);
-                    let right = self.fold_expr(right);
-                    quote_expr!(self.cx, {
-                        ::mutagen::report_coverage($n..$current);
-                        (match ($left, ::mutagen::diff($n)) {
-                            (_, 0) => false,
-                            (_, 1) => true,
-                            (x, 2) => x,
-                            (x, 3) => !x,
-                            (x, n) => x || ($right) == (n != 4),
-                        })
-                    })
-                }
-                BinOpKind::Eq => {
-                    let n;
-                    {
-                        n = self.current_count;
-                        add_mutations(
-                            &self.cx,
-                            &mut self.mutations,
-                            &mut self.current_count,
-                            expr.span,
-                            &[
-                                "replacing _ == _ with true",
-                                "replacing _ == _ with false",
-                                "replacing x == y with x != y",
-                            ],
-                        );
-                    }
-                    let current = self.current_count;
-                    let left = self.fold_expr(left);
-                    let right = self.fold_expr(right);
-                    quote_expr!(self.cx, {
-                        ::mutagen::report_coverage($n..$current);
-                        ::mutagen::eq($left, $right, $n)
-                    })
-                }
-                BinOpKind::Ne => {
-                    let n;
-                    {
-                        n = self.current_count;
-                        add_mutations(
-                            &self.cx,
-                            &mut self.mutations,
-                            &mut self.current_count,
-                            expr.span,
-                            &[
-                                "replacing _ != _ with true",
-                                "replacing _ != _ with false",
-                                "replacing x != y with x == y",
-                            ],
-                        );
-                    }
-                    let current = self.current_count;
-                    let left = self.fold_expr(left);
-                    let right = self.fold_expr(right);
-                    quote_expr!(self.cx, {
-                        ::mutagen::report_coverage($n..$current);
-                        ::mutagen::ne($left, $right, $n)
-                    })
-                }
-                BinOpKind::Gt => {
-                    let n;
-                    {
-                        n = self.current_count;
-                        add_mutations(
-                            &self.cx,
-                            &mut self.mutations,
-                            &mut self.current_count,
-                            expr.span,
-                            &[
-                                "replacing _ > _ with false",
-                                "replacing _ > _ with true",
-                                "replacing x > y with x < y",
-                                "replacing x > y with x <= y",
-                                "replacing x > y with x >= y",
-                                "replacing x > y with x == y",
-                                "replacing x > y with x != y",
-                            ],
-                        );
-                    }
-                    let current = self.current_count;
-                    let left = self.fold_expr(left);
-                    let right = self.fold_expr(right);
-                    quote_expr!(self.cx, {
-                        ::mutagen::report_coverage($n..$current);
-                        ::mutagen::gt($left, $right, $n)
-                    })
-                }
-                BinOpKind::Lt => {
-                    let n;
-                    {
-                        n = self.current_count;
-                        add_mutations(
-                            &self.cx,
-                            &mut self.mutations,
-                            &mut self.current_count,
-                            expr.span,
-                            &[
-                                "replacing _ < _ with false",
-                                "replacing _ < _ with true",
-                                "replacing x < y with x > y",
-                                "replacing x < y with x >= y",
-                                "replacing x < y with x <= y",
-                                "replacing x < y with x == y",
-                                "replacing x < y with x != y",
-                            ],
-                        );
-                    }
-                    let current = self.current_count;
-                    let left = self.fold_expr(left);
-                    let right = self.fold_expr(right);
-                    quote_expr!(self.cx, {
-                        ::mutagen::report_coverage($n..$current);
-                        ::mutagen::gt($right, $left, $n)
-                    })
-                }
-                BinOpKind::Ge => {
-                    let n;
-                    {
-                        n = self.current_count;
-                        add_mutations(
-                            &self.cx,
-                            &mut self.mutations,
-                            &mut self.current_count,
-                            expr.span,
-                            &[
-                                "replacing _ >= _ with false",
-                                "replacing _ >= _ with true",
-                                "replacing x >= y with x < y",
-                                "replacing x >= y with x <= y",
-                                "replacing x >= y with x > y",
-                                "replacing x >= y with x == y",
-                                "replacing x >= y with x != y",
-                            ],
-                        );
-                    }
-                    let current = self.current_count;
-                    let left = self.fold_expr(left);
-                    let right = self.fold_expr(right);
-                    quote_expr!(self.cx, {
-                        ::mutagen::report_coverage($n..$current);
-                        ::mutagen::ge($left, $right, $n)
-                    })
-                }
-                BinOpKind::Le => {
-                    let n;
-                    {
-                        n = self.current_count;
-                        add_mutations(
-                            &self.cx,
-                            &mut self.mutations,
-                            &mut self.current_count,
-                            expr.span,
-                            &[
-                                "replacing _ <= _ with false",
-                                "replacing _ <= _ with true",
-                                "replacing x <= y with x > y",
-                                "replacing x <= y with x >= y",
-                                "replacing x <= y with x < y",
-                                "replacing x <= y with x == y",
-                                "replacing x <= y with x != y",
-                            ],
-                        );
-                    }
-                    let current = self.current_count;
-                    let left = self.fold_expr(left);
-                    let right = self.fold_expr(right);
-                    quote_expr!(self.cx, {
-                        ::mutagen::report_coverage($n...$current);
-                        ::mutagen::ge($right, $left, $n)
-                    })
-                }
-                _ => P(fold::noop_fold_expr(
-                    Expr {
-                        id,
-                        node: ExprKind::Binary(op, left, right),
-                        span,
-                        attrs,
-                    },
-                    self,
-                )),
-            },
+            } => {
+                let left = self.fold_expr(left);
+                let right = self.fold_expr(right);
+                self.fold_binop(id, op, left, right, span, attrs)
+            }
             Expr {
                 id,
                 node: ExprKind::If(cond, then, opt_else),
                 span,
                 attrs,
             } => {
-                let n;
-                {
-                    n = self.current_count;
-                    add_mutations(
-                        &self.cx,
-                        &mut self.mutations,
-                        &mut self.current_count,
-                        cond.span,
-                        &[
-                            "replacing if condition with true",
-                            "replacing if condition with false",
-                            "inverting if condition",
-                        ],
-                    );
-                }
-                let current = self.current_count;
+                let (n, current) = self.add_mutations(
+                    cond.span,
+                    &[
+                        "replacing if condition with true",
+                        "replacing if condition with false",
+                        "inverting if condition",
+                    ],
+                );
                 let cond = self.fold_expr(cond);
                 let then = fold::noop_fold_block(then, self);
                 let opt_else = opt_else.map(|p_else| self.fold_expr(p_else));
-                let mut_cond = quote_expr!(self.cx, {
+                let mut_cond = quote_expr!(self.cx(), {
                     ::mutagen::report_coverage($n..$current);
                     ::mutagen::t($cond, $n)
                 });
-
                 P(Expr {
                     id,
                     node: ExprKind::If(mut_cond, then, opt_else),
@@ -627,21 +550,13 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                 span,
                 attrs,
             } => {
-                let n;
-                {
-                    n = self.current_count;
-                    add_mutations(
-                        &self.cx,
-                        &mut self.mutations,
-                        &mut self.current_count,
+                let (n, current) = self.add_mutations(
                         cond.span,
                         &["replacing while condition with false"],
                     );
-                }
-                let current = self.current_count;
                 let cond = self.fold_expr(cond);
                 let block = fold::noop_fold_block(block, self);
-                let mut_cond = quote_expr!(self.cx, {
+                let mut_cond = quote_expr!(self.cx(), {
                     ::mutagen::report_coverage($n..$current);
                     ::mutagen::w($cond, $n)
                 });
@@ -759,12 +674,7 @@ fn int_constant_can_add_one(i: u64, ty: LitIntType) -> bool {
 fn fold_first_block(block: P<Block>, m: &mut MutatorPlugin) -> P<Block> {
     let mut pre_stmts = vec![];
     {
-        let MutatorPlugin {
-            ref mut cx,
-            ref info,
-            ref mut mutations,
-            ref mut current_count,
-        } = *m;
+        let MutatorPlugin { ref info, ref mut m } = *m;
         if let Some(&MethodInfo {
             is_default,
             ref have_output_type,
@@ -772,59 +682,44 @@ fn fold_first_block(block: P<Block>, m: &mut MutatorPlugin) -> P<Block> {
         }) = info.method_infos.last()
         {
             if is_default {
-                let n = *current_count;
-                add_mutations(
-                    cx,
-                    mutations,
-                    current_count,
+                let (n, current) = m.add_mutations(
                     block.span,
                     &["insert return default()"],
                 );
                 pre_stmts.push(
-                    quote_stmt!(cx,
+                    quote_stmt!(m.cx,
                 if ::mutagen::now($n) { return Default::default(); })
                         .unwrap(),
                 );
             }
             for name in have_output_type {
-                let n = *current_count;
                 let ident = name.to_ident();
-                add_mutations(
-                    cx,
-                    mutations,
-                    current_count,
+                let (n, current) = m.add_mutations(
                     block.span,
                     &[&format!("insert return {}", name)],
                 );
                 pre_stmts.push(
-                    quote_stmt!(cx,
+                    quote_stmt!(m.cx,
                 if ::mutagen::now($n) { return $ident; })
                         .unwrap(),
                 );
             }
             for (ref key, ref values) in interchangeables {
                 for value in values.iter() {
-                    let n = *current_count;
                     let key_ident = key.to_ident();
                     let value_ident = value.to_ident();
-                    add_mutations(
-                        cx,
-                        mutations,
-                        current_count,
+                    let (n, current) = m.add_mutations(
                         block.span,
                         &[&format!("exchange {} with {}", key.as_str(), value_ident)],
                     );
                     pre_stmts.push(
-                        quote_stmt!(cx,
+                        quote_stmt!(m.cx,
                         if ::mutagen::now($n) {
                             let ($key_ident, $value_ident) = ($value_ident, $key_ident);
                          }).unwrap(),
                     );
                 }
             }
-            //let ($a, $b) = if mutagen::now($n) { ($b, $a) } else { ($a, $b) };
-            //TODO: switch interchangeables, need mutability info, too
-            //for name in method_info.interchangeables { }
         }
     }
     if pre_stmts.is_empty() {
@@ -851,20 +746,6 @@ fn fold_first_block(block: P<Block>, m: &mut MutatorPlugin) -> P<Block> {
             },
         )
     }
-}
-
-fn add_mutations(
-    cx: &ExtCtxt,
-    mutations: &mut BufWriter<File>,
-    count: &mut usize,
-    span: Span,
-    descriptions: &[&str],
-) {
-    let span_desc = cx.codemap().span_to_string(span);
-    for desc in descriptions {
-        writeln!(mutations, "{} @ {}", desc, span_desc).unwrap()
-    }
-    *count += descriptions.len();
 }
 
 /// combine the given `symbols` and add them to the interchangeables map
