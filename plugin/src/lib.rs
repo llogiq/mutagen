@@ -700,6 +700,24 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
         }) //TODO: more expr mutations
     }
 
+
+    fn fold_pat(&mut self, pat: P<Pat>) -> P<Pat> {
+        pat.and_then(|pattern|
+            match pattern {
+                Pat {
+                    id,
+                    node: PatKind::Range(e1, e2, e3),
+                    span,
+                } => {
+                    // Avoid recursion on range patterns, it only literals are allowed, and mutations
+                    // would potentially convert them into expressions
+                    P(Pat {id, node: PatKind::Range(e1, e2, e3), span})
+                },
+                p => fold::noop_fold_pat(P(p), self),
+            }
+        )
+    }
+
     fn fold_mac(&mut self, mac: Mac) -> Mac {
         mac
     }
