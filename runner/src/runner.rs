@@ -120,7 +120,6 @@ impl CoverageRunner {
                 let cmd_result = Command::new(&self.test_executable)
                     .args(&[&test_name])
                     .env("MUTAGEN_COVERAGE", "file:target/mutagen/coverage.txt")
-                    .env("MUTAGEN_MUTATION_AMOUNT", self.mutation_amount.to_string())
                     .output();
 
                 let cmd_successful = cmd_result
