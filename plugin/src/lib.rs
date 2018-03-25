@@ -5,10 +5,11 @@ extern crate syntax;
 
 use rustc_plugin::registry::Registry;
 use std::collections::HashMap;
-use std::convert::TryFrom;
+use std::convert::{TryFrom, TryInto};
 use std::fs::{create_dir_all, File, OpenOptions};
 use std::hash::{Hash, Hasher};
 use std::io::{BufWriter, Write};
+use std::mem;
 use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
 use syntax::ast::*;
 use syntax::codemap::{Span, Spanned};
@@ -75,6 +76,10 @@ struct MethodInfo {
     /// which inputs have the same type and could be switched?
     /// TODO refs vs. values
     interchangeables: HashMap<Symbol, Vec<Symbol>>,
+    /// the generated symbol for coverage
+    coverage_sym: Symbol,
+    /// the count of coverage calls
+    coverage_count: usize,
 }
 
 #[derive(Default)]
@@ -114,6 +119,29 @@ pub struct MutatorPlugin<'a, 'cx: 'a> {
     m: Mutator<'a, 'cx>,
 }
 
+struct Resizer(usize);
+
+impl Folder for Resizer {
+    fn fold_expr(&mut self, expr: P<Expr>) -> P<Expr> {
+        expr.map(|expr| {
+            if let Expr { id, node: ExprKind::Lit(lit), span, attrs } = expr {
+                Expr {
+                    id,
+                    node: ExprKind::Lit(lit.map(|Spanned { span, node: _ }|
+                        Spanned { span,
+                            node: LitKind::Int(self.0.try_into().unwrap(), LitIntType::Unsigned(UintTy::Usize)) }
+                    )),
+                    span,
+                    attrs,
+                }
+            } else {
+                fold::noop_fold_expr(expr, self)
+            }
+        })
+    }
+}
+
+
 /// a combination of BindingMode, type and occurrence within the type
 #[derive(Clone, Eq, Debug)]
 struct ArgTy<'t>(BindingMode, &'t Ty, usize, Vec<TyOcc>);
@@ -144,8 +172,17 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
         }
     }
 
-    fn add_mutations(&mut self, span: Span, descriptions: &[&str]) -> (usize, usize) {
-        self.m.add_mutations(span, descriptions)
+    fn add_mutations(&mut self, span: Span, descriptions: &[&str]) -> (usize, usize, Ident, usize, usize) {
+        let (start_count, end_count) = self.m.add_mutations(span, descriptions);
+        let info = self.info.method_infos.last_mut().unwrap();
+        let coverage_count = info.coverage_count;
+        info.coverage_count += 1;
+        // must be in a method
+        let sym = info.coverage_sym.to_ident();
+        let usize_bits = usize::max_value().count_ones() as usize;
+        let usize_shift = usize_bits.trailing_zeros() as usize;
+        let usize_mask = usize_bits - 1;
+        (start_count, end_count, sym, coverage_count >> usize_shift, 1 << (coverage_count & usize_mask))
     }
 
     fn cx(&mut self) -> &mut ExtCtxt<'cx> {
@@ -184,11 +221,13 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
             }
 
         }
-
+        let coverage_sym = Symbol::gensym(&format!("__COVERAGE{}", self.m.current_count));
         self.info.method_infos.push(MethodInfo {
             is_default,
             have_output_type,
             interchangeables,
+            coverage_sym,
+            coverage_count: 0
         });
     }
 
@@ -224,12 +263,13 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
                 }
 
                 if int_constant_can_subtract_one(numeric_constant, ty) {
-                    let (n, current) = self.add_mutations(s,
+                    let (n, current, sym, flag, mask) = self.add_mutations(
+                            s,
                             &["sub one to int constant"],
                         );
                     mut_expression = quote_expr!(self.cx(),
                                     {
-                                        ::mutagen::report_coverage($n..$current);
+                                        ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
 
                                         if ::mutagen::now($n) { $lit - 1 }
                                         else { $mut_expression }
@@ -237,13 +277,13 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
                 }
 
                 if int_constant_can_add_one(numeric_constant as u64, ty) {
-                    let (n, current) = self.add_mutations(
+                    let (n, current, sym, flag, mask) = self.add_mutations(
                             s,
                             &["add one to int constant"],
                         );
                     mut_expression = quote_expr!(self.cx(),
                                     {
-                                        ::mutagen::report_coverage($n..$current);
+                                        ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
 
                                         if ::mutagen::now($n) { $lit + 1 }
                                         else { $mut_expression }
@@ -259,7 +299,7 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
     fn fold_binop(&mut self, id: NodeId, op: BinOp, left: P<Expr>, right: P<Expr>, span: Span, attrs: ThinVec<Attribute>) -> P<Expr> {
         match op.node {
             BinOpKind::And => {
-                let (n, current) = self.add_mutations(span,
+                let (n, current, sym, flag, op) = self.add_mutations(span,
                         &[
                             "replacing _ && _ with false",
                             "replacing _ && _ with true",
@@ -269,7 +309,7 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
                         ],
                     );
                 quote_expr!(self.cx(), {
-                    ::mutagen::report_coverage($n..$current);
+                    ::mutagen::report_coverage($n..$current, &$sym[$flag], $op);
                     (match ($left, ::mutagen::diff($n)) {
                             (_, 0) => false,
                             (_, 1) => true,
@@ -280,7 +320,7 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
                 })
             }
             BinOpKind::Or => {
-                let (n, current) = self.add_mutations(
+                let (n, current, sym, flag, mask) = self.add_mutations(
                         span,
                         &[
                             "replacing _ || _ with false",
@@ -291,7 +331,7 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
                         ],
                     );
                 quote_expr!(self.cx(), {
-                    ::mutagen::report_coverage($n..$current);
+                    ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
                     (match ($left, ::mutagen::diff($n)) {
                         (_, 0) => false,
                         (_, 1) => true,
@@ -302,7 +342,7 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
                 })
             }
             BinOpKind::Eq => {
-                let (n, current) = self.add_mutations(
+                let (n, current, sym, flag, mask) = self.add_mutations(
                         span,
                         &[
                             "replacing _ == _ with true",
@@ -311,12 +351,12 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
                         ],
                     );
                 quote_expr!(self.cx(), {
-                    ::mutagen::report_coverage($n..$current);
+                    ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
                     ::mutagen::eq($left, $right, $n)
                 })
             }
             BinOpKind::Ne => {
-                let (n, current) = self.add_mutations(
+                let (n, current, sym, flag, mask) = self.add_mutations(
                         span,
                         &[
                             "replacing _ != _ with true",
@@ -325,12 +365,12 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
                         ],
                     );
                 quote_expr!(self.cx(), {
-                    ::mutagen::report_coverage($n..$current);
+                    ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
                     ::mutagen::ne($left, $right, $n)
                 })
             }
             BinOpKind::Gt => {
-                let (n, current) = self.add_mutations(
+                let (n, current, sym, flag, mask) = self.add_mutations(
                         span,
                         &[
                             "replacing _ > _ with false",
@@ -343,12 +383,12 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
                         ],
                     );
                 quote_expr!(self.cx(), {
-                    ::mutagen::report_coverage($n..$current);
+                    ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
                     ::mutagen::gt($left, $right, $n)
                 })
             }
             BinOpKind::Lt => {
-                let (n, current) = self.add_mutations(
+                let (n, current, sym, flag, mask) = self.add_mutations(
                         span,
                         &[
                             "replacing _ < _ with false",
@@ -361,12 +401,12 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
                         ],
                     );
                 quote_expr!(self.cx(), {
-                    ::mutagen::report_coverage($n..$current);
+                    ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
                     ::mutagen::gt($right, $left, $n)
                 })
             }
             BinOpKind::Ge => {
-                let (n, current) = self.add_mutations(
+                let (n, current, sym, flag, mask) = self.add_mutations(
                         span,
                         &[
                             "replacing _ >= _ with false",
@@ -379,12 +419,12 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
                         ],
                     );
                 quote_expr!(self.cx(), {
-                    ::mutagen::report_coverage($n..$current);
+                    ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
                     ::mutagen::ge($left, $right, $n)
                 })
             }
             BinOpKind::Le => {
-                let (n, current) = self.add_mutations(
+                let (n, current, sym, flag, mask) = self.add_mutations(
                     span,
                     &[
                         "replacing _ <= _ with false",
@@ -397,8 +437,18 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
                     ],
                 );
                 quote_expr!(self.cx(), {
-                    ::mutagen::report_coverage($n...$current);
+                    ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
                     ::mutagen::ge($right, $left, $n)
+                })
+            }
+            BinOpKind::Add => {
+                let (n, current, sym, flag, mask) = self.add_mutations(
+                    span,
+                    &["(opportunistically) replacing x + y with x - y"]
+                );
+                quote_expr!(self.cx(), {
+                    ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
+                    ::mutagen::AddSub::add($left, $right, $n)
                 })
             }
             _ => P(Expr {
@@ -490,7 +540,8 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                 self.end_fn();
                 k
             }
-            k => k,
+            s @ ItemKind::Static(..) | s @ ItemKind::Const(..) => s,
+            k => fold::noop_fold_item_kind(k, self),
         }
     }
 
@@ -522,7 +573,7 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                 span,
                 attrs,
             } => {
-                let (n, current) = self.add_mutations(
+                let (n, current, sym, flag, mask) = self.add_mutations(
                     cond.span,
                     &[
                         "replacing if condition with true",
@@ -534,7 +585,7 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                 let then = fold::noop_fold_block(then, self);
                 let opt_else = opt_else.map(|p_else| self.fold_expr(p_else));
                 let mut_cond = quote_expr!(self.cx(), {
-                    ::mutagen::report_coverage($n..$current);
+                    ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
                     ::mutagen::t($cond, $n)
                 });
                 P(Expr {
@@ -550,14 +601,14 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                 span,
                 attrs,
             } => {
-                let (n, current) = self.add_mutations(
+                let (n, current, sym, flag, mask) = self.add_mutations(
                         cond.span,
                         &["replacing while condition with false"],
                     );
                 let cond = self.fold_expr(cond);
                 let block = fold::noop_fold_block(block, self);
                 let mut_cond = quote_expr!(self.cx(), {
-                    ::mutagen::report_coverage($n..$current);
+                    ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
                     ::mutagen::w($cond, $n)
                 });
                 P(Expr {
@@ -671,16 +722,23 @@ fn int_constant_can_add_one(i: u64, ty: LitIntType) -> bool {
     i < max
 }
 
-fn fold_first_block(block: P<Block>, m: &mut MutatorPlugin) -> P<Block> {
+fn fold_first_block(block: P<Block>, p: &mut MutatorPlugin) -> P<Block> {
     let mut pre_stmts = vec![];
     {
-        let MutatorPlugin { ref info, ref mut m } = *m;
+        let MutatorPlugin { ref info, ref mut m } = *p;
         if let Some(&MethodInfo {
             is_default,
             ref have_output_type,
             ref interchangeables,
+            ref coverage_sym,
+            ref coverage_count
         }) = info.method_infos.last()
         {
+//TODO            let (flag, mask) = (coverage_count >> USIZE_SHIFT, coverage_count & USIZE_MASK);
+            let coverage_ident = coverage_sym.to_ident();
+            pre_stmts.push(quote_stmt!(m.cx,
+                static $coverage_ident : [::std::sync::atomic::AtomicUsize; 0] =
+                    [::std::sync::atomic::ATOMIC_USIZE_INIT; 0];).unwrap());
             if is_default {
                 let (n, current) = m.add_mutations(
                     block.span,
@@ -688,6 +746,7 @@ fn fold_first_block(block: P<Block>, m: &mut MutatorPlugin) -> P<Block> {
                 );
                 pre_stmts.push(
                     quote_stmt!(m.cx,
+//                    report_coverage(mutations, &$coverage_sym[$flag], $mask);
                 if ::mutagen::now($n) { return Default::default(); })
                         .unwrap(),
                 );
@@ -722,30 +781,33 @@ fn fold_first_block(block: P<Block>, m: &mut MutatorPlugin) -> P<Block> {
             }
         }
     }
-    if pre_stmts.is_empty() {
-        fold::noop_fold_block(block, m)
-    } else {
-        block.map(
-            |Block {
-                 stmts,
-                 id,
-                 rules,
-                 span,
-                 recovered,
-             }| {
-                let mut newstmts: Vec<Stmt> = Vec::with_capacity(pre_stmts.len() + stmts.len());
-                newstmts.extend(pre_stmts);
-                newstmts.extend(stmts.into_iter().flat_map(|s| fold::noop_fold_stmt(s, m)));
-                Block {
-                    stmts: newstmts,
-                    id,
-                    rules,
-                    span,
-                    recovered,
-                }
-            },
-        )
-    }
+    block.map(
+        |Block {
+             stmts,
+             id,
+             rules,
+             span,
+             recovered,
+         }| {
+            let mut newstmts: Vec<Stmt> = Vec::with_capacity(pre_stmts.len() + stmts.len());
+            newstmts.extend(pre_stmts);
+            newstmts.extend(stmts.into_iter().flat_map(|s| fold::noop_fold_stmt(s, p)));
+            let coverage = mem::replace(&mut newstmts[0], quote_stmt!(p.cx(), ();).unwrap());
+            let coverage_count = p.info.method_infos.last().unwrap().coverage_count;
+            if coverage_count > 0 {
+                let bits = usize::max_value().count_ones() as usize;
+                let coverage_size = (coverage_count + bits - 1) / bits;
+                let mut resizer = Resizer(coverage_size);
+                let _ = mem::replace(&mut newstmts[0], resizer.fold_stmt(coverage).expect_one("?"));
+            }
+            Block {
+                stmts: newstmts,
+                id,
+                rules,
+                span,
+                recovered,
+            }
+        })
 }
 
 /// combine the given `symbols` and add them to the interchangeables map
