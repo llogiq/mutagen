@@ -1,0 +1,15 @@
+insert return default() @ tests/mutagen/addsub.rs:9:23: 18:2
+sub one to int constant @ tests/mutagen/addsub.rs:10:5: 10:6
+add one to int constant @ tests/mutagen/addsub.rs:10:5: 10:6
+sub one to int constant @ tests/mutagen/addsub.rs:10:9: 10:10
+add one to int constant @ tests/mutagen/addsub.rs:10:9: 10:10
+(opportunistically) replacing x + y with x - y @ tests/mutagen/addsub.rs:10:5: 10:10
+sub one to int constant @ tests/mutagen/addsub.rs:12:23: 12:24
+add one to int constant @ tests/mutagen/addsub.rs:12:23: 12:24
+sub one to int constant @ tests/mutagen/addsub.rs:12:29: 12:30
+add one to int constant @ tests/mutagen/addsub.rs:12:29: 12:30
+sub one to int constant @ tests/mutagen/addsub.rs:13:23: 13:24
+add one to int constant @ tests/mutagen/addsub.rs:13:23: 13:24
+sub one to int constant @ tests/mutagen/addsub.rs:13:29: 13:30
+add one to int constant @ tests/mutagen/addsub.rs:13:29: 13:30
+(opportunistically) replacing x + y with x - y @ tests/mutagen/addsub.rs:14:15: 14:22

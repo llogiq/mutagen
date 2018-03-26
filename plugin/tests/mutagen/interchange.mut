@@ -2,16 +2,17 @@ insert return default() @ tests/mutagen/interchange.rs:7:54: 9:2
 insert return x @ tests/mutagen/interchange.rs:7:54: 9:2
 insert return y @ tests/mutagen/interchange.rs:7:54: 9:2
 insert return z @ tests/mutagen/interchange.rs:7:54: 9:2
-exchange y with z @ tests/mutagen/interchange.rs:7:54: 9:2
 exchange x with y @ tests/mutagen/interchange.rs:7:54: 9:2
 exchange x with z @ tests/mutagen/interchange.rs:7:54: 9:2
+exchange y with z @ tests/mutagen/interchange.rs:7:54: 9:2
 (opportunistically) replacing x + y with x - y @ tests/mutagen/interchange.rs:8:5: 8:10
+(opportunistically) replacing x - y with x + y @ tests/mutagen/interchange.rs:8:5: 8:14
 insert return default() @ tests/mutagen/interchange.rs:12:35: 12:37
 insert return default() @ tests/mutagen/interchange.rs:20:112: 22:2
+exchange b with d @ tests/mutagen/interchange.rs:20:112: 22:2
 exchange c with e @ tests/mutagen/interchange.rs:20:112: 22:2
 exchange a with c @ tests/mutagen/interchange.rs:20:112: 22:2
 exchange a with e @ tests/mutagen/interchange.rs:20:112: 22:2
-exchange b with d @ tests/mutagen/interchange.rs:20:112: 22:2
 insert return default() @ tests/mutagen/interchange.rs:26:1: 28:2
-exchange b with d @ tests/mutagen/interchange.rs:26:1: 28:2
 exchange a with c @ tests/mutagen/interchange.rs:26:1: 28:2
+exchange b with d @ tests/mutagen/interchange.rs:26:1: 28:2

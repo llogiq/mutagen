@@ -115,13 +115,19 @@ fn run_test(target: &str) -> Result<&str, TestErr> {
         format!("target/mutagen/{}.mut", target)
     ).map_err(|s| (target, s.to_string()))?;
 
-    let expected = load_file(format!("tests/mutagen/{}.mut", target)).map_err(|s| (target, s.to_string()))?;
+    let expected = load_file(format!("tests/mutagen/{}.mut", target))
+        .map_err(|s| (target, s.to_string()))
+        .unwrap_or(String::new());
+
     let mut expected = expected
         .split("\n")
         .collect::<Vec<&str>>();
     expected.sort();
 
-    let current = load_file(format!("target/mutagen/{}.mut", target)).map_err(|s| (target, s.to_string()))?;
+    let current = load_file(format!("target/mutagen/{}.mut", target))
+        .map_err(|s| (target, s.to_string()))
+        .unwrap_or(String::new());
+
     let mut current = current
         .split("\n")
         .collect::<Vec<&str>>();
