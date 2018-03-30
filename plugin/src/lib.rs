@@ -9,6 +9,7 @@ use std::convert::{TryFrom, TryInto};
 use std::fs::{create_dir_all, File, OpenOptions};
 use std::hash::{Hash, Hasher};
 use std::io::{BufWriter, Write};
+use std::iter::repeat;
 use std::mem;
 use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
 use syntax::ast::*;
@@ -19,6 +20,8 @@ use syntax::ptr::P;
 use syntax::symbol::Symbol;
 use syntax::util::small_vector::SmallVector;
 use syntax::ast::{IntTy, LitIntType, LitKind, UnOp};
+
+mod binop;
 
 #[plugin_registrar]
 pub fn plugin_registrar(reg: &mut Registry) {
@@ -124,18 +127,27 @@ struct Resizer(usize);
 impl Folder for Resizer {
     fn fold_expr(&mut self, expr: P<Expr>) -> P<Expr> {
         expr.map(|expr| {
-            if let Expr { id, node: ExprKind::Lit(lit), span, attrs } = expr {
-                Expr {
-                    id,
-                    node: ExprKind::Lit(lit.map(|Spanned { span, node: _ }|
-                        Spanned { span,
-                            node: LitKind::Int(self.0.try_into().unwrap(), LitIntType::Unsigned(UintTy::Usize)) }
-                    )),
-                    span,
-                    attrs,
+            match expr {
+                Expr { id, node: ExprKind::Lit(lit), span, attrs } => {
+                    Expr {
+                        id,
+                        node: ExprKind::Lit(lit.map(|Spanned { span, node: _ }|
+                            Spanned { span,
+                                node: LitKind::Int(self.0.try_into().unwrap(), LitIntType::Unsigned(UintTy::Usize)) }
+                        )),
+                        span,
+                        attrs,
+                    }
                 }
-            } else {
-                fold::noop_fold_expr(expr, self)
+                Expr { id, node: ExprKind::Repeat(elem, _), span, attrs } => {
+                    Expr {
+                        id,
+                        node: ExprKind::Array(repeat(elem).take(self.0).collect()),
+                        span,
+                        attrs,
+                    }
+                }
+                expr => fold::noop_fold_expr(expr, self)
             }
         })
     }
@@ -295,170 +307,6 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
             _ => None,
         }
     }
-
-    fn fold_binop(&mut self, id: NodeId, op: BinOp, left: P<Expr>, right: P<Expr>, span: Span, attrs: ThinVec<Attribute>) -> P<Expr> {
-        match op.node {
-            BinOpKind::And => {
-                let (n, current, sym, flag, op) = self.add_mutations(span,
-                        &[
-                            "replacing _ && _ with false",
-                            "replacing _ && _ with true",
-                            "replacing x && _ with x",
-                            "replacing x && _ with !x",
-                            "replacing x && y with x && !y",
-                        ],
-                    );
-                quote_expr!(self.cx(), {
-                    ::mutagen::report_coverage($n..$current, &$sym[$flag], $op);
-                    (match ($left, ::mutagen::diff($n)) {
-                            (_, 0) => false,
-                            (_, 1) => true,
-                            (x, 2) => x,
-                            (x, 3) => !x,
-                            (x, n) => x && ($right) == (n != 4),
-                    })
-                })
-            }
-            BinOpKind::Or => {
-                let (n, current, sym, flag, mask) = self.add_mutations(
-                        span,
-                        &[
-                            "replacing _ || _ with false",
-                            "replacing _ || _ with true",
-                            "replacing x || _ with x",
-                            "replacing x || _ with !x",
-                            "replacing x || y with x || !y",
-                        ],
-                    );
-                quote_expr!(self.cx(), {
-                    ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
-                    (match ($left, ::mutagen::diff($n)) {
-                        (_, 0) => false,
-                        (_, 1) => true,
-                        (x, 2) => x,
-                        (x, 3) => !x,
-                        (x, n) => x || ($right) == (n != 4),
-                    })
-                })
-            }
-            BinOpKind::Eq => {
-                let (n, current, sym, flag, mask) = self.add_mutations(
-                        span,
-                        &[
-                            "replacing _ == _ with true",
-                            "replacing _ == _ with false",
-                            "replacing x == y with x != y",
-                        ],
-                    );
-                quote_expr!(self.cx(), {
-                    ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
-                    ::mutagen::eq($left, $right, $n)
-                })
-            }
-            BinOpKind::Ne => {
-                let (n, current, sym, flag, mask) = self.add_mutations(
-                        span,
-                        &[
-                            "replacing _ != _ with true",
-                            "replacing _ != _ with false",
-                            "replacing x != y with x == y",
-                        ],
-                    );
-                quote_expr!(self.cx(), {
-                    ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
-                    ::mutagen::ne($left, $right, $n)
-                })
-            }
-            BinOpKind::Gt => {
-                let (n, current, sym, flag, mask) = self.add_mutations(
-                        span,
-                        &[
-                            "replacing _ > _ with false",
-                            "replacing _ > _ with true",
-                            "replacing x > y with x < y",
-                            "replacing x > y with x <= y",
-                            "replacing x > y with x >= y",
-                            "replacing x > y with x == y",
-                            "replacing x > y with x != y",
-                        ],
-                    );
-                quote_expr!(self.cx(), {
-                    ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
-                    ::mutagen::gt($left, $right, $n)
-                })
-            }
-            BinOpKind::Lt => {
-                let (n, current, sym, flag, mask) = self.add_mutations(
-                        span,
-                        &[
-                            "replacing _ < _ with false",
-                            "replacing _ < _ with true",
-                            "replacing x < y with x > y",
-                            "replacing x < y with x >= y",
-                            "replacing x < y with x <= y",
-                            "replacing x < y with x == y",
-                            "replacing x < y with x != y",
-                        ],
-                    );
-                quote_expr!(self.cx(), {
-                    ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
-                    ::mutagen::gt($right, $left, $n)
-                })
-            }
-            BinOpKind::Ge => {
-                let (n, current, sym, flag, mask) = self.add_mutations(
-                        span,
-                        &[
-                            "replacing _ >= _ with false",
-                            "replacing _ >= _ with true",
-                            "replacing x >= y with x < y",
-                            "replacing x >= y with x <= y",
-                            "replacing x >= y with x > y",
-                            "replacing x >= y with x == y",
-                            "replacing x >= y with x != y",
-                        ],
-                    );
-                quote_expr!(self.cx(), {
-                    ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
-                    ::mutagen::ge($left, $right, $n)
-                })
-            }
-            BinOpKind::Le => {
-                let (n, current, sym, flag, mask) = self.add_mutations(
-                    span,
-                    &[
-                        "replacing _ <= _ with false",
-                        "replacing _ <= _ with true",
-                        "replacing x <= y with x > y",
-                        "replacing x <= y with x >= y",
-                        "replacing x <= y with x < y",
-                        "replacing x <= y with x == y",
-                        "replacing x <= y with x != y",
-                    ],
-                );
-                quote_expr!(self.cx(), {
-                    ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
-                    ::mutagen::ge($right, $left, $n)
-                })
-            }
-            BinOpKind::Add => {
-                let (n, current, sym, flag, mask) = self.add_mutations(
-                    span,
-                    &["(opportunistically) replacing x + y with x - y"]
-                );
-                quote_expr!(self.cx(), {
-                    ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
-                    ::mutagen::AddSub::add($left, $right, $n)
-                })
-            }
-            _ => P(Expr {
-                    id,
-                    node: ExprKind::Binary(op, left, right),
-                    span,
-                    attrs,
-                })
-        }
-    }
 }
 
 impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
@@ -565,7 +413,17 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
             } => {
                 let left = self.fold_expr(left);
                 let right = self.fold_expr(right);
-                self.fold_binop(id, op, left, right, span, attrs)
+                binop::fold_binop(self, id, op, left, right, span, attrs)
+            }
+            Expr {
+                id,
+                node: ExprKind::AssignOp(op, left, right),
+                span,
+                attrs,
+            } => {
+                let left = self.fold_expr(left);
+                let right = self.fold_expr(right);
+                binop::fold_assignop(self, id, op, left, right, span, attrs)
             }
             Expr {
                 id,
