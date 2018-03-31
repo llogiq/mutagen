@@ -1,11 +1,11 @@
-#![feature(plugin_registrar, quote, rustc_private, custom_attribute, try_from)]
+#![feature(plugin_registrar, quote, rustc_private, custom_attribute, try_from, i128_type)]
 
 extern crate rustc_plugin;
 extern crate syntax;
 
 use rustc_plugin::registry::Registry;
 use std::collections::HashMap;
-use std::convert::{TryFrom, TryInto};
+use std::convert::TryFrom;
 use std::fs::{create_dir_all, File, OpenOptions};
 use std::hash::{Hash, Hasher};
 use std::io::{BufWriter, Write};
@@ -133,7 +133,7 @@ impl Folder for Resizer {
                         id,
                         node: ExprKind::Lit(lit.map(|Spanned { span, node: _ }|
                             Spanned { span,
-                                node: LitKind::Int(self.0.try_into().unwrap(), LitIntType::Unsigned(UintTy::Usize)) }
+                                node: LitKind::Int(self.0 as u128, LitIntType::Unsigned(UintTy::Usize)) }
                         )),
                         span,
                         attrs,
