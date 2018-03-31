@@ -1208,7 +1208,7 @@ fn match_path(path: &Path, pat: &[&str]) -> bool {
 fn get_lit(expr: &Expr) -> Option<usize> {
     if let ExprKind::Lit(ref lit) = expr.node {
         if let LitKind::Int(val, _) = lit.node {
-            return usize::try_from(val).ok();
+            return val as usize;
         }
     }
     None
