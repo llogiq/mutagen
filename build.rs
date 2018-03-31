@@ -54,13 +54,52 @@ where T: {0}Assign<R>,
 ", o_trait, o_fn, mut_trait, mut_fn)
 }
 
-static BINOP_PAIRS: &[[&str; 4]] = &[
-    ["Add", "add", "Sub", "sub"],
-    ["Mul", "mul", "Div", "div"],
-    ["Shl", "shl", "Shr", "shr"],
-    ["BitAnd", "bitand", "BitOr", "bitor"],
-    ["BitXor", "bitxor", "BitOr", "bitor"],
-    ["BitAnd", "bitand", "BitXor", "bitxor"],
+fn write_binop_arm(out: &mut Write,
+                   o_trait: &str,
+                   o_fn: &str,
+                   mut_trait: &str,
+                   o_sym: &str,
+                   mut_sym: &str) -> Result<()> {
+     writeln!(out, "
+            BinOpKind::{0} => {{
+                let (n, current, sym, flag, mask) = p.add_mutations(
+                    span,
+                    &[\"(opportunistically) replacing x {3} y with x {4} y\"]
+                );
+                quote_expr!(p.cx(), {{
+                    ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
+                    ::mutagen::{0}{2}::{1}($left, $right, $n)
+                }})
+            }}", o_trait, o_fn, mut_trait, o_sym, mut_sym)
+}
+
+fn write_opassign_arm(out: &mut Write,
+                      o_trait: &str,
+                      o_fn: &str,
+                      mut_trait: &str,
+                      o_sym: &str,
+                      mut_sym: &str) -> Result<()> {
+     writeln!(out, "
+            BinOpKind::{0} => {{
+                let (n, current, sym, flag, mask) = p.add_mutations(
+                    span,
+                    &[\"(opportunistically) replacing x {3}= y with x {4}= y\"]
+                );
+                quote_expr!(p.cx(), {{
+                    ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
+                    ::mutagen::{0}{2}Assign::{1}_assign($left, $right, $n)
+                }})
+            }}", o_trait, o_fn, mut_trait, o_sym, mut_sym)
+}
+
+
+static BINOP_PAIRS: &[[&str; 6]] = &[
+    ["Add", "add", "Sub", "sub", "+", "-"],
+    ["Mul", "mul", "Div", "div", "*", "/"],
+    ["Shl", "shl", "Shr", "shr", "<<", ">>"],
+    ["BitAnd", "bitand", "BitOr", "bitor", "&", "|"],
+//    ["BitXor", "bitxor", "BitOr", "bitor", "^"], TODO: allow multi-mutations
+//    ["BitAnd", "bitand", "BitXor", "bitxor"],
 ];
 
 fn write_unop(out: &mut Write, op_trait: &str, op_fn: &str) -> Result<()> {
@@ -115,6 +154,199 @@ impl<T: Clone> MayClone<T> for T {{
     out.flush()
 }
 
+fn write_plugin() -> Result<()> {
+    let mut f = File::create("plugin/src/binop.rs")?;
+    let mut out = BufWriter::new(&mut f);
+    write!(out, "use super::MutatorPlugin;
+use syntax::ast::{{Attribute, BinOp, BinOpKind, Expr, ExprKind, NodeId, ThinVec}};
+use syntax::codemap::Span;
+use syntax::ptr::P;
+
+pub fn fold_binop(p: &mut MutatorPlugin, id: NodeId, op: BinOp, left: P<Expr>, right: P<Expr>, span: Span, attrs: ThinVec<Attribute>) -> P<Expr> {{
+    match op.node {{
+        BinOpKind::And => {{
+            let (n, current, sym, flag, op) = p.add_mutations(span,
+                    &[
+                        \"replacing _ && _ with false\",
+                        \"replacing _ && _ with true\",
+                        \"replacing x && _ with x\",
+                        \"replacing x && _ with !x\",
+                        \"replacing x && y with x && !y\",
+                    ],
+                );
+            quote_expr!(p.cx(), {{
+                ::mutagen::report_coverage($n..$current, &$sym[$flag], $op);
+                (match ($left, ::mutagen::diff($n)) {{
+                        (_, 0) => false,
+                        (_, 1) => true,
+                        (x, 2) => x,
+                        (x, 3) => !x,
+                        (x, n) => x && ($right) == (n != 4),
+                }})
+            }})
+        }}
+        BinOpKind::Or => {{
+            let (n, current, sym, flag, mask) = p.add_mutations(
+                    span,
+                    &[
+                        \"replacing _ || _ with false\",
+                        \"replacing _ || _ with true\",
+                        \"replacing x || _ with x\",
+                        \"replacing x || _ with !x\",
+                        \"replacing x || y with x || !y\",
+                    ],
+                );
+            quote_expr!(p.cx(), {{
+                ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
+                (match ($left, ::mutagen::diff($n)) {{
+                    (_, 0) => false,
+                    (_, 1) => true,
+                    (x, 2) => x,
+                    (x, 3) => !x,
+                    (x, n) => x || ($right) == (n != 4),
+                }})
+            }})
+        }}
+        BinOpKind::Eq => {{
+            let (n, current, sym, flag, mask) = p.add_mutations(
+                    span,
+                    &[
+                        \"replacing _ == _ with true\",
+                        \"replacing _ == _ with false\",
+                        \"replacing x == y with x != y\",
+                    ],
+                );
+            quote_expr!(p.cx(), {{
+                ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
+                ::mutagen::eq($left, $right, $n)
+            }})
+        }}
+        BinOpKind::Ne => {{
+            let (n, current, sym, flag, mask) = p.add_mutations(
+                    span,
+                    &[
+                        \"replacing _ != _ with true\",
+                        \"replacing _ != _ with false\",
+                        \"replacing x != y with x == y\",
+                    ],
+                );
+            quote_expr!(p.cx(), {{
+                ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
+                ::mutagen::ne($left, $right, $n)
+            }})
+        }}
+        BinOpKind::Gt => {{
+            let (n, current, sym, flag, mask) = p.add_mutations(
+                    span,
+                    &[
+                        \"replacing _ > _ with false\",
+                        \"replacing _ > _ with true\",
+                        \"replacing x > y with x < y\",
+                        \"replacing x > y with x <= y\",
+                        \"replacing x > y with x >= y\",
+                        \"replacing x > y with x == y\",
+                        \"replacing x > y with x != y\",
+                    ],
+                );
+            quote_expr!(p.cx(), {{
+                ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
+                ::mutagen::gt($left, $right, $n)
+            }})
+        }}
+        BinOpKind::Lt => {{
+            let (n, current, sym, flag, mask) = p.add_mutations(
+                    span,
+                    &[
+                        \"replacing _ < _ with false\",
+                        \"replacing _ < _ with true\",
+                        \"replacing x < y with x > y\",
+                        \"replacing x < y with x >= y\",
+                        \"replacing x < y with x <= y\",
+                        \"replacing x < y with x == y\",
+                        \"replacing x < y with x != y\",
+                    ],
+                );
+            quote_expr!(p.cx(), {{
+                ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
+                ::mutagen::gt($right, $left, $n)
+            }})
+        }}
+        BinOpKind::Ge => {{
+            let (n, current, sym, flag, mask) = p.add_mutations(
+                    span,
+                    &[
+                        \"replacing _ >= _ with false\",
+                        \"replacing _ >= _ with true\",
+                        \"replacing x >= y with x < y\",
+                        \"replacing x >= y with x <= y\",
+                        \"replacing x >= y with x > y\",
+                        \"replacing x >= y with x == y\",
+                        \"replacing x >= y with x != y\",
+                    ],
+                );
+            quote_expr!(p.cx(), {{
+                ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
+                ::mutagen::ge($left, $right, $n)
+            }})
+        }}
+        BinOpKind::Le => {{
+            let (n, current, sym, flag, mask) = p.add_mutations(
+                span,
+                &[
+                    \"replacing _ <= _ with false\",
+                    \"replacing _ <= _ with true\",
+                    \"replacing x <= y with x > y\",
+                    \"replacing x <= y with x >= y\",
+                    \"replacing x <= y with x < y\",
+                    \"replacing x <= y with x == y\",
+                    \"replacing x <= y with x != y\",
+                ],
+            );
+            quote_expr!(p.cx(), {{
+                ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
+                ::mutagen::ge($right, $left, $n)
+            }})
+        }}")?;
+        for names in BINOP_PAIRS.iter() {
+            write_binop_arm(&mut out, names[0], names[1], names[2], names[4], names[5])?;
+            write_binop_arm(&mut out, names[2], names[3], names[0], names[5], names[4])?;
+        }
+        write!(out, "_ => P(Expr {{
+                id,
+                node: ExprKind::Binary(op, left, right),
+                span,
+                attrs,
+            }})
+    }}
+}}
+")?;
+    write!(out, "pub fn fold_assignop(p: &mut MutatorPlugin,
+        id: NodeId,
+        op: BinOp,
+        left: P<Expr>,
+        right: P<Expr>,
+        span: Span,
+        attrs: ThinVec<Attribute>) -> P<Expr> {{
+    match op.node {{")?;
+    for names in BINOP_PAIRS.iter() {
+        //
+        write_opassign_arm(&mut out, names[0], names[1], names[2], names[4], names[5])?;
+        write_opassign_arm(&mut out, names[2], names[3], names[0], names[5], names[4])?;
+    }
+    write!(out, "_ => P(Expr {{
+                id,
+                node: ExprKind::AssignOp(op, left, right),
+                span,
+                attrs,
+            }})
+    }}
+}}
+")?;
+
+    out.flush()
+}
+
 fn main() {
     write_ops().unwrap();
+    write_plugin().unwrap();
 }

@@ -16,3 +16,4 @@ Cargo.lock
 
 # Generated file from build script
 /src/ops.rs
+/plugin/src/binop.rs
