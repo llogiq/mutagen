@@ -1,11 +1,10 @@
-#![feature(plugin_registrar, quote, rustc_private, custom_attribute, try_from, i128_type)]
+#![feature(plugin_registrar, quote, rustc_private, custom_attribute, i128_type)]
 
 extern crate rustc_plugin;
 extern crate syntax;
 
 use rustc_plugin::registry::Registry;
 use std::collections::HashMap;
-use std::convert::TryFrom;
 use std::fs::{create_dir_all, File, OpenOptions};
 use std::hash::{Hash, Hasher};
 use std::io::{BufWriter, Write};
@@ -1205,10 +1204,10 @@ fn match_path(path: &Path, pat: &[&str]) -> bool {
         .all(|(a, b)| &a.identifier.name == b)
 }
 
-fn get_lit(expr: &Expr) -> Option<usize> {
+fn get_lit(expr: &Expr) -> Option<u128> {
     if let ExprKind::Lit(ref lit) = expr.node {
         if let LitKind::Int(val, _) = lit.node {
-            return Some(val as usize);
+            return Some(val);
         }
     }
     None

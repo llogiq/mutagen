@@ -6,7 +6,7 @@ extern crate mutagen;
 
 fn main() {}
 
-#[mutate] //~ trait bound `std::sync::atomic::AtomicUsize: std::marker::Copy` is not satisfied [E0277]
+#[mutate]
 fn simple() {
     fn t() -> u32 {
         5
