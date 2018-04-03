@@ -52,16 +52,14 @@ impl Runner for FullSuiteRunner {
 /// by test), which may be non-performant if almost all the tests are mutated
 pub struct CoverageRunner {
     test_executable: PathBuf,
-    mutation_amount: usize,
     tests_with_mutations: RefCell<Option<Rc<TestsByMutation>>>,
 }
 
 impl CoverageRunner {
     /// creates a runner from the test executable path
-    pub fn new(test_executable: PathBuf, mutation_amount: usize) -> CoverageRunner {
+    pub fn new(test_executable: PathBuf) -> CoverageRunner {
         CoverageRunner {
             test_executable,
-            mutation_amount,
             tests_with_mutations: RefCell::new(None),
         }
     }

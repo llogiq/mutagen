@@ -142,7 +142,7 @@ fn run() -> Result<()> {
     for test_executable in tests_executable {
         println!("test executable at {:?}", test_executable);
         let runner: Box<Runner> = if with_coverage {
-            Box::new(CoverageRunner::new(test_executable.clone(), list.len()))
+            Box::new(CoverageRunner::new(test_executable.clone()))
         } else {
             Box::new(FullSuiteRunner::new(test_executable.clone()))
         };
