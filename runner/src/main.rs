@@ -90,7 +90,8 @@ fn compile_tests() -> Result<Vec<PathBuf>> {
     let mut tests: Vec<PathBuf> = Vec::new();
     let compile_out = Command::new("cargo")
         .args(&["test", "--no-run", "--message-format=json"])
-        .args(std::env::args_os())
+        // We need to skip first two arguments (path to mutagen binary and "mutagen" string)
+        .args(std::env::args_os().skip(2))
         .stderr(Stdio::inherit())
         .output()?;
 
