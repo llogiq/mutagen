@@ -9,8 +9,16 @@ struct Test {}
 
 impl Test {
     #[mutate]
-    //~^ cannot find value `__COVERAGE1` in this scope [E0425]
     pub fn method(&self) -> i32 {
+        5
+    }
+
+    #[mutate]
+    pub fn nested(&self) -> i32 {
+        let a = {
+            43
+        };
+
         5
     }
 }
