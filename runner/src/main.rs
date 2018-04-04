@@ -90,7 +90,8 @@ fn compile_tests() -> Result<Vec<PathBuf>> {
     let mut tests: Vec<PathBuf> = Vec::new();
     let compile_out = Command::new("cargo")
         .args(&["test", "--no-run", "--message-format=json"])
-        .args(std::env::args_os())
+        // We need to skip first two arguments (path to mutagen binary and "mutagen" string)
+        .args(std::env::args_os().skip(2))
         .stderr(Stdio::inherit())
         .output()?;
 
@@ -142,7 +143,7 @@ fn run() -> Result<()> {
     for test_executable in tests_executable {
         println!("test executable at {:?}", test_executable);
         let runner: Box<Runner> = if with_coverage {
-            Box::new(CoverageRunner::new(test_executable.clone(), list.len()))
+            Box::new(CoverageRunner::new(test_executable.clone()))
         } else {
             Box::new(FullSuiteRunner::new(test_executable.clone()))
         };
