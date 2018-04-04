@@ -63,6 +63,7 @@ pub fn mutator(cx: &mut ExtCtxt, _span: Span, _mi: &MetaItem, a: Annotatable) ->
         Annotatable::ImplItem(i) => Annotatable::ImplItem(i.map(|i| {
             p.fold_impl_item(i).expect_one("expected exactly one item")
         })),
+        stmt_or_expr => stmt_or_expr,
     };
     p.m.mutations.flush().unwrap();
     MUTATION_COUNT.store(p.m.current_count, SeqCst);
