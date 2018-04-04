@@ -310,16 +310,36 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
 
 impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
     fn fold_impl_item(&mut self, i: ImplItem) -> SmallVector<ImplItem> {
-        let mut is_fn = false;
-        if let ImplItemKind::Method(ref sig, _) = i.node {
-            self.start_fn(&sig.decl);
-            is_fn = true;
-        }
-        let item = fold::noop_fold_impl_item(i, self);
-        if is_fn {
-            self.end_fn();
-        }
-        item
+        SmallVector::one(match i {
+            ImplItem {
+                id,
+                ident,
+                vis,
+                defaultness,
+                attrs,
+                generics,
+                node: ImplItemKind::Method(sig, block),
+                span,
+                tokens,
+            } => {
+                self.start_fn(&sig.decl);
+                let ii = ImplItem {
+                    id,
+                    ident,
+                    vis,
+                    defaultness,
+                    attrs,
+                    generics,
+                    node: ImplItemKind::Method(sig, fold_first_block(block, self)),
+                    span,
+                    tokens,
+                };
+                self.end_fn();
+
+                ii
+            },
+            ii => ii,
+        })
     }
 
     fn fold_trait_item(&mut self, i: TraitItem) -> SmallVector<TraitItem> {
