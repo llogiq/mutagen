@@ -9,6 +9,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 mod ops;
 pub use ops::*;
+mod iterators;
 
 mod coverage;
 pub use coverage::report_coverage;
@@ -161,6 +162,16 @@ impl Mutagen {
             _ => x >= y,
         }
     }
+
+    pub fn forloop<'a, I: Iterator + 'a>(&self, i: I, n: usize) -> Box<Iterator<Item=I::Item> + 'a> {
+        match self.diff(n) {
+            0 => Box::new(iterators::NoopIterator{inner: i}),
+            1 => Box::new(i.skip(1)),
+            2 => Box::new(iterators::SkipLast::new(i)),
+            3 => Box::new(iterators::SkipLast::new(i.skip(1))),
+            _ => Box::new(i),
+        }
+    }
 }
 
 /// get the current mutation count
@@ -220,6 +231,10 @@ pub fn gt<R, T: PartialOrd<R>>(x: T, y: R, n: usize) -> bool {
 /// use instead of `>=` (or, switching operand order `<=`)
 pub fn ge<R, T: PartialOrd<R>>(x: T, y: R, n: usize) -> bool {
     MU.ge(x, y, n)
+}
+
+pub fn forloop<'a, I: Iterator + 'a>(i: I, n: usize) -> Box<Iterator<Item=I::Item > + 'a> {
+    MU.forloop(i, n)
 }
 
 #[cfg(test)]
