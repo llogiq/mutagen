@@ -87,7 +87,7 @@ fn write_opassign_arm(out: &mut Write,
                 );
                 quote_expr!(p.cx(), {{
                     ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
-                    ::mutagen::{0}{2}Assign::{1}_assign($left, $right, $n)
+                    ::mutagen::{0}{2}Assign::{1}_assign(&mut $left, $right, $n)
                 }})
             }}", o_trait, o_fn, mut_trait, o_sym, mut_sym)
 }
