@@ -87,7 +87,7 @@ fn write_opassign_arm(out: &mut Write,
                 );
                 quote_expr!(p.cx(), {{
                     ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
-                    ::mutagen::{0}{2}Assign::{1}_assign($left, $right, $n)
+                    ::mutagen::{0}{2}Assign::{1}_assign(&mut $left, $right, $n)
                 }})
             }}", o_trait, o_fn, mut_trait, o_sym, mut_sym)
 }
@@ -329,7 +329,7 @@ pub fn fold_binop(p: &mut MutatorPlugin, id: NodeId, op: BinOp, left: P<Expr>, r
         attrs: ThinVec<Attribute>) -> P<Expr> {{
     match op.node {{")?;
     for names in BINOP_PAIRS.iter() {
-        //
+        //                 BufWriter Add       add       Sub       +         -
         write_opassign_arm(&mut out, names[0], names[1], names[2], names[4], names[5])?;
         write_opassign_arm(&mut out, names[2], names[3], names[0], names[5], names[4])?;
     }
