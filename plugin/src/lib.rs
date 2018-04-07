@@ -764,8 +764,8 @@ fn destructure_bindings<'t>(
     result: &mut Vec<(Symbol, ArgTy<'t>)>,
 ) {
     match pat.node {
-        PatKind::Ident(mode, sp_ident, ref opt_pat) => {
-            result.push((sp_ident.node.name, ArgTy(mode, ty, pos, occ.clone())));
+        PatKind::Ident(mode, ident, ref opt_pat) => {
+            result.push((ident.name, ArgTy(mode, ty, pos, occ.clone())));
             if let Some(ref pat) = *opt_pat {
                 destructure_bindings(pat, ty, occ, pos, result);
             }
@@ -832,7 +832,7 @@ fn destructure_bindings<'t>(
 fn unbox(ty: &Ty) -> Option<&Ty> {
     if let TyKind::Path(_, ref path) = ty.node {
         if let Some(box_seg) = path.segments.iter().last() {
-            if box_seg.identifier.name != "Box" {
+            if box_seg.ident.name != "Box" {
                 return None;
             }
             if let Some(ref params) = box_seg.parameters {
@@ -972,7 +972,7 @@ fn is_whitelisted_path(path: &Path) -> bool {
 }
 
 fn path_segment_hash<H: Hasher>(seg: &PathSegment, pos: usize, h: &mut H) {
-    seg.identifier.hash(h);
+    seg.ident.hash(h);
     if let Some(ref params) = seg.parameters {
         match **params {
             PathParameters::AngleBracketed(ref data) => {
@@ -999,7 +999,7 @@ fn path_segment_hash<H: Hasher>(seg: &PathSegment, pos: usize, h: &mut H) {
 }
 
 fn path_segment_equal(a: &PathSegment, b: &PathSegment, inout: bool) -> bool {
-    a.identifier == b.identifier && optd(&a.parameters, &b.parameters, |a, b| match (&**a, &**b) {
+    a.ident == b.ident && optd(&a.parameters, &b.parameters, |a, b| match (&**a, &**b) {
         (&PathParameters::AngleBracketed(ref adata), &PathParameters::AngleBracketed(ref bdata)) => {
             (if adata.lifetimes.is_empty() {
                 inout && bdata.lifetimes.is_empty()
@@ -1195,7 +1195,7 @@ fn is_ty_default(ty: &Ty, self_ty: Option<&Ty>) -> bool {
                         .path
                         .segments
                         .last()
-                        .map_or(false, |s| s.identifier.name == "Default")
+                        .map_or(false, |s| s.ident.name == "Default")
                 } else {
                     false
                 }
@@ -1253,7 +1253,7 @@ fn match_path(path: &Path, pat: &[&str]) -> bool {
         .iter()
         .rev()
         .zip(pat.iter().rev())
-        .all(|(a, b)| &a.identifier.name == b)
+        .all(|(a, b)| &a.ident.name == b)
 }
 
 fn get_lit(expr: &Expr) -> Option<u128> {
