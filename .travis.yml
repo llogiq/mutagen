@@ -10,3 +10,9 @@ script:
   - pushd plugin
   - cargo test
   - popd
+  - pushd runner
+  - cargo install -f
+  - popd
+  - pushd examples/example_project
+  - cargo mutagen
+  - cargo mutagen -- --coverage
