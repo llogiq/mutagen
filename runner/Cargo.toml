@@ -11,6 +11,7 @@ keywords = ["testing"]
 [dependencies]
 json = "0.11.12"
 failure = "0.1.1"
+colored = "1.6"
 
 [badges]
 travis-ci = { repository = "llogiq/mutagen", branch = "master" }

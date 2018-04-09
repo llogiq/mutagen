@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate failure;
 extern crate json;
+extern crate colored;
 
 mod runner;
 
@@ -10,6 +11,7 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::str::from_utf8;
 use runner::{CoverageRunner, FullSuiteRunner, Runner};
+use colored::Colorize;
 
 static TARGET_MUTAGEN: &'static str = "target/mutagen";
 static MUTATIONS_LIST: &'static str = "mutations.txt";
@@ -18,10 +20,9 @@ type Result<T> = std::result::Result<T, failure::Error>;
 
 fn run_mutations(runner: Box<Runner>, list: &[String]) {
     let max_mutation = list.len();
+    let mut failures = 0usize;
 
-    let mut failures = Vec::new();
-
-    println!("Running {} mutations", max_mutation);
+    println!("Running {} mutations\n", max_mutation);
     for i in 0..max_mutation {
         // Mutation count starts from 1 (0 is not mutations)
         let mutation_count = i + 1;
@@ -30,39 +31,24 @@ fn run_mutations(runner: Box<Runner>, list: &[String]) {
 
         let result = runner.run(mutation_count);
 
-        if let Ok(stdout) = result {
+        let status = if let Ok(_) = result {
             // A succeeding test suite is actually a failure for us.
             // At least on test should have failed
-            failures.push((&list[i], mutation_count, stdout));
-            println!(" ... FAILED");
+            failures += 1;
+
+            "FAILED".bold().red()
         } else {
-            println!(" ... ok");
-        }
-    }
+            "ok".green()
+        };
 
-    if !failures.is_empty() {
-        println!("\nFailures:\n");
-
-        for &(ref mutation, ref m_count, ref failure) in &failures {
-            println!("---- {} ({}) stdout ----", mutation, m_count);
-            for line in failure.split("\n") {
-                println!("  {}", line);
-            }
-            println!("");
-        }
-
-        println!("\nFailures:\n");
-
-        for &(mutation, m_count, _) in &failures {
-            println!("\t{} ({})", mutation, m_count);
-        }
+        println!(" ... {}", status);
     }
 
     println!(
-        "\nMutation results: {}. {} passed; {} failed",
-        if failures.is_empty() { "ok" } else { "FAILED" },
-        list.len() - failures.len(),
-        failures.len()
+        "\nMutation results: {}. {} passed; {} failed\n",
+        if failures == 0 { "ok".green() } else { "FAILED".bold().red() },
+        list.len() - failures,
+        failures
     );
 }
 
