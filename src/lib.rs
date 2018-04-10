@@ -237,6 +237,55 @@ pub fn forloop<'a, I: Iterator + 'a>(i: I, n: usize) -> Box<Iterator<Item=I::Ite
     MU.forloop(i, n)
 }
 
+/// LoopId is used to record or impose a bounded limit to a specific loop, which is identified by an id.
+/// If some bound is specified, when it's reached, it will stop the execution of the process. Otherwise,
+/// it will track and report the maximum bound for this specific loop.
+pub struct LoopId {
+    /// identifies a specific loop
+    id: usize,
+    /// count keeps the track of the current execution of this loop
+    count: usize,
+    /// if is Some, it specifies the maximum bound of this iterator. If it's reached, the process
+    /// will be stopped
+    bound: Option<usize>,
+}
+
+impl LoopId {
+    /// Creates the LoopId on recording mode and it won't impose a maximum bound
+    pub fn recording(id: usize) -> Self {
+        LoopId {
+            id,
+            count: 0,
+            bound: None,
+        }
+    }
+
+    /// Creates the LoopId on bounded mode and it will stop the process if the limit is reached
+    pub fn bounded(id: usize) -> Self {
+        LoopId {
+            id,
+            count: 0,
+            bound: Some(1000), // TODO: Get from somewhere the target that was previously recorded
+        }
+    }
+
+    /// step is called on each iteration of a loop
+    pub fn step(&mut self) {
+        self.count = self.count.saturating_add(1);
+
+        if self.bound == Some(self.count) {
+            ::std::process::exit(-2);
+        }
+    }
+}
+
+impl Drop for LoopId {
+    fn drop(&mut self) {
+        // TODO: Report to the runner the amount of steps recorded on this loop
+        println!("LoopId<{}>: ticks: {}", self.id, self.count)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

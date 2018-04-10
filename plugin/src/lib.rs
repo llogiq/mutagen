@@ -33,6 +33,7 @@ pub fn plugin_registrar(reg: &mut Registry) {
 static TARGET_MUTAGEN: &'static str = "target/mutagen";
 static MUTATIONS_LIST: &'static str = "mutations.txt";
 static MUTATION_COUNT: AtomicUsize = AtomicUsize::new(0);
+static LOOP_COUNT: AtomicUsize = AtomicUsize::new(1);
 
 /// create a MutatorPlugin and let it fold the items/trait items/impl items
 pub fn mutator(cx: &mut ExtCtxt, _span: Span, _mi: &MetaItem, a: Annotatable) -> Annotatable {
@@ -67,6 +68,7 @@ pub fn mutator(cx: &mut ExtCtxt, _span: Span, _mi: &MetaItem, a: Annotatable) ->
     };
     p.m.mutations.flush().unwrap();
     MUTATION_COUNT.store(p.m.current_count, SeqCst);
+    LOOP_COUNT.store(p.m.current_loop_id, SeqCst);
     result
 }
 
@@ -104,6 +106,8 @@ struct Mutator<'a, 'cx: 'a> {
     mutations: BufWriter<File>,
     /// the current mutation count, starting from 1
     current_count: usize,
+    /// the current loop id, starting from 1. Every time a loop is mutated will be increased.
+    current_loop_id: usize,
 }
 
 impl<'a, 'cx: 'a> Mutator<'a, 'cx> {
@@ -184,6 +188,7 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
                 cx,
                 mutations,
                 current_count: count,
+                current_loop_id: MUTATION_COUNT.load(SeqCst),
             }
         }
     }
@@ -510,6 +515,40 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                     attrs,
                 })
             }
+            Expr {
+                id,
+                node: ExprKind::Loop(block, opt_label),
+                span,
+                attrs,
+            } => {
+                let current = self.m.current_loop_id;
+                self.m.current_loop_id += 1;
+                let sym = Symbol::gensym(&format!("__MUTAGEN_LOOP_ID{}", current));
+                let s = sym.to_ident();
+                let block = self.fold_block(block);
+                let block = quote_block!(self.cx(), {
+                    $s.step();
+
+                    $block
+                });
+
+                let e = P(Expr {
+                    id,
+                    node: ExprKind::Loop(block, opt_label),
+                    span,
+                    attrs
+                });
+
+                quote_expr!(self.cx(), {
+                    let mut $s = if ::mutagen::get() == 0usize {
+                        ::mutagen::LoopId::recording($current)
+                    } else {
+                        ::mutagen::LoopId::bounded($current)
+                    };
+
+                    $e
+                })
+            },
             Expr {
                 id,
                 node: ExprKind::ForLoop(pat, expr, block, ident),
