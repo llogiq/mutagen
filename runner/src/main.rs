@@ -1,7 +1,6 @@
 #[macro_use]
 extern crate failure;
 extern crate json;
-extern crate colored;
 
 mod runner;
 
@@ -11,7 +10,6 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::str::from_utf8;
 use runner::{CoverageRunner, FullSuiteRunner, Runner};
-use colored::Colorize;
 
 static TARGET_MUTAGEN: &'static str = "target/mutagen";
 static MUTATIONS_LIST: &'static str = "mutations.txt";
@@ -36,9 +34,9 @@ fn run_mutations(runner: Box<Runner>, list: &[String]) {
             // At least on test should have failed
             failures += 1;
 
-            "FAILED".bold().red()
+            "FAILED"
         } else {
-            "ok".green()
+            "ok"
         };
 
         println!(" ... {}", status);
@@ -46,7 +44,7 @@ fn run_mutations(runner: Box<Runner>, list: &[String]) {
 
     println!(
         "\nMutation results: {}. {} passed; {} failed\n",
-        if failures == 0 { "ok".green() } else { "FAILED".bold().red() },
+        if failures == 0 { "ok" } else { "FAILED" },
         list.len() - failures,
         failures
     );
