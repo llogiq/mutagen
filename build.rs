@@ -63,22 +63,31 @@ fn write_binop_arm(out: &mut Write,
                    o_sym: &str,
                    mut_sym: &str,
            shift: bool) -> Result<()> {
-    let op_pre;
-    let (pre, post) = if shift {
-        op_pre = format!("(if false {{{{ $left {} $right }}}} else {{{{ ", o_sym);
-        (op_pre.as_ref(), " }})")
+    if shift {
+        writeln!(out, "
+            BinOpKind::{0} => {{
+                let (n, current, sym, flag, mask) = p.add_mutations(
+                    span,
+                    &[\"(opportunistically) replacing x {3} y with x {4} y\"]
+                );
+                quote_expr!(p.cx(), {{
+                    let (left, right) = ($left, $right);
+                    if false {{ left {3} right }} else {{
+                        ::mutagen::{0}{2}::{1}(left, right, $n, &$sym[$flag], $mask)
+                    }}
+                }})
+            }}", o_trait, o_fn, mut_trait, o_sym, mut_sym)
     } else {
-        ("", "")
-    };
-    writeln!(out, "
+        writeln!(out, "
             BinOpKind::{0} => {{
                 let (n, current, sym, flag, mask) = p.add_mutations(
                     span,
                     &[\"(opportunistically) replacing x {3} y with x {4} y\"]
                 );
                 quote_expr!(p.cx(),
-                    {5}::mutagen::{0}{2}::{1}($left, $right, $n, &$sym[$flag], $mask){6})
-            }}", o_trait, o_fn, mut_trait, o_sym, mut_sym, pre, post)
+                    ::mutagen::{0}{2}::{1}($left, $right, $n, &$sym[$flag], $mask))
+            }}", o_trait, o_fn, mut_trait, o_sym, mut_sym)
+    }
 }
 
 fn write_opassign_arm(out: &mut Write,
