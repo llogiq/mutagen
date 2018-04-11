@@ -6,13 +6,13 @@ fn write_binop(out: &mut Write, o_trait: &str, o_fn: &str, mut_trait: &str, mut_
     writeln!(out, "
 pub trait {0}{2}<Rhs = Self> {{
     type Output;
-    fn {1}(self, rhs: Rhs, mutation_count: usize) -> Self::Output;
+    fn {1}(self, rhs: Rhs, mutation_count: usize, coverage: &AtomicUsize, mask: usize) -> Self::Output;
 }}
 
 impl<T, Rhs> {0}{2}<Rhs> for T
 where T: {0}<Rhs> {{
     type Output = <T as {0}<Rhs>>::Output;
-    default fn {1}(self, rhs: Rhs, _mutation_count: usize) -> Self::Output {{
+    default fn {1}(self, rhs: Rhs, _mutation_count: usize, _cov: &AtomicUsize, _mask: usize) -> Self::Output {{
         {0}::{1}(self, rhs)
     }}
 }}
@@ -21,7 +21,8 @@ impl<T, Rhs> {0}{2}<Rhs> for T
 where T: {0}<Rhs>,
       T: {2}<Rhs>,
      <T as {2}<Rhs>>::Output: Into<<T as {0}<Rhs>>::Output> {{
-    fn {1}(self, rhs: Rhs, mutation_count: usize) -> Self::Output {{
+    fn {1}(self, rhs: Rhs, mutation_count: usize, coverage: &AtomicUsize, mask: usize) -> Self::Output {{
+    super::report_coverage(mutation_count..(mutation_count + 1), coverage, mask);
         if super::now(mutation_count) {{
             {2}::{3}(self, rhs).into()
         }} else {{
@@ -31,11 +32,11 @@ where T: {0}<Rhs>,
 }}
 
 pub trait {0}{2}Assign<Rhs=Self> {{
-    fn {1}_assign(&mut self, rhs: Rhs, mutation_count: usize);
+    fn {1}_assign(&mut self, rhs: Rhs, mutation_count: usize, coverage: &AtomicUsize, mask: usize);
 }}
 
 impl<T, R> {0}{2}Assign<R> for T where T: {0}Assign<R> {{
-    default fn {1}_assign(&mut self, rhs: R, _mutation_count: usize) {{
+    default fn {1}_assign(&mut self, rhs: R, _mutation_count: usize, _coverage: &AtomicUsize, _mask: usize) {{
         {0}Assign::{1}_assign(self, rhs);
     }}
 }}
@@ -43,7 +44,8 @@ impl<T, R> {0}{2}Assign<R> for T where T: {0}Assign<R> {{
 impl<T, R> {0}{2}Assign<R> for T
 where T: {0}Assign<R>,
       T: {2}Assign<R> {{
-    fn {1}_assign(&mut self, rhs: R, mutation_count: usize) {{
+    fn {1}_assign(&mut self, rhs: R, mutation_count: usize, coverage: &AtomicUsize, mask: usize) {{
+    super::report_coverage(mutation_count..(mutation_count + 1), coverage, mask);
         if super::now(mutation_count) {{
             {2}Assign::{3}_assign(self, rhs);
         }} else {{
@@ -59,18 +61,33 @@ fn write_binop_arm(out: &mut Write,
                    o_fn: &str,
                    mut_trait: &str,
                    o_sym: &str,
-                   mut_sym: &str) -> Result<()> {
-     writeln!(out, "
+                   mut_sym: &str,
+           shift: bool) -> Result<()> {
+    if shift {
+        writeln!(out, "
             BinOpKind::{0} => {{
                 let (n, current, sym, flag, mask) = p.add_mutations(
                     span,
                     &[\"(opportunistically) replacing x {3} y with x {4} y\"]
                 );
                 quote_expr!(p.cx(), {{
-                    ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
-                    ::mutagen::{0}{2}::{1}($left, $right, $n)
+                    let (left, right) = ($left, $right);
+                    if false {{ left {3} right }} else {{
+                        ::mutagen::{0}{2}::{1}(left, right, $n, &$sym[$flag], $mask)
+                    }}
                 }})
             }}", o_trait, o_fn, mut_trait, o_sym, mut_sym)
+    } else {
+        writeln!(out, "
+            BinOpKind::{0} => {{
+                let (n, current, sym, flag, mask) = p.add_mutations(
+                    span,
+                    &[\"(opportunistically) replacing x {3} y with x {4} y\"]
+                );
+                quote_expr!(p.cx(),
+                    ::mutagen::{0}{2}::{1}($left, $right, $n, &$sym[$flag], $mask))
+            }}", o_trait, o_fn, mut_trait, o_sym, mut_sym)
+    }
 }
 
 fn write_opassign_arm(out: &mut Write,
@@ -86,12 +103,10 @@ fn write_opassign_arm(out: &mut Write,
                     &[\"(opportunistically) replacing x {3}= y with x {4}= y\"]
                 );
                 quote_expr!(p.cx(), {{
-                    ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
-                    ::mutagen::{0}{2}Assign::{1}_assign(&mut $left, $right, $n)
+                    ::mutagen::{0}{2}Assign::{1}_assign(&mut $left, $right, $n, &$sym[$flag], $mask)
                 }})
             }}", o_trait, o_fn, mut_trait, o_sym, mut_sym)
 }
-
 
 static BINOP_PAIRS: &[[&str; 6]] = &[
     ["Add", "add", "Sub", "sub", "+", "-"],
@@ -128,6 +143,7 @@ fn write_ops() -> Result<()> {
     let mut f = File::create("src/ops.rs")?;
     let mut out = BufWriter::new(&mut f);
     writeln!(out, "use std::ops::*;
+use std::sync::atomic::AtomicUsize;
 ")?;
     for names in BINOP_PAIRS.iter() {
         write_binop(&mut out, names[0], names[1], names[2], names[3])?;
@@ -308,8 +324,8 @@ pub fn fold_binop(p: &mut MutatorPlugin, id: NodeId, op: BinOp, left: P<Expr>, r
             }})
         }}")?;
         for names in BINOP_PAIRS.iter() {
-            write_binop_arm(&mut out, names[0], names[1], names[2], names[4], names[5])?;
-            write_binop_arm(&mut out, names[2], names[3], names[0], names[5], names[4])?;
+            write_binop_arm(&mut out, names[0], names[1], names[2], names[4], names[5], names[0].starts_with("Sh"))?;
+            write_binop_arm(&mut out, names[2], names[3], names[0], names[5], names[4], names[0].starts_with("Sh"))?;
         }
         write!(out, "_ => P(Expr {{
                 id,
