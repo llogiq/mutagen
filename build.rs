@@ -111,7 +111,7 @@ fn write_opassign_arm(out: &mut Write,
 static BINOP_PAIRS: &[[&str; 6]] = &[
     ["Add", "add", "Sub", "sub", "+", "-"],
     ["Mul", "mul", "Div", "div", "*", "/"],
-    ["Shl", "shl", "Shr", "shr", "<<", ">>"],
+//    ["Shl", "shl", "Shr", "shr", "<<", ">>"],
     ["BitAnd", "bitand", "BitOr", "bitor", "&", "|"],
 //    ["BitXor", "bitxor", "BitOr", "bitor", "^"], TODO: allow multi-mutations
 //    ["BitAnd", "bitand", "BitXor", "bitxor"],
