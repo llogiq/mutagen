@@ -11,7 +11,7 @@ use std::collections::HashMap;
 pub trait Runner {
     /// run executes the testsuite with the given mutation count and returns the output
     /// if all tests has passed
-    fn run(&self, mutation_count: usize) -> Result<String, String>;
+    fn run(&self, mutation_count: usize) -> Result<(), ()>;
 }
 
 /// Full suite runner executes all the test at once, given the path of the executable
@@ -29,18 +29,17 @@ impl FullSuiteRunner {
 }
 
 impl Runner for FullSuiteRunner {
-    fn run(&self, mutation_count: usize) -> Result<String, String> {
+    fn run(&self, mutation_count: usize) -> Result<(), ()> {
         let output = Command::new(&self.test_executable)
             // 0 is actually no mutations so we need i + 1 here
             .env("MUTATION_COUNT", mutation_count.to_string())
             .output()
             .expect("failed to execute process");
 
-        let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
         if output.status.success() {
-            Ok(stdout)
+            Ok(())
         } else {
-            Err(stdout)
+            Err(())
         }
     }
 }
@@ -169,7 +168,7 @@ impl CoverageRunner {
 }
 
 impl Runner for CoverageRunner {
-    fn run(&self, mutation_count: usize) -> Result<String, String> {
+    fn run(&self, mutation_count: usize) -> Result<(), ()> {
         let test_by_mutation = self.tests_with_mutations();
 
         let out: (String, bool) = test_by_mutation
@@ -195,9 +194,9 @@ impl Runner for CoverageRunner {
             .unwrap_or((String::new(), true));
 
         if out.1 == true {
-            Ok(out.0)
+            Ok(())
         } else {
-            Err(out.0)
+            Err(())
         }
     }
 }
