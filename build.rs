@@ -154,17 +154,20 @@ use std::sync::atomic::AtomicUsize;
     }
     writeln!(out, "
 pub trait MayClone<T> {{
-    fn may_clone(&self) -> bool;
+    fn may_clone(&self, mutation_count: usize, coverage: &AtomicUsize, mask: usize) -> bool;
     fn clone(&self) -> Self;
 }}
 
 impl<T> MayClone<T> for T {{
-    default fn may_clone(&self) -> bool {{ false }}
+    default fn may_clone(&self, _mc: usize, _cov: &AtomicUsize, _mask: usize) -> bool {{ false }}
     default fn clone(&self) -> Self {{ unimplemented!() }}
 }}
 
 impl<T: Clone> MayClone<T> for T {{
-    fn may_clone(&self) -> bool {{ true }}
+    fn may_clone(&self, mutation_count: usize, coverage: &AtomicUsize, mask: usize) -> bool {{
+        super::report_coverage(mutation_count..(mutation_count + 1), coverage, mask);
+        true
+    }}
     fn clone(&self) -> Self {{ self.clone() }}
 }}")?;
     out.flush()
