@@ -6,6 +6,11 @@ extern crate mutagen;
 
 #[mutate]
 fn main() {
+    test_optional();
+}
+
+
+fn test_optional() {
     let mut optional = Some(0);
     while let Some(i) = optional {
         if i > 9 {
@@ -16,6 +21,5 @@ fn main() {
             optional = Some(i + 1);
         }
     };
-    assert!(optional == Some(10));
-
+    assert!(optional == None);
 }
