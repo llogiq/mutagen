@@ -2,6 +2,7 @@
 
 extern crate rustc_plugin;
 extern crate syntax;
+extern crate mutagen;
 
 use rustc_plugin::registry::Registry;
 use std::collections::HashMap;
@@ -19,21 +20,50 @@ use syntax::ptr::P;
 use syntax::symbol::Symbol;
 use syntax::util::small_vector::SmallVector;
 use syntax::ast::{IntTy, LitIntType, LitKind, UnOp};
+use syntax::ext::base::MultiItemModifier;
 
 mod binop;
+mod bounded_loop;
+
+
+/// ChainedMultiMutator is a MultiMutator which allows to chain two `MultiItemModifier`.
+struct ChainedMultiMutator {
+    left: Box<MultiItemModifier>,
+    right: Box<MultiItemModifier>,
+}
+
+impl MultiItemModifier for ChainedMultiMutator {
+    fn expand(&self, cx: &mut ExtCtxt, span: Span, mi: &MetaItem, a: Annotatable) -> Vec<Annotatable> {
+        let out = self.left.expand(cx, span, mi, a);
+
+        out.into_iter()
+            .map(|a| self.right.expand(cx, span, mi, a))
+            .collect::<Vec<Vec<Annotatable>>>()
+            .into_iter()
+            .fold(Vec::new(), |mut acc, outs| {
+                acc.extend(outs);
+
+                acc
+            })
+    }
+}
 
 #[plugin_registrar]
 pub fn plugin_registrar(reg: &mut Registry) {
+    let chained = Box::new(ChainedMultiMutator {
+        left: Box::new(mutator),
+        right: Box::new(bounded_loop::bounded_loop),
+    });
+
     reg.register_syntax_extension(
         Symbol::intern("mutate"),
-        SyntaxExtension::MultiModifier(Box::new(mutator)),
+        SyntaxExtension::MultiModifier(chained),
     );
 }
 
 static TARGET_MUTAGEN: &'static str = "target/mutagen";
 static MUTATIONS_LIST: &'static str = "mutations.txt";
 static MUTATION_COUNT: AtomicUsize = AtomicUsize::new(0);
-static LOOP_COUNT: AtomicUsize = AtomicUsize::new(1);
 
 /// create a MutatorPlugin and let it fold the items/trait items/impl items
 pub fn mutator(cx: &mut ExtCtxt, _span: Span, _mi: &MetaItem, a: Annotatable) -> Annotatable {
@@ -68,7 +98,6 @@ pub fn mutator(cx: &mut ExtCtxt, _span: Span, _mi: &MetaItem, a: Annotatable) ->
     };
     p.m.mutations.flush().unwrap();
     MUTATION_COUNT.store(p.m.current_count, SeqCst);
-    LOOP_COUNT.store(p.m.current_loop_id, SeqCst);
     result
 }
 
@@ -106,8 +135,6 @@ struct Mutator<'a, 'cx: 'a> {
     mutations: BufWriter<File>,
     /// the current mutation count, starting from 1
     current_count: usize,
-    /// the current loop id, starting from 1. Every time a loop is mutated will be increased.
-    current_loop_id: usize,
 }
 
 impl<'a, 'cx: 'a> Mutator<'a, 'cx> {
@@ -188,7 +215,6 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
                 cx,
                 mutations,
                 current_count: count,
-                current_loop_id: MUTATION_COUNT.load(SeqCst),
             }
         }
     }
@@ -515,40 +541,6 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                     attrs,
                 })
             }
-            Expr {
-                id,
-                node: ExprKind::Loop(block, opt_label),
-                span,
-                attrs,
-            } => {
-                let current = self.m.current_loop_id;
-                self.m.current_loop_id += 1;
-                let sym = Symbol::gensym(&format!("__MUTAGEN_LOOP_ID{}", current));
-                let s = sym.to_ident();
-                let block = self.fold_block(block);
-                let block = quote_block!(self.cx(), {
-                    $s.step();
-
-                    $block
-                });
-
-                let e = P(Expr {
-                    id,
-                    node: ExprKind::Loop(block, opt_label),
-                    span,
-                    attrs
-                });
-
-                quote_expr!(self.cx(), {
-                    let mut $s = if ::mutagen::get() == 0usize {
-                        ::mutagen::LoopId::recording($current)
-                    } else {
-                        ::mutagen::LoopId::bounded($current)
-                    };
-
-                    $e
-                })
-            },
             Expr {
                 id,
                 node: ExprKind::ForLoop(pat, expr, block, ident),
