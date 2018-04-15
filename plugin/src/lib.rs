@@ -678,13 +678,15 @@ fn fold_first_block(block: P<Block>, p: &mut MutatorPlugin) -> P<Block> {
                     let value_ident = value.to_ident();
                     let (n, current) = m.add_mutations(
                         block.span,
-                        &[&format!("exchange {} with {}", key.as_str(), value_ident)],
+                        &[&format!("exchange {} with {}", key_ident, value_ident)],
                     );
                     pre_stmts.push(
                         quote_stmt!(m.cx,
-                        if ::mutagen::now($n) {
-                            let ($key_ident, $value_ident) = ($value_ident, $key_ident);
-                         }).unwrap(),
+                        let ($key_ident, $value_ident) = if ::mutagen::now($n) {
+                            ($value_ident, $key_ident)
+                        } else {
+                            ($key_ident, $value_ident)
+                        };).unwrap(),
                     );
                 }
             }
