@@ -6,7 +6,7 @@ extern crate wait_timeout;
 mod runner;
 
 use std::process::{self, Command, Stdio};
-use std::fs::File;
+use std::fs::{File, remove_file};
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::str::from_utf8;
@@ -126,6 +126,7 @@ fn run() -> Result<()> {
 
     let with_coverage = has_flag("--coverage");
     let (mut cov_runner, mut full_runner);
+    let _res = remove_file("target/mutagen/loops.txt");
     for test_executable in tests_executable {
         println!("test executable at {:?}", test_executable);
         let runner: &mut Runner = if with_coverage {

@@ -7,10 +7,12 @@ extern crate lazy_static;
 use std::env;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::fmt;
+use bounded_loop::{LoopId, LoopBound, LoopCount, LoopStep};
 
 mod ops;
 pub use ops::*;
 mod iterators;
+pub mod bounded_loop;
 
 mod coverage;
 pub use coverage::report_coverage;
@@ -236,77 +238,6 @@ pub fn ge<R, T: PartialOrd<R>>(x: T, y: R, n: usize) -> bool {
 
 pub fn forloop<'a, I: Iterator + 'a>(i: I, n: usize) -> Box<Iterator<Item=I::Item > + 'a> {
     MU.forloop(i, n)
-}
-
-pub struct LoopId(usize);
-
-impl LoopId {
-    pub fn new(id: usize) -> Self {
-        LoopId(id)
-    }
-
-    pub fn next(&self) -> Self {
-        LoopId(self.0 + 1)
-    }
-
-    pub fn id(&self) -> usize {
-        self.0
-    }
-}
-
-impl fmt::Display for LoopId {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-/// LoopCounter is used to record or impose a bounded limit to a specific loop, which is identified by an id.
-/// If some bound is specified, when it's reached, it will stop the execution of the process. Otherwise,
-/// it will track and report the maximum bound for this specific loop.
-pub struct LoopCounter {
-    /// identifies a specific loop
-    id: LoopId,
-    /// count keeps the track of the current execution of this loop
-    count: usize,
-    /// if is Some, it specifies the maximum bound of this iterator. If it's reached, the process
-    /// will be stopped
-    bound: Option<usize>,
-}
-
-impl LoopCounter {
-    /// Creates the LoopCounter on recording mode and it won't impose a maximum bound
-    pub fn recording(id: LoopId) -> Self {
-        LoopCounter {
-            id,
-            count: 0,
-            bound: None,
-        }
-    }
-
-    /// Creates the LoopCounter on bounded mode and it will stop the process if the limit is reached
-    pub fn bounded(id: LoopId) -> Self {
-        LoopCounter {
-            id,
-            count: 0,
-            bound: Some(1000), // TODO: Get from somewhere the target that was previously recorded
-        }
-    }
-
-    /// step is called on each iteration of a loop
-    pub fn step(&mut self) {
-        self.count = self.count.saturating_add(1);
-
-        if self.bound == Some(self.count) {
-            ::std::process::exit(-2);
-        }
-    }
-}
-
-impl Drop for LoopCounter {
-    fn drop(&mut self) {
-        // TODO: Report to the runner the amount of steps recorded on this loop
-        println!("LoopCounter<{}>: ticks: {}", self.id, self.count)
-    }
 }
 
 #[cfg(test)]
