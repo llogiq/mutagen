@@ -66,7 +66,7 @@ fn write_binop_arm(out: &mut Write,
     if shift {
         writeln!(out, "
             BinOpKind::{0} => {{
-                let (n, current, sym, flag, mask) = p.add_mutations(
+                let (n, _current, sym, flag, mask) = p.add_mutations(
                     span,
                     &[\"(opportunistically) replacing x {3} y with x {4} y\"]
                 );
@@ -80,7 +80,7 @@ fn write_binop_arm(out: &mut Write,
     } else {
         writeln!(out, "
             BinOpKind::{0} => {{
-                let (n, current, sym, flag, mask) = p.add_mutations(
+                let (n, _current, sym, flag, mask) = p.add_mutations(
                     span,
                     &[\"(opportunistically) replacing x {3} y with x {4} y\"]
                 );
@@ -98,7 +98,7 @@ fn write_opassign_arm(out: &mut Write,
                       mut_sym: &str) -> Result<()> {
      writeln!(out, "
             BinOpKind::{0} => {{
-                let (n, current, sym, flag, mask) = p.add_mutations(
+                let (n, _current, sym, flag, mask) = p.add_mutations(
                     span,
                     &[\"(opportunistically) replacing x {3}= y with x {4}= y\"]
                 );
@@ -154,21 +154,23 @@ use std::sync::atomic::AtomicUsize;
     }
     writeln!(out, "
 pub trait MayClone<T> {{
-    fn may_clone(&self, mutation_count: usize, coverage: &AtomicUsize, mask: usize) -> bool;
-    fn clone(&self) -> Self;
+    fn may_clone(&self) -> bool;
+    fn clone(&self, mutation_count: usize, coverage: &AtomicUsize, mask: usize) -> Self;
 }}
 
 impl<T> MayClone<T> for T {{
-    default fn may_clone(&self, _mc: usize, _cov: &AtomicUsize, _mask: usize) -> bool {{ false }}
-    default fn clone(&self) -> Self {{ unimplemented!() }}
+    default fn may_clone(&self) -> bool {{ false }}
+    default fn clone(&self, _mc: usize, _cov: &AtomicUsize, _mask: usize) -> Self {{ unimplemented!() }}
 }}
 
 impl<T: Clone> MayClone<T> for T {{
-    fn may_clone(&self, mutation_count: usize, coverage: &AtomicUsize, mask: usize) -> bool {{
-        super::report_coverage(mutation_count..(mutation_count + 1), coverage, mask);
+    fn may_clone(&self) -> bool {{
         true
     }}
-    fn clone(&self) -> Self {{ self.clone() }}
+    fn clone(&self, mutation_count: usize, coverage: &AtomicUsize, mask: usize) -> Self {{
+        super::report_coverage(mutation_count..(mutation_count + 1), coverage, mask);
+        Clone::clone(&self)
+    }}
 }}")?;
     out.flush()
 }

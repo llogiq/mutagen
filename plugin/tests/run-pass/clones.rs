@@ -10,8 +10,8 @@ fn clones(ref mut a: &mut String, b: &mut String) {
 }
 
 fn main() {
-    let x = String::from("Hi");
-    let y = String::from("there");
+    let mut x = String::from("Hi");
+    let mut y = String::from("there");
 
     clones(&mut x, &mut y);
     println!("{} {}", x, y);

@@ -189,14 +189,10 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
     fn add_mutations(&mut self, span: Span, descriptions: &[&str]) -> (usize, usize, Ident, usize, usize) {
         let (start_count, end_count) = self.m.add_mutations(span, descriptions);
         let info = self.info.method_infos.last_mut().unwrap();
-        let coverage_count = info.coverage_count;
-        info.coverage_count += 1;
         // must be in a method
         let sym = info.coverage_sym.to_ident();
-        let usize_bits = usize::max_value().count_ones() as usize;
-        let usize_shift = usize_bits.trailing_zeros() as usize;
-        let usize_mask = usize_bits - 1;
-        (start_count, end_count, sym, coverage_count >> usize_shift, 1 << (coverage_count & usize_mask))
+        let (flag, mask) = coverage(&mut info.coverage_count);
+        (start_count, end_count, sym, flag, mask)
     }
 
     fn cx(&mut self) -> &mut ExtCtxt<'cx> {
@@ -639,23 +635,29 @@ fn int_constant_can_add_one(i: u64, ty: LitIntType) -> bool {
     i < max
 }
 
-fn fold_first_block(block: P<Block>, p: &mut MutatorPlugin) -> P<Block> {
-    let mut pre_stmts = vec![];
+// given a mutable coverage count, increment and return (index, mask)
+fn coverage(coverage_count: &mut usize) -> (usize, usize) {
     let usize_bits = usize::max_value().count_ones() as usize;
     let usize_shift = usize_bits.trailing_zeros() as usize;
     let usize_mask = usize_bits - 1;
+    let c = *coverage_count;
+    *coverage_count += 1;
+    (c >> usize_shift, 1 << (c & usize_mask))
+}
+
+fn fold_first_block(block: P<Block>, p: &mut MutatorPlugin) -> P<Block> {
+    let mut pre_stmts = vec![];
     {
-        let MutatorPlugin { ref info, ref mut m } = *p;
-        if let Some(&MethodInfo {
+        let MutatorPlugin { ref mut info, ref mut m } = *p;
+        if let Some(&mut MethodInfo {
             is_default,
             ref have_output_type,
             ref interchangeables,
             ref ref_muts,
             ref coverage_sym,
-            ref coverage_count
-        }) = info.method_infos.last()
+            ref mut coverage_count
+        }) = info.method_infos.last_mut()
         {
-//TODO            let (flag, mask) = (coverage_count >> USIZE_SHIFT, coverage_count & usize_mask);
             let coverage_ident = coverage_sym.to_ident();
             pre_stmts.push(quote_stmt!(m.cx,
                 static $coverage_ident : [::std::sync::atomic::AtomicUsize; 0] =
@@ -665,12 +667,13 @@ fn fold_first_block(block: P<Block>, p: &mut MutatorPlugin) -> P<Block> {
                     block.span,
                     &["insert return default()"],
                 );
+                let (flag, mask) = coverage(coverage_count);
                 pre_stmts.push(
                     quote_stmt!(m.cx,
-//                    report_coverage(mutations, &$coverage_sym[$flag], $mask);
-                if ::mutagen::now($n) { return Default::default(); })
-                        .unwrap(),
-                );
+                        ::mutagen::report_coverage($n..$current, &$coverage_ident[$flag], $mask);
+                        if ::mutagen::now($n) { return Default::default(); })
+                                .unwrap(),
+                        );
             }
             for name in have_output_type {
                 let ident = name.to_ident();
@@ -678,11 +681,13 @@ fn fold_first_block(block: P<Block>, p: &mut MutatorPlugin) -> P<Block> {
                     block.span,
                     &[&format!("insert return {}", name)],
                 );
+                let (flag, mask) = coverage(coverage_count);
                 pre_stmts.push(
                     quote_stmt!(m.cx,
-                if ::mutagen::now($n) { return $ident; })
-                        .unwrap(),
-                );
+                        ::mutagen::report_coverage($n..$current, &$coverage_ident[$flag], $mask);
+                        if ::mutagen::now($n) { return $ident; })
+                                .unwrap(),
+                        );
             }
             for (ref key, ref values) in interchangeables {
                 for value in values.iter() {
@@ -690,29 +695,35 @@ fn fold_first_block(block: P<Block>, p: &mut MutatorPlugin) -> P<Block> {
                     let value_ident = value.to_ident();
                     let (n, current) = m.add_mutations(
                         block.span,
-                        &[&format!("exchange {} with {}", key_ident, value_ident)],
+                        &[&format!("exchange {} with {}", key.as_str(), value_ident)],
                     );
+                    let (flag, mask) = coverage(coverage_count);
                     pre_stmts.push(
                         quote_stmt!(m.cx,
-                        let ($key_ident, $value_ident) = if ::mutagen::now($n) {
-                            ($value_ident, $key_ident)
-                        } else {
-                            ($key_ident, $value_ident)
-                        };).unwrap(),
+                            ::mutagen::report_coverage($n..$current, &$coverage_ident[$flag], $mask);
+		            let ($key_ident, $value_ident) = if ::mutagen::now($n) {
+		                ($value_ident, $key_ident)
+		            } else {
+		                ($key_ident, $value_ident)
+		            };).unwrap(),
                     );
                 }
             }
             for name in ref_muts {
                 let ident = name.to_ident();
-                let (n, current) = m.add_mutations(
+                let ident_clone = Symbol::gensym(&format!("_{}_clone", ident)).to_ident();
+                let (n, _current) = m.add_mutations(
                     block.span,
                     &[&format!("clone mutable reference {}", ident)]
                 );
-                let (flag, mask) = (coverage_count >> usize_shift, coverage_count & usize_mask);
+                let (flag, mask) = coverage(coverage_count);
+                pre_stmts.push(quote_stmt!(m.cx, let mut $ident_clone;).unwrap());
                 pre_stmts.push(
                     quote_stmt!(m.cx,
-                                let $ident = if ::mutagen::MayClone::may_clone($ident, $n, &$coverage_ident[$flag], $mask) {
-                                    &mut ::mutagen::MayClone::clone($ident)
+                                let $ident = if ::mutagen::MayClone::may_clone($ident) {
+                                    $ident_clone = ::mutagen::MayClone::clone($ident,
+                                        $n, &$coverage_ident[$flag], $mask);
+                                    &mut $ident_clone
                                 } else { $ident };).unwrap());
             }
         }
