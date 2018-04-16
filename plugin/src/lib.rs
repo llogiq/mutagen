@@ -79,6 +79,8 @@ struct MethodInfo {
     /// which inputs have the same type and could be switched?
     /// TODO refs vs. values
     interchangeables: HashMap<Symbol, Vec<Symbol>>,
+    /// which inputs are mutable references
+    ref_muts: Vec<Symbol>,
     /// the generated symbol for coverage
     coverage_sym: Symbol,
     /// the count of coverage calls
@@ -187,14 +189,10 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
     fn add_mutations(&mut self, span: Span, descriptions: &[&str]) -> (usize, usize, Ident, usize, usize) {
         let (start_count, end_count) = self.m.add_mutations(span, descriptions);
         let info = self.info.method_infos.last_mut().unwrap();
-        let coverage_count = info.coverage_count;
-        info.coverage_count += 1;
         // must be in a method
         let sym = info.coverage_sym.to_ident();
-        let usize_bits = usize::max_value().count_ones() as usize;
-        let usize_shift = usize_bits.trailing_zeros() as usize;
-        let usize_mask = usize_bits - 1;
-        (start_count, end_count, sym, coverage_count >> usize_shift, 1 << (coverage_count & usize_mask))
+        let (flag, mask) = coverage(&mut info.coverage_count);
+        (start_count, end_count, sym, flag, mask)
     }
 
     fn cx(&mut self) -> &mut ExtCtxt<'cx> {
@@ -215,12 +213,17 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
         let mut typeargs: HashMap<ArgTy, Vec<Symbol>> = HashMap::new();
         let mut argdefs = vec![];
         let mut occs = vec![];
+        let mut ref_muts = vec![];
         for (pos, arg) in decl.inputs.iter().enumerate() {
             destructure_bindings(&arg.pat, &*arg.ty, &mut occs, pos, &mut argdefs);
         }
         for (sym, ty_args) in argdefs {
             if ty_args.3.is_empty() && out_ty.map_or(false, |t| ty_equal(t, ty_args.1, decl.inputs.len() == 1)) {
                 have_output_type.push(sym);
+            }
+            if ty_args.0 == BindingMode::ByRef(Mutability::Mutable) ||
+                    ty_args.3.is_empty() && is_ty_ref_mut(&ty_args.1) {
+                ref_muts.push(sym);
             }
             argtypes.insert(sym, ty_args.clone());
             typeargs.entry(ty_args).or_insert(vec![]).push(sym);
@@ -238,6 +241,7 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
             is_default,
             have_output_type,
             interchangeables,
+            ref_muts,
             coverage_sym,
             coverage_count: 0
         });
@@ -631,19 +635,29 @@ fn int_constant_can_add_one(i: u64, ty: LitIntType) -> bool {
     i < max
 }
 
+// given a mutable coverage count, increment and return (index, mask)
+fn coverage(coverage_count: &mut usize) -> (usize, usize) {
+    let usize_bits = usize::max_value().count_ones() as usize;
+    let usize_shift = usize_bits.trailing_zeros() as usize;
+    let usize_mask = usize_bits - 1;
+    let c = *coverage_count;
+    *coverage_count += 1;
+    (c >> usize_shift, 1 << (c & usize_mask))
+}
+
 fn fold_first_block(block: P<Block>, p: &mut MutatorPlugin) -> P<Block> {
     let mut pre_stmts = vec![];
     {
-        let MutatorPlugin { ref info, ref mut m } = *p;
-        if let Some(&MethodInfo {
+        let MutatorPlugin { ref mut info, ref mut m } = *p;
+        if let Some(&mut MethodInfo {
             is_default,
             ref have_output_type,
             ref interchangeables,
+            ref ref_muts,
             ref coverage_sym,
-            ref coverage_count
-        }) = info.method_infos.last()
+            ref mut coverage_count
+        }) = info.method_infos.last_mut()
         {
-//TODO            let (flag, mask) = (coverage_count >> USIZE_SHIFT, coverage_count & USIZE_MASK);
             let coverage_ident = coverage_sym.to_ident();
             pre_stmts.push(quote_stmt!(m.cx,
                 static $coverage_ident : [::std::sync::atomic::AtomicUsize; 0] =
@@ -653,12 +667,13 @@ fn fold_first_block(block: P<Block>, p: &mut MutatorPlugin) -> P<Block> {
                     block.span,
                     &["insert return default()"],
                 );
+                let (flag, mask) = coverage(coverage_count);
                 pre_stmts.push(
                     quote_stmt!(m.cx,
-//                    report_coverage(mutations, &$coverage_sym[$flag], $mask);
-                if ::mutagen::now($n) { return Default::default(); })
-                        .unwrap(),
-                );
+                        ::mutagen::report_coverage($n..$current, &$coverage_ident[$flag], $mask);
+                        if ::mutagen::now($n) { return Default::default(); })
+                                .unwrap(),
+                        );
             }
             for name in have_output_type {
                 let ident = name.to_ident();
@@ -666,11 +681,13 @@ fn fold_first_block(block: P<Block>, p: &mut MutatorPlugin) -> P<Block> {
                     block.span,
                     &[&format!("insert return {}", name)],
                 );
+                let (flag, mask) = coverage(coverage_count);
                 pre_stmts.push(
                     quote_stmt!(m.cx,
-                if ::mutagen::now($n) { return $ident; })
-                        .unwrap(),
-                );
+                        ::mutagen::report_coverage($n..$current, &$coverage_ident[$flag], $mask);
+                        if ::mutagen::now($n) { return $ident; })
+                                .unwrap(),
+                        );
             }
             for (ref key, ref values) in interchangeables {
                 for value in values.iter() {
@@ -678,17 +695,36 @@ fn fold_first_block(block: P<Block>, p: &mut MutatorPlugin) -> P<Block> {
                     let value_ident = value.to_ident();
                     let (n, current) = m.add_mutations(
                         block.span,
-                        &[&format!("exchange {} with {}", key_ident, value_ident)],
+                        &[&format!("exchange {} with {}", key.as_str(), value_ident)],
                     );
+                    let (flag, mask) = coverage(coverage_count);
                     pre_stmts.push(
                         quote_stmt!(m.cx,
-                        let ($key_ident, $value_ident) = if ::mutagen::now($n) {
-                            ($value_ident, $key_ident)
-                        } else {
-                            ($key_ident, $value_ident)
-                        };).unwrap(),
+                            ::mutagen::report_coverage($n..$current, &$coverage_ident[$flag], $mask);
+		            let ($key_ident, $value_ident) = if ::mutagen::now($n) {
+		                ($value_ident, $key_ident)
+		            } else {
+		                ($key_ident, $value_ident)
+		            };).unwrap(),
                     );
                 }
+            }
+            for name in ref_muts {
+                let ident = name.to_ident();
+                let ident_clone = Symbol::gensym(&format!("_{}_clone", ident)).to_ident();
+                let (n, _current) = m.add_mutations(
+                    block.span,
+                    &[&format!("clone mutable reference {}", ident)]
+                );
+                let (flag, mask) = coverage(coverage_count);
+                pre_stmts.push(quote_stmt!(m.cx, let mut $ident_clone;).unwrap());
+                pre_stmts.push(
+                    quote_stmt!(m.cx,
+                                let $ident = if ::mutagen::MayClone::may_clone($ident) {
+                                    $ident_clone = ::mutagen::MayClone::clone($ident,
+                                        $n, &$coverage_ident[$flag], $mask);
+                                    &mut $ident_clone
+                                } else { $ident };).unwrap());
             }
         }
     }
@@ -1172,6 +1208,14 @@ static DEFAULT_IF_ARG: &[&[&str]] = &[
     &["sync", "RwLock"],
     &["mem", "ManuallyDrop"],
 ];
+
+fn is_ty_ref_mut(ty: &Ty) -> bool {
+    if let TyKind::Rptr(_, MutTy { ty: _, mutbl: Mutability::Mutable }) = ty.node {
+        true
+    } else {
+        false
+    }
+}
 
 fn is_ty_default(ty: &Ty, self_ty: Option<&Ty>) -> bool {
     match ty.node {
