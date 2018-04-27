@@ -281,7 +281,7 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
                 if int_constant_can_subtract_one(numeric_constant, ty) {
                     let (n, current, sym, flag, mask) = self.add_mutations(
                             s,
-                            &["sub one to int constant"],
+                            &["sub one from int constant"],
                         );
                     mut_expression = quote_expr!(self.cx(),
                                     {
