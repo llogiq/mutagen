@@ -1,4 +1,4 @@
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::path::PathBuf;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -6,40 +6,80 @@ use std::fs::File;
 use std::io::Read;
 use std::fs::remove_file;
 use std::collections::HashMap;
+use std::time::{Duration, Instant};
+use wait_timeout::ChildExt;
 
 /// Runner allows to execute the testsuite with the target mutation count
 pub trait Runner {
     /// run executes the testsuite with the given mutation count and returns the output
     /// if all tests has passed
-    fn run(&self, mutation_count: usize) -> Result<(), ()>;
+    fn run(&mut self, mutation_count: usize) -> Result<(), ()>;
+}
+
+pub struct RuntimeModifier {
+    multiplier: u32,
+    divisor: u32,
+    baseline: Duration,
+}
+
+impl RuntimeModifier {
+    fn new(mul: u32, div: u32, baseline: Duration) -> RuntimeModifier {
+        RuntimeModifier {
+            multiplier: mul,
+            divisor: div,
+            baseline
+        }
+    }
+
+    fn compute(&self, duration: Duration) -> Duration {
+        duration * self.multiplier / self.divisor + self.baseline
+    }
 }
 
 /// Full suite runner executes all the test at once, given the path of the executable
 pub struct FullSuiteRunner {
     test_executable: PathBuf,
+    runtime_mod: RuntimeModifier,
+    timeout: Duration,
 }
 
 impl FullSuiteRunner {
     /// creates a runner from the test executable path
     pub fn new(test_executable: PathBuf) -> FullSuiteRunner {
         FullSuiteRunner {
-            test_executable
+            test_executable,
+            runtime_mod: RuntimeModifier::new(5, 2, Duration::from_millis(250)),
+            timeout: Duration::from_secs(0),
         }
     }
 }
 
 impl Runner for FullSuiteRunner {
-    fn run(&self, mutation_count: usize) -> Result<(), ()> {
-        let output = Command::new(&self.test_executable)
-            // 0 is actually no mutations so we need i + 1 here
-            .env("MUTATION_COUNT", mutation_count.to_string())
-            .output()
-            .expect("failed to execute process");
-
-        if output.status.success() {
-            Ok(())
+    fn run(&mut self, mutation_count: usize) -> Result<(), ()> {
+        let mut command = Command::new(&self.test_executable);
+        command.env("MUTATION_COUNT", mutation_count.to_string())
+            .stdout(Stdio::null());
+        if mutation_count == 0 {
+            let start = Instant::now();
+            let status = command.status().expect("failed to execute process");
+            self.timeout = self.runtime_mod.compute(start.elapsed());
+            if status.success() {
+                Ok(())
+            } else {
+                Err(())
+            }
         } else {
-            Err(())
+            let mut child = command.spawn().expect("failed to execute process");
+            if let Some(status) = child.wait_timeout(self.timeout)
+                    .expect("error while waiting for test") {
+                if status.success() {
+                    Ok(())
+                } else {
+                    Err(())
+                }
+            } else {
+                Err(())
+            }
         }
     }
 }
@@ -52,6 +92,8 @@ impl Runner for FullSuiteRunner {
 pub struct CoverageRunner {
     test_executable: PathBuf,
     tests_with_mutations: RefCell<Option<Rc<TestsByMutation>>>,
+    test_runtimes: HashMap<String, Duration>,
+    runtime_mod: RuntimeModifier,
 }
 
 impl CoverageRunner {
@@ -60,6 +102,8 @@ impl CoverageRunner {
         CoverageRunner {
             test_executable,
             tests_with_mutations: RefCell::new(None),
+            test_runtimes: HashMap::new(),
+            runtime_mod: RuntimeModifier::new(2, 1, Duration::from_millis(50)),
         }
     }
 
@@ -149,51 +193,52 @@ impl CoverageRunner {
         mutations_test
     }
 
-    fn execute(&self, test_name: &str, mutation_count: usize) -> Result<String, String> {
-        let output = Command::new(&self.test_executable)
-            .args(&[test_name])
-            .args(&["--exact"])
-            // 0 is actually no mutations so we need i + 1 here
-            .env("MUTATION_COUNT", mutation_count.to_string())
-            .output()
-            .map_err(|_| "could not execute test".to_string())?;
-
-        let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
-        if output.status.success() {
-            Ok(stdout)
+    fn execute(&mut self, test_name: &str, mutation_count: usize) -> Result<(), ()> {
+        let mut command = Command::new(&self.test_executable);
+        command.args(&[test_name])
+               .env("MUTATION_COUNT", mutation_count.to_string())
+               .stdout(Stdio::null());
+        if mutation_count == 0 {
+            let start = Instant::now();
+            let status = command
+                .status()
+                .expect("failed to execute process");
+            self.test_runtimes.insert(test_name.to_string(),
+                                      self.runtime_mod.compute(start.elapsed()));
+            if status.success() {
+                Ok(())
+            } else {
+                Err(())
+            }
         } else {
-            Err(stdout)
+            let timeout = self.test_runtimes[test_name];
+            let mut child = command.spawn().expect("failed to execute process");
+            if let Some(status) = child.wait_timeout(timeout).expect("error while waiting for test") {
+                if status.success() {
+                    Ok(())
+                } else {
+                    Err(())
+                }
+            } else { // timeout
+                Err(())
+            }
         }
     }
 }
 
 impl Runner for CoverageRunner {
-    fn run(&self, mutation_count: usize) -> Result<(), ()> {
+    fn run(&mut self, mutation_count: usize) -> Result<(), ()> {
         let test_by_mutation = self.tests_with_mutations();
 
-        let out: (String, bool) = test_by_mutation
-            .tests(mutation_count)
+        if test_by_mutation.tests(mutation_count)
             .map(|tests| {
                 tests
                     .iter()
                     .map(|tn| self.execute(tn, mutation_count))
-                    .fold((String::new(), true), |mut acc, test_result| {
-                        match test_result {
-                            Ok(stdout) => {
-                                acc.0.push_str(&stdout);
-                                (acc.0, acc.1 & true)
-                            },
-                            Err(stdout) => {
-                                acc.0.push_str(&stdout);
+                    .all(|test_result| test_result.is_ok())
 
-                                (acc.0, acc.1 & false)
-                            }
-                        }
-                    })
             })
-            .unwrap_or((String::new(), true));
-
-        if out.1 == true {
+            .unwrap_or(true) {
             Ok(())
         } else {
             Err(())

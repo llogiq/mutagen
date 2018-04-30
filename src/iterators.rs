@@ -37,15 +37,8 @@ impl<I: Iterator> Iterator for SkipLast<I> {
 
     fn next(&mut self) -> Option<I::Item> {
         let current = self.stashed.take();
-        let next = self.inner.next();
-
-        if next.is_none() {
-            None
-        } else {
-            self.stashed = next;
-
-            current
-        }
+        self.stashed = Some(self.inner.next()?);
+        current
     }
 }
 

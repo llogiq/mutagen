@@ -8,7 +8,7 @@ pub fn report_coverage(mutations: Range<usize>, flag: &AtomicUsize, mask: usize)
     if flag.fetch_or(mask, Ordering::SeqCst) & mask != 0 {
         return // already logged
     }
-    if let Some(_) = env::var_os("MUTAGEN_COVERAGE") {
+    if env::var_os("MUTAGEN_COVERAGE").is_some() {
         // TODO: Should parse the env var and check the reporting strategy: file, socket, ...
         let muts: Vec<String> = mutations
             .map(|n| format!("{}", n))

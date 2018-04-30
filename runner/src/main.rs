@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate failure;
 extern crate json;
+extern crate wait_timeout;
 
 mod runner;
 
@@ -16,7 +17,7 @@ static MUTATIONS_LIST: &'static str = "mutations.txt";
 
 type Result<T> = std::result::Result<T, failure::Error>;
 
-fn run_mutations(runner: Box<Runner>, list: &[String]) {
+fn run_mutations(runner: &mut Runner, list: &[String]) {
     let max_mutation = list.len();
     let mut failures = 0usize;
 
@@ -124,12 +125,15 @@ fn run() -> Result<()> {
     let list = read_mutations(&filename)?;
 
     let with_coverage = has_flag("--coverage");
+    let (mut cov_runner, mut full_runner);
     for test_executable in tests_executable {
         println!("test executable at {:?}", test_executable);
-        let runner: Box<Runner> = if with_coverage {
-            Box::new(CoverageRunner::new(test_executable.clone()))
+        let runner: &mut Runner = if with_coverage {
+            cov_runner = CoverageRunner::new(test_executable.clone());
+            &mut cov_runner
         } else {
-            Box::new(FullSuiteRunner::new(test_executable.clone()))
+            full_runner = FullSuiteRunner::new(test_executable.clone());
+            &mut full_runner
         };
 
         if let Err(_) = runner.run(0) {

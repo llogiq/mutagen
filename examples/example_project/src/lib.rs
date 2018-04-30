@@ -2,7 +2,6 @@
 //!
 #![cfg_attr(test, feature(plugin))]
 #![cfg_attr(test, plugin(mutagen_plugin))]
-#![feature(custom_attribute)]
 
 #[cfg(test)]
 extern crate mutagen;

@@ -38,7 +38,7 @@ static MUTATION_COUNT: AtomicUsize = AtomicUsize::new(0);
 pub fn mutator(cx: &mut ExtCtxt, _span: Span, _mi: &MetaItem, a: Annotatable) -> Annotatable {
     // create target/mutagen path if it doesn't exist
     let mutagen_dir = if cx.root_path.ends_with("src") {
-        cx.root_path.parent().unwrap_or(::std::path::Path::new("."))
+        cx.root_path.parent().unwrap_or_else(|| ::std::path::Path::new("."))
     } else {
         cx.root_path.as_path()
     }.join(TARGET_MUTAGEN);
@@ -226,15 +226,14 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
                 ref_muts.push(sym);
             }
             argtypes.insert(sym, ty_args.clone());
-            typeargs.entry(ty_args).or_insert(vec![]).push(sym);
+            typeargs.entry(ty_args).or_insert_with(Vec::new).push(sym);
         }
 
         let mut interchangeables = HashMap::new();
         for (_, symbols) in typeargs {
             if symbols.len() > 1 {
-                combine(&mut interchangeables, symbols);
+                combine(&mut interchangeables, &symbols);
             }
-
         }
         let coverage_sym = Symbol::gensym(&format!("__COVERAGE{}", self.m.current_count));
         self.info.method_infos.push(MethodInfo {
@@ -266,8 +265,8 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
         lit: &Lit,
         is_negative: bool,
     ) -> Option<P<Expr>> {
-        match lit {
-            &Spanned {
+        match *lit {
+            Spanned {
                 node: LitKind::Int(i, ty),
                 span: s,
             } => {
@@ -538,8 +537,8 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                 attrs,
             } => {
                 let exp = exp.and_then(|e| {
-                    let maybe_exp = match &e.node {
-                        &ExprKind::Lit(ref lit) => {
+                    let maybe_exp = match e.node {
+                        ExprKind::Lit(ref lit) => {
                             self.mutate_numeric_constant_expression(&lit, true)
                         }
                         _ => None,
@@ -758,7 +757,7 @@ fn fold_first_block(block: P<Block>, p: &mut MutatorPlugin) -> P<Block> {
 }
 
 /// combine the given `symbols` and add them to the interchangeables map
-fn combine<S: Hash + Eq + Copy>(interchangeables: &mut HashMap<S, Vec<S>>, symbols: Vec<S>) {
+fn combine<S: Hash + Eq + Copy>(interchangeables: &mut HashMap<S, Vec<S>>, symbols: &[S]) {
     let symbol_amount = symbols.len();
 
     for i in 0..symbol_amount {
@@ -847,7 +846,7 @@ fn destructure_bindings<'t>(
         PatKind::Tuple(ref pats, opt_usize) => {
             if let (true, &TyKind::Tup(ref tup)) = (occ.is_empty(), &ty.node) {
                 let mut new_occs = vec![];
-                for i in 0..opt_usize.unwrap_or(pats.len()) {
+                for i in 0..opt_usize.unwrap_or_else(|| pats.len()) {
                     destructure_bindings(&pats[i], &tup[i], &mut new_occs, pos, result);
                 }
             } else {
