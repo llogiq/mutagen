@@ -700,11 +700,11 @@ fn fold_first_block(block: P<Block>, p: &mut MutatorPlugin) -> P<Block> {
                     pre_stmts.push(
                         quote_stmt!(m.cx,
                             ::mutagen::report_coverage($n..$current, &$coverage_ident[$flag], $mask);
-		            let ($key_ident, $value_ident) = if ::mutagen::now($n) {
-		                ($value_ident, $key_ident)
-		            } else {
-		                ($key_ident, $value_ident)
-		            };).unwrap(),
+                    let ($key_ident, $value_ident) = if ::mutagen::now($n) {
+                        ($value_ident, $key_ident)
+                    } else {
+                        ($key_ident, $value_ident)
+                    };).unwrap(),
                     );
                 }
             }
@@ -1364,10 +1364,10 @@ mod tests {
         let c = "c";
         let d = "d";
 
-        let symbols = vec![a, b, c, d];
+        let symbols = [a, b, c, d];
 
         let mut interchangeables = HashMap::new();
-        combine(&mut interchangeables, symbols);
+        combine(&mut interchangeables, &symbols);
 
         assert_eq!(interchangeables[&a], &[b, c, d]);
         assert_eq!(interchangeables[&b], &[c, d]);
