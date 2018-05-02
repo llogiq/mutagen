@@ -108,7 +108,7 @@ impl CoverageRunner {
     }
 
     /// returns the tests names that has, at least, one mutation
-    fn tests_with_mutations(&self) -> Rc<TestsByMutation> {
+    fn tests_with_mutations(&mut self) -> Rc<TestsByMutation> {
         if let Some(ref twm) = *self.tests_with_mutations.borrow() {
             return twm.clone();
         }
@@ -150,7 +150,7 @@ impl CoverageRunner {
 
     /// Runs the given tests and returns a new collection which contains only the tests
     /// which contains some mutation
-    fn check_test_coverage(&self, tests: Vec<String>) -> TestsByMutation {
+    fn check_test_coverage(&mut self, tests: Vec<String>) -> TestsByMutation {
         let mut mutations_test = TestsByMutation::new();
 
         tests
@@ -158,10 +158,13 @@ impl CoverageRunner {
             .for_each(|test_name| {
                 let _res = remove_file("target/mutagen/coverage.txt");
 
+                let start = Instant::now();
                 let cmd_result = Command::new(&self.test_executable)
                     .args(&[&test_name])
                     .env("MUTAGEN_COVERAGE", "file:target/mutagen/coverage.txt")
                     .output();
+                let runtime = self.runtime_mod.compute(start.elapsed());
+                self.test_runtimes.insert(test_name.to_string(), runtime);
 
                 let cmd_successful = cmd_result
                     .map(|output| output.status.success())
@@ -198,30 +201,16 @@ impl CoverageRunner {
         command.args(&[test_name])
                .env("MUTATION_COUNT", mutation_count.to_string())
                .stdout(Stdio::null());
-        if mutation_count == 0 {
-            let start = Instant::now();
-            let status = command
-                .status()
-                .expect("failed to execute process");
-            self.test_runtimes.insert(test_name.to_string(),
-                                      self.runtime_mod.compute(start.elapsed()));
+        let timeout = self.test_runtimes[test_name];
+        let mut child = command.spawn().expect("failed to execute process");
+        if let Some(status) = child.wait_timeout(timeout).expect("error while waiting for test") {
             if status.success() {
                 Ok(())
             } else {
                 Err(())
             }
-        } else {
-            let timeout = self.test_runtimes[test_name];
-            let mut child = command.spawn().expect("failed to execute process");
-            if let Some(status) = child.wait_timeout(timeout).expect("error while waiting for test") {
-                if status.success() {
-                    Ok(())
-                } else {
-                    Err(())
-                }
-            } else { // timeout
-                Err(())
-            }
+        } else { // timeout
+            Err(())
         }
     }
 }

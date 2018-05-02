@@ -700,11 +700,11 @@ fn fold_first_block(block: P<Block>, p: &mut MutatorPlugin) -> P<Block> {
                     pre_stmts.push(
                         quote_stmt!(m.cx,
                             ::mutagen::report_coverage($n..$current, &$coverage_ident[$flag], $mask);
-                    let ($key_ident, $value_ident) = if ::mutagen::now($n) {
-                        ($value_ident, $key_ident)
-                    } else {
-                        ($key_ident, $value_ident)
-                    };).unwrap(),
+                            let ($key_ident, $value_ident) = if ::mutagen::now($n) {
+                                ($value_ident, $key_ident)
+                            } else {
+                                ($key_ident, $value_ident)
+                            };).unwrap(),
                     );
                 }
             }
