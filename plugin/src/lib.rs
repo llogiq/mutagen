@@ -615,9 +615,21 @@ fn int_constant_can_subtract_one(i: i64, ty: LitIntType) -> bool {
     i as i64 > min
 }
 
+static MAX_VALUES: &[u64] = &[
+    std::u8::MAX as u64,
+    std::u16::MAX as u64,
+    std::u32::MAX as u64,
+    std::u64::MAX as u64,
+];
+
 fn int_constant_can_add_one(i: u64, ty: LitIntType) -> bool {
     let max: u64 = match ty {
-        LitIntType::Unsuffixed => std::u8::MAX as u64,
+        LitIntType::Unsuffixed => {
+            if MAX_VALUES.contains(&i) {
+                return false;
+            }
+            return true;
+        }
         LitIntType::Unsigned(UintTy::Usize) => std::u32::MAX as u64,
         LitIntType::Unsigned(UintTy::U8) => std::u8::MAX as u64,
         LitIntType::Unsigned(UintTy::U16) => std::u16::MAX as u64,
@@ -1318,7 +1330,8 @@ mod tests {
     #[test]
     fn test_can_add_one() {
         let examples = [
-            ((std::u8::MAX as u64) + 1, LitIntType::Unsuffixed, false),
+            (std::u8::MAX as u64, LitIntType::Unsuffixed, false),
+            ((std::u8::MAX as u64) + 1, LitIntType::Unsuffixed, true),
             ((std::u8::MAX as u64) - 1, LitIntType::Unsuffixed, true),
             (
                 (std::i64::MAX as u64),
