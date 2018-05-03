@@ -85,6 +85,8 @@ struct MethodInfo {
     coverage_sym: Symbol,
     /// the count of coverage calls
     coverage_count: usize,
+    /// a symbol to store `self` in
+    self_sym: Option<Symbol>
 }
 
 #[derive(Default)]
@@ -217,6 +219,7 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
         for (pos, arg) in decl.inputs.iter().enumerate() {
             destructure_bindings(&arg.pat, &*arg.ty, &mut occs, pos, &mut argdefs);
         }
+        let mut self_sym = None;
         for (sym, ty_args) in argdefs {
             if ty_args.3.is_empty() && out_ty.map_or(false, |t| ty_equal(t, ty_args.1, decl.inputs.len() == 1)) {
                 have_output_type.push(sym);
@@ -224,6 +227,9 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
             if ty_args.0 == BindingMode::ByRef(Mutability::Mutable) ||
                     ty_args.3.is_empty() && is_ty_ref_mut(&ty_args.1) {
                 ref_muts.push(sym);
+                if self_sym.is_none() && sym.as_str() == "self" {
+                    self_sym = Some(Symbol::gensym("__self_mutated"));
+                }
             }
             argtypes.insert(sym, ty_args.clone());
             typeargs.entry(ty_args).or_insert_with(Vec::new).push(sym);
@@ -242,7 +248,8 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
             interchangeables,
             ref_muts,
             coverage_sym,
-            coverage_count: 0
+            coverage_count: 0,
+            self_sym,
         });
     }
 
@@ -258,6 +265,10 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
     fn end_impl(&mut self) {
         let ty = self.info.self_tys.pop();
         assert!(ty.is_some());
+    }
+
+    fn get_self_sym(&self) -> Option<Symbol> {
+        self.info.method_infos.last().and_then(|info| info.self_sym)
     }
 
     fn mutate_numeric_constant_expression(
@@ -560,7 +571,7 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                 span,
                 attrs,
             } => {
-                let exp = lit.and_then(|l| {
+                lit.and_then(|l| {
                     self.mutate_numeric_constant_expression(&l, false)
                         .unwrap_or_else(|| {
                             P(Expr {
@@ -570,9 +581,39 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                                 attrs,
                             })
                         })
-                });
-
-                exp
+                })
+            }
+            Expr {
+                id,
+                node: ExprKind::Path(qself, path),
+                span,
+                attrs,
+            } => {
+                if &path == &"self" && qself.is_none() {
+                    if let Some(sym) = self.get_self_sym() {
+                        let alt_self = sym.to_ident();
+                        P(Expr {
+                            id,
+                            node: ExprKind::Path(None, quote_path!(self.cx(), $alt_self)),
+                            span,
+                            attrs,
+                        })
+                    } else {
+                        P(Expr {
+                            id,
+                            node: ExprKind::Path(qself, path),
+                            span,
+                            attrs,
+                        })
+                    }
+                } else {
+                    P(Expr {
+                        id,
+                        node: ExprKind::Path(qself, path),
+                        span,
+                        attrs,
+                    })
+                }
             }
             e => P(fold::noop_fold_expr(e, self)),
         }) //TODO: more expr mutations
@@ -666,7 +707,8 @@ fn fold_first_block(block: P<Block>, p: &mut MutatorPlugin) -> P<Block> {
             ref interchangeables,
             ref ref_muts,
             ref coverage_sym,
-            ref mut coverage_count
+            ref mut coverage_count,
+            ref self_sym,
         }) = info.method_infos.last_mut()
         {
             let coverage_ident = coverage_sym.to_ident();
@@ -722,6 +764,11 @@ fn fold_first_block(block: P<Block>, p: &mut MutatorPlugin) -> P<Block> {
             }
             for name in ref_muts {
                 let ident = name.to_ident();
+                let target_ident = if name.as_str() == "self" {
+                    if let Some(sym) = self_sym { sym.to_ident() } else { ident }
+                } else {
+                    ident
+                };
                 let ident_clone = Symbol::gensym(&format!("_{}_clone", ident)).to_ident();
                 let (n, _current) = m.add_mutations(
                     block.span,
@@ -731,7 +778,7 @@ fn fold_first_block(block: P<Block>, p: &mut MutatorPlugin) -> P<Block> {
                 pre_stmts.push(quote_stmt!(m.cx, let mut $ident_clone;).unwrap());
                 pre_stmts.push(
                     quote_stmt!(m.cx,
-                                let $ident = if ::mutagen::MayClone::may_clone($ident) {
+                                let $target_ident = if ::mutagen::MayClone::may_clone($ident) {
                                     $ident_clone = ::mutagen::MayClone::clone($ident,
                                         $n, &$coverage_ident[$flag], $mask);
                                     &mut $ident_clone
