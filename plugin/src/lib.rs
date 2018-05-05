@@ -283,7 +283,7 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
             } => {
                 let mut mut_expression = quote_expr!(self.cx(), $lit);
 
-                let mut numeric_constant = i as i64;
+                let mut numeric_constant = i as i128;
                 if is_negative {
                     numeric_constant = -numeric_constant;
                 }
@@ -302,7 +302,7 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
                                     });
                 }
 
-                if int_constant_can_add_one(numeric_constant as u64, ty) {
+                if int_constant_can_add_one(numeric_constant as u128, ty) {
                     let (n, current, sym, flag, mask) = self.add_mutations(
                             s,
                             &["add one to int constant"],
@@ -642,46 +642,48 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
     }
 }
 
-fn int_constant_can_subtract_one(i: i64, ty: LitIntType) -> bool {
-    let min: i64 = match ty {
+fn int_constant_can_subtract_one(i: i128, ty: LitIntType) -> bool {
+    let min: i128 = match ty {
         LitIntType::Unsuffixed | LitIntType::Unsigned(_) => 0,
-        LitIntType::Signed(IntTy::Isize) => std::i32::MIN as i64,
-        LitIntType::Signed(IntTy::I8) => std::i8::MIN as i64,
-        LitIntType::Signed(IntTy::I16) => std::i16::MIN as i64,
-        LitIntType::Signed(IntTy::I32) => std::i32::MIN as i64,
-        LitIntType::Signed(IntTy::I64) => std::i64::MIN as i64,
-        _ => std::i64::MIN,
+        LitIntType::Signed(IntTy::Isize) => std::i32::MIN as i128,
+        LitIntType::Signed(IntTy::I8) => std::i8::MIN as i128,
+        LitIntType::Signed(IntTy::I16) => std::i16::MIN as i128,
+        LitIntType::Signed(IntTy::I32) => std::i32::MIN as i128,
+        LitIntType::Signed(IntTy::I64) => std::i64::MIN as i128,
+        LitIntType::Signed(IntTy::I128) => std::i128::MIN as i128,
     };
 
-    i as i64 > min
+    i as i128 > min
 }
 
-static MAX_VALUES: &[u64] = &[
-    std::u8::MAX as u64,
-    std::u16::MAX as u64,
-    std::u32::MAX as u64,
-    std::u64::MAX as u64,
+static MAX_VALUES: &[u128] = &[
+    std::u8::MAX as u128,
+    std::u16::MAX as u128,
+    std::u32::MAX as u128,
+    std::u64::MAX as u128,
+    std::u128::MAX as u128,
 ];
 
-fn int_constant_can_add_one(i: u64, ty: LitIntType) -> bool {
-    let max: u64 = match ty {
+fn int_constant_can_add_one(i: u128, ty: LitIntType) -> bool {
+    let max: u128 = match ty {
         LitIntType::Unsuffixed => {
             if MAX_VALUES.contains(&i) {
                 return false;
             }
             return true;
         }
-        LitIntType::Unsigned(UintTy::Usize) => std::u32::MAX as u64,
-        LitIntType::Unsigned(UintTy::U8) => std::u8::MAX as u64,
-        LitIntType::Unsigned(UintTy::U16) => std::u16::MAX as u64,
-        LitIntType::Unsigned(UintTy::U32) => std::u32::MAX as u64,
-        LitIntType::Unsigned(UintTy::U64) => std::u64::MAX as u64,
-        LitIntType::Signed(IntTy::Isize) => std::i32::MAX as u64,
-        LitIntType::Signed(IntTy::I8) => std::i8::MAX as u64,
-        LitIntType::Signed(IntTy::I16) => std::i16::MAX as u64,
-        LitIntType::Signed(IntTy::I32) => std::i32::MAX as u64,
-        LitIntType::Signed(IntTy::I64) => std::i64::MAX as u64,
-        _ => std::u64::MAX,
+        LitIntType::Unsigned(UintTy::Usize) => std::u32::MAX as u128,
+        LitIntType::Unsigned(UintTy::U8) => std::u8::MAX as u128,
+        LitIntType::Unsigned(UintTy::U16) => std::u16::MAX as u128,
+        LitIntType::Unsigned(UintTy::U32) => std::u32::MAX as u128,
+        LitIntType::Unsigned(UintTy::U64) => std::u64::MAX as u128,
+        LitIntType::Unsigned(UintTy::U128) => std::u128::MAX as u128,
+        LitIntType::Signed(IntTy::Isize) => std::i32::MAX as u128,
+        LitIntType::Signed(IntTy::I8) => std::i8::MAX as u128,
+        LitIntType::Signed(IntTy::I16) => std::i16::MAX as u128,
+        LitIntType::Signed(IntTy::I32) => std::i32::MAX as u128,
+        LitIntType::Signed(IntTy::I64) => std::i64::MAX as u128,
+        LitIntType::Signed(IntTy::I128) => std::i128::MAX as u128,
     };
 
     i < max
@@ -1377,15 +1379,15 @@ mod tests {
     #[test]
     fn test_can_add_one() {
         let examples = [
-            (std::u8::MAX as u64, LitIntType::Unsuffixed, false),
-            ((std::u8::MAX as u64) + 1, LitIntType::Unsuffixed, true),
-            ((std::u8::MAX as u64) - 1, LitIntType::Unsuffixed, true),
+            (std::u8::MAX as u128, LitIntType::Unsuffixed, false),
+            ((std::u8::MAX as u128) + 1, LitIntType::Unsuffixed, true),
+            ((std::u8::MAX as u128) - 1, LitIntType::Unsuffixed, true),
             (
-                (std::i64::MAX as u64),
-                LitIntType::Signed(IntTy::I64),
+                (std::i128::MAX as u128),
+                LitIntType::Signed(IntTy::I128),
                 false,
             ),
-            ((std::u64::MAX) - 1, LitIntType::Unsigned(UintTy::U64), true),
+            ((std::u128::MAX as u128) - 1, LitIntType::Unsigned(UintTy::U128), true),
         ];
 
         examples.iter().for_each(|test| {
@@ -1398,14 +1400,14 @@ mod tests {
     #[test]
     fn test_can_subtract_one() {
         let examples = [
-            (1 as i64, LitIntType::Unsuffixed, true),
-            (0 as i64, LitIntType::Unsuffixed, false),
-            (std::i8::MIN as i64, LitIntType::Signed(IntTy::I8), false),
-            (std::i8::MIN as i64 + 1, LitIntType::Signed(IntTy::I8), true),
-            (std::i64::MIN as i64, LitIntType::Signed(IntTy::I64), false),
+            (1 as i128, LitIntType::Unsuffixed, true),
+            (0 as i128, LitIntType::Unsuffixed, false),
+            (std::i8::MIN as i128, LitIntType::Signed(IntTy::I8), false),
+            (std::i8::MIN as i128 + 1, LitIntType::Signed(IntTy::I8), true),
+            (std::i128::MIN as i128, LitIntType::Signed(IntTy::I128), false),
             (
-                std::i64::MIN as i64 + 1,
-                LitIntType::Signed(IntTy::I64),
+                std::i128::MIN as i128 + 1,
+                LitIntType::Signed(IntTy::I128),
                 true,
             ),
         ];
