@@ -1,7 +1,5 @@
 use std::process::{Command, Stdio};
 use std::path::PathBuf;
-use std::cell::RefCell;
-use std::rc::Rc;
 use std::fs::File;
 use std::io::Read;
 use std::fs::remove_file;
@@ -36,6 +34,10 @@ impl RuntimeModifier {
     }
 }
 
+fn to_result(cond: bool) -> Result<(), ()> {
+    if cond { Ok(()) } else { Err(()) }
+}
+
 /// Full suite runner executes all the test at once, given the path of the executable
 pub struct FullSuiteRunner {
     test_executable: PathBuf,
@@ -63,20 +65,12 @@ impl Runner for FullSuiteRunner {
             let start = Instant::now();
             let status = command.status().expect("failed to execute process");
             self.timeout = self.runtime_mod.compute(start.elapsed());
-            if status.success() {
-                Ok(())
-            } else {
-                Err(())
-            }
+            to_result(status.success())
         } else {
             let mut child = command.spawn().expect("failed to execute process");
             if let Some(status) = child.wait_timeout(self.timeout)
                     .expect("error while waiting for test") {
-                if status.success() {
-                    Ok(())
-                } else {
-                    Err(())
-                }
+                to_result(status.success())
             } else {
                 Err(())
             }
@@ -91,9 +85,9 @@ impl Runner for FullSuiteRunner {
 /// by test), which may be non-performant if almost all the tests are mutated
 pub struct CoverageRunner {
     test_executable: PathBuf,
-    tests_with_mutations: RefCell<Option<Rc<TestsByMutation>>>,
     test_runtimes: HashMap<String, Duration>,
     runtime_mod: RuntimeModifier,
+    tests_with_mutations: TestsByMutation,
 }
 
 impl CoverageRunner {
@@ -101,24 +95,16 @@ impl CoverageRunner {
     pub fn new(test_executable: PathBuf) -> CoverageRunner {
         CoverageRunner {
             test_executable,
-            tests_with_mutations: RefCell::new(None),
             test_runtimes: HashMap::new(),
             runtime_mod: RuntimeModifier::new(2, 1, Duration::from_millis(50)),
+            tests_with_mutations: TestsByMutation::new(),
         }
     }
 
     /// returns the tests names that has, at least, one mutation
-    fn tests_with_mutations(&mut self) -> Rc<TestsByMutation> {
-        if let Some(ref twm) = *self.tests_with_mutations.borrow() {
-            return twm.clone();
-        }
-
+    fn tests_with_mutations(&mut self) {
         let tests = self.read_tests().unwrap_or(Vec::new());
-        let tests_by_mutation = self.check_test_coverage(tests);
-
-        let r = Rc::new(tests_by_mutation);
-        *self.tests_with_mutations.borrow_mut() = Some(r.clone());
-        r.clone()
+        self.check_test_coverage(tests);
     }
 
     /// Returns the list of tests present on the target binary
@@ -150,88 +136,83 @@ impl CoverageRunner {
 
     /// Runs the given tests and returns a new collection which contains only the tests
     /// which contains some mutation
-    fn check_test_coverage(&mut self, tests: Vec<String>) -> TestsByMutation {
-        let mut mutations_test = TestsByMutation::new();
+    fn check_test_coverage(&mut self, tests: Vec<String>) {
+        let CoverageRunner {
+            ref runtime_mod,
+            ref test_executable,
+            ref mut test_runtimes,
+            ref mut tests_with_mutations,
+        } = *self;
+        for test_name in tests {
+            let _res = remove_file("target/mutagen/coverage.txt");
 
-        tests
-            .into_iter()
-            .for_each(|test_name| {
-                let _res = remove_file("target/mutagen/coverage.txt");
+            let start = Instant::now();
+            let cmd_result = Command::new(test_executable)
+                .args(&[&test_name])
+                .env("MUTAGEN_COVERAGE", "file:target/mutagen/coverage.txt")
+                .output();
+            let runtime = runtime_mod.compute(start.elapsed());
+            test_runtimes.insert(test_name.to_string(), runtime);
 
-                let start = Instant::now();
-                let cmd_result = Command::new(&self.test_executable)
-                    .args(&[&test_name])
-                    .env("MUTAGEN_COVERAGE", "file:target/mutagen/coverage.txt")
-                    .output();
-                let runtime = self.runtime_mod.compute(start.elapsed());
-                self.test_runtimes.insert(test_name.to_string(), runtime);
+            let cmd_successful = cmd_result
+                .map(|output| output.status.success())
+                .unwrap_or(false);
 
-                let cmd_successful = cmd_result
-                    .map(|output| output.status.success())
-                    .unwrap_or(false);
-
-                if !cmd_successful {
-                    return;
-                }
-
-                let _res = File::open("target/mutagen/coverage.txt")
-                    .map(|mut file| {
-                        let mut s = String::new();
-                        file.read_to_string(&mut s).unwrap();
-
-                        s
-                    })
-                    .map(|contents| {
-                        let mutations: Vec<usize> = contents
-                            .split(",")
-                            .map(|s| s.parse().unwrap_or(0usize))
-                            .filter(|mutation_id| *mutation_id != 0)
-                            .collect();
-
-
-                        mutations_test.add_test(&test_name, &mutations);
-                    });
-            });
-
-        mutations_test
-    }
-
-    fn execute(&mut self, test_name: &str, mutation_count: usize) -> Result<(), ()> {
-        let mut command = Command::new(&self.test_executable);
-        command.args(&[test_name])
-               .env("MUTATION_COUNT", mutation_count.to_string())
-               .stdout(Stdio::null());
-        let timeout = self.test_runtimes[test_name];
-        let mut child = command.spawn().expect("failed to execute process");
-        if let Some(status) = child.wait_timeout(timeout).expect("error while waiting for test") {
-            if status.success() {
-                Ok(())
-            } else {
-                Err(())
+            if !cmd_successful {
+                return;
             }
-        } else { // timeout
-            Err(())
+
+            let _res = File::open("target/mutagen/coverage.txt")
+                .map(|mut file| {
+                    let mut s = String::new();
+                    file.read_to_string(&mut s).unwrap();
+
+                    s
+                })
+                .map(|contents| {
+                    let mutations: Vec<usize> = contents
+                        .split(",")
+                        .map(|s| s.parse().unwrap_or(0usize))
+                        .filter(|mutation_id| *mutation_id != 0)
+                        .collect();
+
+
+                    tests_with_mutations.add_test(&test_name, &mutations);
+                });
         }
+    }
+}
+
+fn execute(runtimes: &HashMap<String, Duration>,
+           executable: &PathBuf,
+           test_name: &str,
+           mutation_count: usize) -> Result<(), ()> {
+    let mut command = Command::new(executable);
+    command.args(&[test_name])
+           .env("MUTATION_COUNT", mutation_count.to_string())
+           .stdout(Stdio::null());
+    let timeout = runtimes[test_name];
+    let mut child = command.spawn().expect("failed to execute process");
+    if let Some(status) = child.wait_timeout(timeout).expect("error while waiting for test") {
+        to_result(status.success())
+    } else { // timeout
+        Err(())
     }
 }
 
 impl Runner for CoverageRunner {
     fn run(&mut self, mutation_count: usize) -> Result<(), ()> {
-        let test_by_mutation = self.tests_with_mutations();
-
-        if test_by_mutation.tests(mutation_count)
-            .map(|tests| {
-                tests
+        self.tests_with_mutations();
+        let CoverageRunner {
+            runtime_mod: _,
+            ref test_executable,
+            ref test_runtimes,
+            ref tests_with_mutations
+        } = *self;
+        to_result(tests_with_mutations.tests(mutation_count)
                     .iter()
-                    .map(|tn| self.execute(tn, mutation_count))
-                    .all(|test_result| test_result.is_ok())
-
-            })
-            .unwrap_or(true) {
-            Ok(())
-        } else {
-            Err(())
-        }
+                    .map(|tn| execute(test_runtimes, test_executable, tn, mutation_count))
+                    .all(|test_result| test_result.is_ok()))
     }
 }
 
@@ -259,8 +240,8 @@ impl TestsByMutation {
             })
     }
 
-    pub fn tests(&self, mutation: usize) -> Option<&Vec<String>> {
-        self.mutations.get(&mutation)
+    pub fn tests(&self, mutation: usize) -> &[String] {
+        self.mutations.get(&mutation).map(Vec::as_ref).unwrap_or(&[])
     }
 }
 
@@ -272,7 +253,7 @@ mod tests {
     fn it_returns_no_tests_on_empty() {
         let tbi = TestsByMutation::new();
 
-        assert!(tbi.tests(4).is_none())
+        assert!(tbi.tests(4).is_empty())
     }
 
     #[test]
@@ -282,8 +263,8 @@ mod tests {
         tbi.add_test(&"test_name".to_string(), &[5, 32]);
         tbi.add_test(&"test_name2".to_string(), &[5]);
 
-        assert_eq!("test_name".to_string(), tbi.tests(5).unwrap()[0]);
-        assert_eq!("test_name2".to_string(), tbi.tests(5).unwrap()[1]);
-        assert_eq!("test_name".to_string(), tbi.tests(32).unwrap()[0]);
+        assert_eq!("test_name".to_string(), tbi.tests(5)[0]);
+        assert_eq!("test_name2".to_string(), tbi.tests(5)[1]);
+        assert_eq!("test_name".to_string(), tbi.tests(32)[0]);
     }
 }
