@@ -42,11 +42,32 @@ pub fn count_alphabetic_chars(c: char, string: &str) -> usize {
     count
 }
 
+#[cfg_attr(test, mutate)]
+pub fn count_chars_loop(c: char, string: &str) -> usize {
+    let chars = string.chars().collect::<Vec<char>>();
+    let mut i = chars.len() - 1;
+    let mut count = 0;
+
+    loop {
+        if c == chars[i] {
+            count += 1;
+        }
+
+        if i == 0 {
+            break;
+        }
+
+        i -= 1; 
+    }
+
+    count
+}
+
 #[cfg(test)]
 mod tests {
     #![allow(non_snake_case)]
 
-    use super::count_alphabetic_chars;
+    use super::{count_alphabetic_chars, count_chars_loop};
 
     #[test]
     fn test_count_alphabetic_chars() {
@@ -134,5 +155,12 @@ mod tests {
         let string = "Adwfwrec DW34542";
 
         assert_eq!(0, count_alphabetic_chars(' ', string));
+    }
+
+    #[test]
+    fn test_count_loop() {
+        let string = "AAABBBCCCDDD";
+
+        assert_eq!(3, count_chars_loop('A', string));
     }
 }
