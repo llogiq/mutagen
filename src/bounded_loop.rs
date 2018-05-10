@@ -1,17 +1,16 @@
 use std::fmt;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::env;
 use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::io::Write;
-use std::io::{BufReader, BufRead, Read};
+use std::io::{BufReader, BufRead};
 use std::fs::File;
 
 lazy_static!{
     static ref MUTAGEN_LOOP_COUNT: HashMap<LoopId, usize> = {
         let mut h = HashMap::new();
 
-        File::open("target/mutagen/loops.txt").map(|mut file| {
+        File::open("target/mutagen/loops.txt").map(|file| {
             let reader = BufReader::new(file);
 
             for l in reader.lines() {
@@ -116,8 +115,9 @@ impl<'a> LoopCount<'a> {
 /// Then we add some base amount of iterations and we multiply by a factor to give some margin.
 /// Finally, if the limit is reached, it exits the process.
 pub struct LoopBound {
-    id: LoopId,
+    /// Keeps track of the amount of iterations on the current loop
     count: usize,
+    /// Bound of the loop
     bound: usize,
 }
 
@@ -128,7 +128,6 @@ impl LoopBound {
         let bound = BoundCalculator::calculate(*count);
 
         LoopBound {
-            id,
             count: 0,
             bound,
         }

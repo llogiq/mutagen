@@ -6,8 +6,6 @@ extern crate lazy_static;
 
 use std::env;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::fmt;
-use bounded_loop::{LoopId, LoopBound, LoopCount, LoopStep};
 
 mod ops;
 pub use ops::*;
