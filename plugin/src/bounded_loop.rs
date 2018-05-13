@@ -89,6 +89,44 @@ impl<'a, 'cx: 'a> Plugin<'a, 'cx> {
             }
         )
     }
+
+    fn wrap_block(&mut self, loop_id: LoopId, block: P<Block>) -> (P<Block>, Ident) {
+        let loop_id = loop_id.id();
+        // TODO: Test 2-level loop
+        let block = self.fold_block(block);
+        let sym = Symbol::gensym(&format!("__mutagen_loop_id{}", loop_id));
+        let s = sym.to_ident();
+
+        let block = quote_block!(self.cx, {
+                    $s.step();
+
+                    $block
+                });
+
+        (block, s)
+    }
+
+    fn wrap_expression(&mut self, expr: P<Expr>, current_id: LoopId, symbol: Ident) -> P<Expr> {
+        let loop_id = current_id.id();
+        let first = self.block_first.id();
+
+        quote_expr!(self.cx, {
+                    use ::mutagen::bounded_loop::LoopStep;
+                    use ::mutagen::bounded_loop::LoopCount;
+                    use ::mutagen::bounded_loop::LoopId;
+                    use ::mutagen::bounded_loop::LoopBound;
+
+                    if ::mutagen::get() == 0usize {
+                        let mut $symbol = LoopCount::new(LoopId::new($loop_id), &__LOOP_COUNTERS[$loop_id - $first]);
+
+                        $expr
+                    } else {
+                        let mut $symbol = LoopBound::new(LoopId::new($loop_id));
+
+                        $expr
+                    }
+                })
+    }
 }
 
 impl<'a, 'cx: 'a> Folder for Plugin<'a, 'cx> {
@@ -185,16 +223,9 @@ impl<'a, 'cx: 'a> Folder for Plugin<'a, 'cx> {
                 span,
                 attrs,
             } => {
-                let loop_id = self.loop_count.id();
+                let current = self.loop_count;
                 self.loop_count = self.loop_count.next();
-                let sym = Symbol::gensym(&format!("__mutagen_loop_id{}", loop_id));
-                let s = sym.to_ident();
-                let block = self.fold_block(block);
-                let block = quote_block!(self.cx, {
-                    $s.step();
-
-                    $block
-                });
+                let (block, sym) = self.wrap_block(current, block);
 
                 let e = P(Expr {
                     id,
@@ -203,20 +234,68 @@ impl<'a, 'cx: 'a> Folder for Plugin<'a, 'cx> {
                     attrs
                 });
 
-                let first = self.block_first.id();
+                self.wrap_expression(e, current, sym)
 
-                quote_expr!(self.cx, {
-                    use ::mutagen::bounded_loop::LoopStep;
-                    if ::mutagen::get() == 0usize {
-                        let mut $s = ::mutagen::bounded_loop::LoopCount::new(::mutagen::bounded_loop::LoopId::new($loop_id), &__LOOP_COUNTERS[$loop_id - $first]);
+            }
+            Expr {
+                id,
+                node: ExprKind::While(expr, block, opt_span),
+                span,
+                attrs,
+            } => {
+                let current = self.loop_count;
+                self.loop_count = self.loop_count.next();
+                let (block, sym) = self.wrap_block(current, block);
 
-                        $e
-                    } else {
-                        let mut $s = ::mutagen::bounded_loop::LoopBound::new(::mutagen::bounded_loop::LoopId::new($loop_id));
+                let e = P(Expr {
+                    id,
+                    node: ExprKind::While(expr, block, opt_span),
+                    span,
+                    attrs
+                });
 
-                        $e
-                    }
-                })
+                self.wrap_expression(e, current, sym)
+
+            }
+            Expr {
+                id,
+                node: ExprKind::WhileLet(pat, expr, block, opt_span),
+                span,
+                attrs,
+            } => {
+                let current = self.loop_count;
+                self.loop_count = self.loop_count.next();
+                let (block, sym) = self.wrap_block(current, block);
+
+                let e = P(Expr {
+                    id,
+                    node: ExprKind::WhileLet(pat, expr, block, opt_span),
+                    span,
+                    attrs
+                });
+
+                self.wrap_expression(e, current, sym)
+
+            }
+            Expr {
+                id,
+                node: ExprKind::ForLoop(pat, expr, block, opt_span),
+                span,
+                attrs,
+            } => {
+                let current = self.loop_count;
+                self.loop_count = self.loop_count.next();
+                let (block, sym) = self.wrap_block(current, block);
+
+                let e = P(Expr {
+                    id,
+                    node: ExprKind::ForLoop(pat, expr, block, opt_span),
+                    span,
+                    attrs
+                });
+
+                self.wrap_expression(e, current, sym)
+
             }
             e => P(fold::noop_fold_expr(e, self)),
         })

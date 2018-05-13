@@ -34,7 +34,7 @@ lazy_static!{
     };
 }
 
-#[derive(Clone, Eq, Hash, PartialEq)]
+#[derive(Copy, Clone, Eq, Hash, PartialEq)]
 pub struct LoopId(usize);
 
 impl LoopId {

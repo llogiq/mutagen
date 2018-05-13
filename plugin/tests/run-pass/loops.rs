@@ -29,4 +29,33 @@ fn main() {
     });
 
     handle.join();
+
+    // While loop
+    i = 0;
+    while i < 10 {
+        i += 1;
+    }
+
+    // Nested loops
+    i = 0;
+    loop {
+        while i < 10 {
+            i += 1;
+        }
+
+        break;
+    }
+
+    // While let
+    let pat = Some(0usize);
+    while let Some(_) = pat {
+        // Block code
+        break;
+    }
+
+    // For loop
+    let v = [1, 2, 3];
+    for i in v.iter() {
+        println!("Block code");
+    }
 }
