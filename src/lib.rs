@@ -1,4 +1,5 @@
 #![feature(specialization)]
+#![feature(atomic_min_max)]
 /// Welcome to the mutagen crate. Your entry point will probably be cargo-mutagen, so install it
 /// right away.
 #[macro_use]

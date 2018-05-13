@@ -81,12 +81,8 @@ impl<'a> LoopStep for LoopCount<'a> {
 
 impl<'a> Drop for LoopCount<'a> {
     fn drop(&mut self) {
-        // TODO: llogiq suggested to use atomic max as the following code is not accurate due to TOCTOU
-        let current = self.atomic.load(Ordering::SeqCst);
-
-        if self.count > current {
-            self.atomic.store(self.count, Ordering::SeqCst);
-
+        let previous = self.atomic.fetch_max(self.count, Ordering::SeqCst);
+        if previous < self.count {
             OpenOptions::new()
                 .create(true)
                 .append(true)
