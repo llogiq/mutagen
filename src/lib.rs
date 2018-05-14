@@ -116,7 +116,7 @@ impl Mutagen {
     }
 
     /// use instead of `==`
-    pub fn eq<R, T: PartialEq<R>>(&self, x: T, y: R, n: usize) -> bool {
+    pub fn eq<R, T: PartialEq<R>>(&self, x: &T, y: &R, n: usize) -> bool {
         match self.diff(n) {
             0 => true,
             1 => false,
@@ -126,7 +126,7 @@ impl Mutagen {
     }
 
     /// use instead of `!=`
-    pub fn ne<R, T: PartialEq<R>>(&self, x: T, y: R, n: usize) -> bool {
+    pub fn ne<R, T: PartialEq<R>>(&self, x: &T, y: &R, n: usize) -> bool {
         match self.diff(n) {
             0 => true,
             1 => false,
@@ -136,7 +136,7 @@ impl Mutagen {
     }
 
     /// use instead of `>` (or, switching operand order `<`)
-    pub fn gt<R, T: PartialOrd<R>>(&self, x: T, y: R, n: usize) -> bool {
+    pub fn gt<R, T: PartialOrd<R>>(&self, x: &T, y: &R, n: usize) -> bool {
         match self.diff(n) {
             0 => false,
             1 => true,
@@ -150,7 +150,7 @@ impl Mutagen {
     }
 
     /// use instead of `>=` (or, switching operand order `<=`)
-    pub fn ge<R, T: PartialOrd<R>>(&self, x: T, y: R, n: usize) -> bool {
+    pub fn ge<R, T: PartialOrd<R>>(&self, x: &T, y: &R, n: usize) -> bool {
         match self.diff(n) {
             0 => false,
             1 => true,
@@ -214,22 +214,22 @@ pub fn w(t: bool, n: usize) -> bool {
 }
 
 /// use instead of `==`
-pub fn eq<R, T: PartialEq<R>>(x: T, y: R, n: usize) -> bool {
+pub fn eq<R, T: PartialEq<R>>(x: &T, y: &R, n: usize) -> bool {
     MU.eq(x, y, n)
 }
 
 /// use instead of `!=`
-pub fn ne<R, T: PartialEq<R>>(x: T, y: R, n: usize) -> bool {
+pub fn ne<R, T: PartialEq<R>>(x: &T, y: &R, n: usize) -> bool {
     MU.ne(x, y, n)
 }
 
 /// use instead of `>` (or, switching operand order `<`)
-pub fn gt<R, T: PartialOrd<R>>(x: T, y: R, n: usize) -> bool {
+pub fn gt<R, T: PartialOrd<R>>(x: &T, y: &R, n: usize) -> bool {
     MU.gt(x, y, n)
 }
 
 /// use instead of `>=` (or, switching operand order `<=`)
-pub fn ge<R, T: PartialOrd<R>>(x: T, y: R, n: usize) -> bool {
+pub fn ge<R, T: PartialOrd<R>>(x: &T, y: &R, n: usize) -> bool {
     MU.ge(x, y, n)
 }
 
@@ -248,21 +248,21 @@ mod tests {
         };
 
         // Always true
-        assert_eq!(true, mu.eq(1, 0, 0));
+        assert_eq!(true, mu.eq(&1, &0, 0));
 
         // Always false
         mu.next();
-        assert_eq!(false, mu.eq(1, 0, 0));
+        assert_eq!(false, mu.eq(&1, &0, 0));
 
         // Checks inequality
         mu.next();
-        assert_eq!(true, mu.eq(0, 1, 0));
-        assert_eq!(false, mu.eq(1, 1, 0));
+        assert_eq!(true, mu.eq(&0, &1, 0));
+        assert_eq!(false, mu.eq(&1, &1, 0));
 
         // Checks equality
         mu.next();
-        assert_eq!(true, mu.eq(0, 0, 0));
-        assert_eq!(false, mu.eq(1, 0, 0));
+        assert_eq!(true, mu.eq(&0, &0, 0));
+        assert_eq!(false, mu.eq(&1, &0, 0));
     }
 
     #[test]
@@ -272,20 +272,20 @@ mod tests {
         };
 
         // Always true
-        assert_eq!(true, mu.ne(1, 0, 0));
+        assert_eq!(true, mu.ne(&1, &0, 0));
 
         // Always false
         mu.next();
-        assert_eq!(false, mu.ne(1, 0, 0));
+        assert_eq!(false, mu.ne(&1, &0, 0));
 
         // Checks equality
         mu.next();
-        assert_eq!(false, mu.ne(0, 1, 0));
-        assert_eq!(true, mu.ne(1, 1, 0));
+        assert_eq!(false, mu.ne(&0, &1, 0));
+        assert_eq!(true, mu.ne(&1, &1, 0));
 
         // Checks inequality
         mu.next();
-        assert_eq!(false, mu.ne(0, 0, 0));
-        assert_eq!(true, mu.ne(1, 0, 0));
+        assert_eq!(false, mu.ne(&0, &0, 0));
+        assert_eq!(true, mu.ne(&1, &0, 0));
     }
 }

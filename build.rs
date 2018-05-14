@@ -239,7 +239,7 @@ pub fn fold_binop(p: &mut MutatorPlugin, id: NodeId, op: BinOp, left: P<Expr>, r
                 );
             quote_expr!(p.cx(), {{
                 ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
-                ::mutagen::eq($left, $right, $n)
+                ::mutagen::eq(&$left, &$right, $n)
             }})
         }}
         BinOpKind::Ne => {{
@@ -253,7 +253,7 @@ pub fn fold_binop(p: &mut MutatorPlugin, id: NodeId, op: BinOp, left: P<Expr>, r
                 );
             quote_expr!(p.cx(), {{
                 ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
-                ::mutagen::ne($left, $right, $n)
+                ::mutagen::ne(&$left, &$right, $n)
             }})
         }}
         BinOpKind::Gt => {{
@@ -271,7 +271,7 @@ pub fn fold_binop(p: &mut MutatorPlugin, id: NodeId, op: BinOp, left: P<Expr>, r
                 );
             quote_expr!(p.cx(), {{
                 ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
-                ::mutagen::gt($left, $right, $n)
+                ::mutagen::gt(&$left, &$right, $n)
             }})
         }}
         BinOpKind::Lt => {{
@@ -289,7 +289,7 @@ pub fn fold_binop(p: &mut MutatorPlugin, id: NodeId, op: BinOp, left: P<Expr>, r
                 );
             quote_expr!(p.cx(), {{
                 ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
-                ::mutagen::gt($right, $left, $n)
+                ::mutagen::gt(&$right, &$left, $n)
             }})
         }}
         BinOpKind::Ge => {{
@@ -307,7 +307,7 @@ pub fn fold_binop(p: &mut MutatorPlugin, id: NodeId, op: BinOp, left: P<Expr>, r
                 );
             quote_expr!(p.cx(), {{
                 ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
-                ::mutagen::ge($left, $right, $n)
+                ::mutagen::ge(&$left, &$right, $n)
             }})
         }}
         BinOpKind::Le => {{
@@ -325,7 +325,7 @@ pub fn fold_binop(p: &mut MutatorPlugin, id: NodeId, op: BinOp, left: P<Expr>, r
             );
             quote_expr!(p.cx(), {{
                 ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
-                ::mutagen::ge($right, $left, $n)
+                ::mutagen::ge(&$right, &$left, $n)
             }})
         }}")?;
         for names in BINOP_PAIRS.iter() {
