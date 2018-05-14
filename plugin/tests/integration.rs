@@ -61,6 +61,17 @@ fn interchange_struct(ComplexStruct{x: a, y: b}: ComplexStruct, ComplexStruct{x:
 
 }
 
+#[mutate]
+impl ComplexStruct {
+    fn interchange_self(self, other: Self) {
+
+    }
+
+    fn interchange_other_self(one: Self, other: Self) {
+
+    }
+}
+
 #[test]
 fn test_simple_interchange() {
     let checker = MutationsChecker::new("tests/integration.rs").unwrap();
@@ -103,6 +114,14 @@ fn test_complex_interchange() {
 
     assert!(checker.has("exchange a with c", "54"));
     assert!(checker.has("exchange b with d", "54"));
+}
+
+#[test]
+fn test_self_interchange() {
+    let checker = MutationsChecker::new("tests/integration.rs").unwrap();
+
+    assert!(checker.has("exchange self with other", "66"));
+    assert!(checker.has("exchange one with other", "70"));
 }
 
 #[test]
