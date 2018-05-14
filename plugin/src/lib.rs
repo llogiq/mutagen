@@ -404,7 +404,7 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                     generics,
                     opt_trait_ref,
                     ty,
-                    impl_items,
+                    impl_items.into_iter().flat_map(|ii| self.fold_impl_item(ii).into_iter()).collect(),
                 );
                 self.end_impl();
                 k
@@ -967,12 +967,16 @@ fn ty_hash<H: Hasher>(ty: &Ty, pos: usize, h: &mut H) {
             }
         }
         TyKind::Path(ref qself, ref path) => {
-            h.write_u8(6);
-            if let Some(ref qself) = *qself {
-                h.write_usize(qself.position);
-                ty_hash(&qself.ty, pos, h);
+            if path == &"Self" {
+                h.write_u8(4); // same as ImplicitSelf
+            } else {
+                h.write_u8(6);
+                if let Some(ref qself) = *qself {
+                    h.write_usize(qself.position);
+                    ty_hash(&qself.ty, pos, h);
+                }
+                path_hash(path, pos, h);
             }
-            path_hash(path, pos, h);
         }
         TyKind::TraitObject(ref bounds, ref syn) => {
             h.write_u8(7);
@@ -1016,6 +1020,10 @@ fn ty_equal(a: &Ty, b: &Ty, inout: bool) -> bool {
         (&TyKind::Path(ref aq, ref apath), &TyKind::Path(ref bq, ref bpath)) => {
             optd(&aq, &bq, |a, b|
                 ty_equal(&a.ty, &b.ty, inout) && a.position == b.position) && path_equal(apath, bpath, inout)
+        }
+        (&TyKind::Path(None, ref path), &TyKind::ImplicitSelf) |
+        (&TyKind::ImplicitSelf, &TyKind::Path(None, ref path)) => {
+            match_path(path, &["Self"])
         }
         (&TyKind::TraitObject(ref abounds, ref asyn), &TyKind::TraitObject(ref bbounds, ref bsyn)) => {
             asyn == bsyn && vecd(abounds, bbounds, |a, b| ty_param_bound_equal(a, b, inout))
@@ -1063,7 +1071,7 @@ fn path_equal(a: &Path, b: &Path, inout: bool) -> bool {
 static LIFETIME_LESS_PATHS: &[&[&str]] = &[
     &["u8"], &["u16"], &["u32"], &["u64"], &["u128"], &["usize"],
     &["i8"], &["i16"], &["i32"], &["i64"], &["i128"], &["isize"],
-    &["char"], &["bool"]];
+    &["char"], &["bool"], &["Self"]]; // Self
 
 fn is_whitelisted_path(path: &Path) -> bool {
     LIFETIME_LESS_PATHS.iter().any(|segs| match_path(path, segs))
