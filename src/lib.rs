@@ -1,4 +1,5 @@
 #![feature(specialization)]
+#![feature(atomic_min_max)]
 /// Welcome to the mutagen crate. Your entry point will probably be cargo-mutagen, so install it
 /// right away.
 #[macro_use]
@@ -10,6 +11,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 mod ops;
 pub use ops::*;
 mod iterators;
+pub mod bounded_loop;
 
 mod coverage;
 pub use coverage::report_coverage;

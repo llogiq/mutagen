@@ -2,6 +2,7 @@
 
 extern crate rustc_plugin;
 extern crate syntax;
+extern crate mutagen;
 
 use rustc_plugin::registry::Registry;
 use std::collections::HashMap;
@@ -19,14 +20,44 @@ use syntax::ptr::P;
 use syntax::symbol::Symbol;
 use syntax::util::small_vector::SmallVector;
 use syntax::ast::{IntTy, LitIntType, LitKind, UnOp};
+use syntax::ext::base::MultiItemModifier;
 
 mod binop;
+mod bounded_loop;
+
+
+/// ChainedMultiMutator is a MultiMutator which allows to chain two `MultiItemModifier`.
+struct ChainedMultiMutator {
+    left: Box<MultiItemModifier>,
+    right: Box<MultiItemModifier>,
+}
+
+impl MultiItemModifier for ChainedMultiMutator {
+    fn expand(&self, cx: &mut ExtCtxt, span: Span, mi: &MetaItem, a: Annotatable) -> Vec<Annotatable> {
+        let out = self.left.expand(cx, span, mi, a);
+
+        out.into_iter()
+            .map(|a| self.right.expand(cx, span, mi, a))
+            .collect::<Vec<Vec<Annotatable>>>()
+            .into_iter()
+            .fold(Vec::new(), |mut acc, outs| {
+                acc.extend(outs);
+
+                acc
+            })
+    }
+}
 
 #[plugin_registrar]
 pub fn plugin_registrar(reg: &mut Registry) {
+    let chained = Box::new(ChainedMultiMutator {
+        left: Box::new(mutator),
+        right: Box::new(bounded_loop::bounded_loop),
+    });
+
     reg.register_syntax_extension(
         Symbol::intern("mutate"),
-        SyntaxExtension::MultiModifier(Box::new(mutator)),
+        SyntaxExtension::MultiModifier(chained),
     );
 }
 
