@@ -166,7 +166,7 @@ impl Folder for Resizer {
                 Expr { id, node: ExprKind::Lit(lit), span, attrs } => {
                     Expr {
                         id,
-                        node: ExprKind::Lit(lit.map(|Spanned { span, node: _ }|
+                        node: ExprKind::Lit(lit.map(|Spanned { span, .. }|
                             Spanned { span,
                                 node: LitKind::Int(self.0 as u128, LitIntType::Unsigned(UintTy::Usize)) }
                         )),
@@ -461,10 +461,8 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
     fn fold_expr(&mut self, expr: P<Expr>) -> P<Expr> {
         expr.and_then(|expr| match expr {
             e @ Expr {
-                id: _,
                 node: ExprKind::Mac(_),
-                span: _,
-                attrs: _,
+                ..
             } => {
                 // self.cx.expander().fold_expr(P(e)).map(|e| fold::noop_fold_expr(e, self))
                 // ignore macros for now
@@ -620,7 +618,7 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                 span,
                 attrs,
             } => {
-                if &path == &"self" && qself.is_none() {
+                if path == "self" && qself.is_none() {
                     if let Some(sym) = self.get_self_sym() {
                         let alt_self = sym.to_ident();
                         P(Expr {
@@ -676,12 +674,12 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
 fn int_constant_can_subtract_one(i: i128, ty: LitIntType) -> bool {
     let min: i128 = match ty {
         LitIntType::Unsuffixed | LitIntType::Unsigned(_) => 0,
-        LitIntType::Signed(IntTy::Isize) => std::i32::MIN as i128,
-        LitIntType::Signed(IntTy::I8) => std::i8::MIN as i128,
-        LitIntType::Signed(IntTy::I16) => std::i16::MIN as i128,
-        LitIntType::Signed(IntTy::I32) => std::i32::MIN as i128,
-        LitIntType::Signed(IntTy::I64) => std::i64::MIN as i128,
-        LitIntType::Signed(IntTy::I128) => std::i128::MIN as i128,
+        LitIntType::Signed(IntTy::Isize) => i128::from(std::i32::MIN),
+        LitIntType::Signed(IntTy::I8) => i128::from(std::i8::MIN),
+        LitIntType::Signed(IntTy::I16) => i128::from(std::i16::MIN),
+        LitIntType::Signed(IntTy::I32) => i128::from(std::i32::MIN),
+        LitIntType::Signed(IntTy::I64) => i128::from(std::i64::MIN),
+        LitIntType::Signed(IntTy::I128) => std::i128::MIN,
     };
 
     i as i128 > min
@@ -703,12 +701,12 @@ fn int_constant_can_add_one(i: u128, ty: LitIntType) -> bool {
             }
             return true;
         }
-        LitIntType::Unsigned(UintTy::Usize) => std::u32::MAX as u128,
-        LitIntType::Unsigned(UintTy::U8) => std::u8::MAX as u128,
-        LitIntType::Unsigned(UintTy::U16) => std::u16::MAX as u128,
-        LitIntType::Unsigned(UintTy::U32) => std::u32::MAX as u128,
-        LitIntType::Unsigned(UintTy::U64) => std::u64::MAX as u128,
-        LitIntType::Unsigned(UintTy::U128) => std::u128::MAX as u128,
+        LitIntType::Unsigned(UintTy::Usize) => u128::from(std::u32::MAX),
+        LitIntType::Unsigned(UintTy::U8) => u128::from(std::u8::MAX),
+        LitIntType::Unsigned(UintTy::U16) => u128::from(std::u16::MAX),
+        LitIntType::Unsigned(UintTy::U32) => u128::from(std::u32::MAX),
+        LitIntType::Unsigned(UintTy::U64) => u128::from(std::u64::MAX),
+        LitIntType::Unsigned(UintTy::U128) => std::u128::MAX,
         LitIntType::Signed(IntTy::Isize) => std::i32::MAX as u128,
         LitIntType::Signed(IntTy::I8) => std::i8::MAX as u128,
         LitIntType::Signed(IntTy::I16) => std::i16::MAX as u128,
@@ -852,11 +850,9 @@ fn fold_first_block(block: P<Block>, p: &mut MutatorPlugin) -> P<Block> {
 fn combine<S: Hash + Eq + Copy>(interchangeables: &mut HashMap<S, Vec<S>>, symbols: &[S]) {
     let symbol_amount = symbols.len();
 
-    for i in 0..symbol_amount {
-        let index = symbols[i];
+    for (i, index) in symbols.iter().enumerate() {
         let change_with = (i + 1..symbol_amount).map(|i| symbols[i]).collect();
-
-        interchangeables.insert(index, change_with);
+        interchangeables.insert(*index, change_with);
     }
 }
 
@@ -1309,7 +1305,7 @@ static DEFAULT_IF_ARG: &[&[&str]] = &[
 ];
 
 fn is_ty_ref_mut(ty: &Ty) -> bool {
-    if let TyKind::Rptr(_, MutTy { ty: _, mutbl: Mutability::Mutable }) = ty.node {
+    if let TyKind::Rptr(_, MutTy { mutbl: Mutability::Mutable, .. }) = ty.node {
         true
     } else {
         false
