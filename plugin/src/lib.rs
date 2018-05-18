@@ -141,8 +141,8 @@ impl<'a, 'cx: 'a> Mutator<'a, 'cx> {
     fn add_mutations(&mut self, span: Span, descriptions: &[&str]) -> (usize, usize) {
         let initial_count = self.current_count;
         let span_desc = self.cx.codemap().span_to_string(span);
-        for desc in descriptions {
-            writeln!(&mut self.mutations, "{} @ {}", desc, span_desc).unwrap()
+        for (i, desc) in descriptions.iter().enumerate() {
+            writeln!(&mut self.mutations, "{} - {} @ {}", initial_count + i, desc, span_desc).unwrap()
         }
         self.current_count += descriptions.len();
         (initial_count, self.current_count)
