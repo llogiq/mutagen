@@ -147,6 +147,50 @@ impl<'a, 'cx: 'a> Mutator<'a, 'cx> {
         self.current_count += descriptions.len();
         (initial_count, self.current_count)
     }
+
+    fn add_mutations2(&mut self, span: Span, descriptions: &[Mutation]) -> (usize, usize) {
+        let initial_count = self.current_count;
+        let span_desc = self.cx.codemap().span_to_string(span);
+        for (i, mutation) in descriptions.iter().enumerate() {
+            writeln!(&mut self.mutations, "{} - {} - {} @ {}", initial_count + i, mutation.description, mutation.ty.to_string(), span_desc).unwrap()
+        }
+        self.current_count += descriptions.len();
+        (initial_count, self.current_count)
+    }
+}
+
+struct Mutation<'a> {
+    ty: MutationType<'a>,
+    description: &'a str,
+}
+
+impl<'a> Mutation<'a> {
+    pub fn new(ty: MutationType<'a>, description: &'a str) -> Self {
+        Mutation {
+            ty,
+            description,
+        }
+    }
+}
+
+enum MutationType<'a> {
+    ReplaceWithTrue,
+    ReplaceWithFalse,
+    AddOneToLiteral,
+    SubOneToLiteral,
+    Other(&'a str,),
+}
+
+impl<'a> ToString for MutationType<'a> {
+    fn to_string(&self) -> String {
+        match *self {
+            MutationType::ReplaceWithTrue => String::from("REPLACE_WITH_TRUE"),
+            MutationType::ReplaceWithFalse => String::from("REPLACE_WITH_FALSE"),
+            MutationType::AddOneToLiteral => String::from("ADD_ONE_TO_LITERAL"),
+            MutationType::SubOneToLiteral => String::from("SUB_ONE_TO_LITERAL"),
+            MutationType::Other(s)=> String::from(s),
+        }
+    }
 }
 
 /// The MutatorPlugin
@@ -221,6 +265,15 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
 
     fn add_mutations(&mut self, span: Span, descriptions: &[&str]) -> (usize, usize, Ident, usize, usize) {
         let (start_count, end_count) = self.m.add_mutations(span, descriptions);
+        let info = self.info.method_infos.last_mut().unwrap();
+        // must be in a method
+        let sym = info.coverage_sym.to_ident();
+        let (flag, mask) = coverage(&mut info.coverage_count);
+        (start_count, end_count, sym, flag, mask)
+    }
+
+    fn add_mutations2(&mut self, span: Span, mutations: &[Mutation]) -> (usize, usize, Ident, usize, usize) {
+        let (start_count, end_count) = self.m.add_mutations2(span, mutations);
         let info = self.info.method_infos.last_mut().unwrap();
         // must be in a method
         let sym = info.coverage_sym.to_ident();
@@ -320,9 +373,9 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
                 }
 
                 if int_constant_can_subtract_one(numeric_constant, ty) {
-                    let (n, current, sym, flag, mask) = self.add_mutations(
+                    let (n, current, sym, flag, mask) = self.add_mutations2(
                             s,
-                            &["sub one from int constant"],
+                            &[Mutation::new(MutationType::SubOneToLiteral, "sub one from int constant")],
                         );
                     mut_expression = quote_expr!(self.cx(),
                                     {
@@ -334,9 +387,9 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
                 }
 
                 if int_constant_can_add_one(numeric_constant as u128, ty) {
-                    let (n, current, sym, flag, mask) = self.add_mutations(
+                    let (n, current, sym, flag, mask) = self.add_mutations2(
                             s,
-                            &["add one to int constant"],
+                            &[Mutation::new(MutationType::AddOneToLiteral, "add one to int constant")],
                         );
                     mut_expression = quote_expr!(self.cx(),
                                     {
