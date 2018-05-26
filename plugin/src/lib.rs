@@ -974,7 +974,7 @@ fn ty_hash<H: Hasher>(ty: &Ty, pos: usize, h: &mut H) {
     match ty.node {
         TyKind::Paren(ref ty) => ty_hash(ty, pos, h),
         TyKind::Slice(ref slice) => { h.write_u8(0); ty_hash(slice, pos, h) },
-        TyKind::Array(ref ty, ref lit) => { h.write_u8(1); ty_hash(ty, pos, h); get_lit(lit).hash(h) },
+        TyKind::Array(ref ty, ref lit) => { h.write_u8(1); ty_hash(ty, pos, h); get_lit(&lit.value).hash(h) },
         TyKind::Ptr(ref mutty) => { h.write_u8(2); mut_ty_hash(mutty, pos, h) },
         TyKind::Rptr(ref lt, ref mutty) => {
             h.write_u8(3);
@@ -1029,7 +1029,7 @@ fn ty_equal(a: &Ty, b: &Ty, inout: bool) -> bool {
         (_, &TyKind::Paren(ref bty)) => ty_equal(a, &bty, inout),
         (&TyKind::Slice(ref aslice), &TyKind::Slice(ref bslice)) => ty_equal(aslice, bslice, inout),
         (&TyKind::Array(ref aty, ref alit), &TyKind::Array(ref bty, ref blit)) => {
-            ty_equal(&aty, &bty, inout) && get_lit(alit).map_or(false, |a| Some(a) == get_lit(blit))
+            ty_equal(&aty, &bty, inout) && get_lit(&alit.value).map_or(false, |a| Some(a) == get_lit(&blit.value))
         }
         (&TyKind::Ptr(ref amut), &TyKind::Ptr(ref bmut)) => ty_mut_equal(amut, bmut, inout),
         (&TyKind::Rptr(ref alt, ref amut), &TyKind::Rptr(ref blt, ref bmut)) => {
@@ -1322,7 +1322,7 @@ fn is_ty_default(ty: &Ty, self_ty: Option<&Ty>) -> bool {
         },
         TyKind::Paren(ref t) => is_ty_default(t, self_ty),
         TyKind::Array(ref inner, ref len) => {
-            is_ty_default(inner, self_ty) && get_lit(len).map_or(false, |n| n <= 32)
+            is_ty_default(inner, self_ty) && get_lit(&len.value).map_or(false, |n| n <= 32)
         }
         TyKind::Tup(ref inners) => {
             inners.len() <= 12 && inners.iter().all(|t| is_ty_default(&*t, self_ty))
@@ -1343,7 +1343,7 @@ fn is_ty_default(ty: &Ty, self_ty: Option<&Ty>) -> bool {
             })
         }
         TyKind::ImplicitSelf => self_ty.map_or(false, |t| is_ty_default(t, None)),
-        TyKind::Typeof(ref expr) => is_expr_default(expr, self_ty),
+        TyKind::Typeof(ref expr) => is_expr_default(&expr.value, self_ty),
         _ => false,
     }
 }
@@ -1358,7 +1358,7 @@ fn is_expr_default(expr: &Expr, self_ty: Option<&Ty>) -> bool {
             _ => false,
         },
         ExprKind::Repeat(ref e, ref len) => {
-            is_expr_default(e, self_ty) && get_lit(len).map_or(false, |n| n <= 32)
+            is_expr_default(e, self_ty) && get_lit(&len.value).map_or(false, |n| n <= 32)
         }
         ExprKind::Array(ref exprs) => exprs.len() == 1, // = Slice
         ExprKind::Tup(ref exprs) => {
