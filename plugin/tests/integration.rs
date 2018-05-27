@@ -12,23 +12,16 @@ use common::*;
 fn mutated_function() {
     let ord = 0x60;
 
-    if (ord < 0x41 || ord > 0x5A) && (ord < 0x71 || ord > 0x7A) {
+    let or_left = ord < 0x41 || ord > 0x5A;
+    if or_left && (ord < 0x71 || ord > 0x7A) {
         // Do something
     }
 
-    if (2 == 3) {
-        // Do something
-    }
+    let eq = 2 == 3;
+    let and = true && false;
+    let ne = 2 != 3;
 
-    if (true && false) {
-        // Do something
-    }
-
-    if (2 != 3) {
-        // Do something
-    }
-
-    if (ord < 2) {
+    if ord < 2 {
         // Do something
     }
 
@@ -72,14 +65,29 @@ impl ComplexStruct {
     }
 }
 
+#[mutate]
+fn mutation_prune_ifs() {
+    let a = true;
+    let b = false;
+    let c = true;
+
+    if (a || b) && if b && c { true } else { c == b} {
+
+    }
+
+    if a == b {
+        // This should only issue 3 mutations with replace true / replace false / negate
+    }
+}
+
 #[test]
 fn test_simple_interchange() {
     let checker = MutationsChecker::new("tests/integration.rs").unwrap();
 
-    assert!(checker.has("exchange x with y", "41"));
-    assert!(checker.has("exchange x with z", "41"));
-    assert!(checker.has("exchange y with z", "41"));
-    assert!(!checker.has("exchange", "46"));
+    assert!(checker.has("exchange x with y", "34"));
+    assert!(checker.has("exchange x with z", "34"));
+    assert!(checker.has("exchange y with z", "34"));
+    assert!(!checker.has("exchange", "52"));
 }
 
 #[test]
@@ -93,7 +101,7 @@ fn test_tuple_interchange() {
         "exchange c with e",
     ];
 
-    assert!(checker.has_multiple(msgs, "54"));
+    assert!(checker.has_multiple(msgs, "47"));
 }
 
 #[test]
@@ -105,23 +113,23 @@ fn test_struct_interchange() {
         "exchange b with d",
     ];
 
-    assert!(checker.has_multiple(msgs, "60"));
+    assert!(checker.has_multiple(msgs, "53"));
 }
 
 #[test]
 fn test_complex_interchange() {
     let checker = MutationsChecker::new("tests/integration.rs").unwrap();
 
-    assert!(checker.has("exchange a with c", "54"));
-    assert!(checker.has("exchange b with d", "54"));
+    assert!(checker.has("exchange a with c", "47"));
+    assert!(checker.has("exchange b with d", "47"));
 }
 
 #[test]
 fn test_self_interchange() {
     let checker = MutationsChecker::new("tests/integration.rs").unwrap();
 
-    assert!(checker.has("exchange self with other", "66"));
-    assert!(checker.has("exchange one with other", "70"));
+    assert!(checker.has("exchange self with other", "59"));
+    assert!(checker.has("exchange one with other", "63"));
 }
 
 #[test]
@@ -129,15 +137,14 @@ fn test_binop_ors() {
     let checker = MutationsChecker::new("tests/integration.rs").unwrap();
 
     let ors = &[
-        "replacing _ || _ with false",
-        "replacing _ || _ with true",
-        "replacing x || _ with x",
-        "replacing x || _ with !x",
-        "replacing x || y with x || !y",
+        "REPLACE_WITH_FALSE",
+        "REPLACE_WITH_TRUE",
+        "REMOVE_RIGHT",
+        "NEGATE_LEFT",
+        "NEGATE_RIGHT",
     ];
 
-    assert!(checker.has_multiple(ors, "15:9: 15:33"));
-    assert!(checker.has_multiple(ors, "15:39: 15:63"));
+    assert!(checker.has_multiple(ors, "15:19: 15:43"));
 }
 
 #[test]
@@ -145,12 +152,12 @@ fn test_binop_eq() {
     let checker = MutationsChecker::new("tests/integration.rs").unwrap();
 
     let eq_msgs = &[
-        "replacing _ == _ with false",
-        "replacing _ == _ with true",
-        "replacing x == y with x != y",
+        "REPLACE_WITH_TRUE",
+        "REPLACE_WITH_FALSE",
+        "NEGATE_EXPRESSION",
     ];
 
-    assert!(checker.has_multiple(eq_msgs, "19:9: 19:15"));
+    assert!(checker.has_multiple(eq_msgs, "20:14: 20:20"));
 }
 
 #[test]
@@ -158,14 +165,14 @@ fn test_binop_and() {
     let checker = MutationsChecker::new("tests/integration.rs").unwrap();
 
     let ands = &[
-        "replacing _ && _ with false",
-        "replacing _ && _ with true",
-        "replacing x && _ with x",
-        "replacing x && _ with !x",
-        "replacing x && y with x && !y",
+        "REPLACE_WITH_FALSE",
+        "REPLACE_WITH_TRUE",
+        "REMOVE_RIGHT",
+        "NEGATE_LEFT",
+        "NEGATE_RIGHT",
     ];
 
-    assert!(checker.has_multiple(ands, "23:9: 23:22"));
+    assert!(checker.has_multiple(ands, "21:15: 21:28"));
 }
 
 #[test]
@@ -173,12 +180,12 @@ fn test_binop_ne() {
     let checker = MutationsChecker::new("tests/integration.rs").unwrap();
 
     let noneq_msgs = &[
-        "replacing _ != _ with false",
-        "replacing _ != _ with true",
-        "replacing x != y with x == y",
+        "REPLACE_WITH_TRUE",
+        "REPLACE_WITH_FALSE",
+        "NEGATE_EXPRESSION",
     ];
 
-    assert!(checker.has_multiple(noneq_msgs, "27:9: 27:15"));
+    assert!(checker.has_multiple(noneq_msgs, "22:14: 22:20"));
 }
 
 #[test]
@@ -186,16 +193,13 @@ fn test_lt() {
     let checker = MutationsChecker::new("tests/integration.rs").unwrap();
 
     let lt_msgs = &[
-        "replacing _ < _ with false",
-        "replacing _ < _ with true",
-        "replacing x < y with x > y",
-        "replacing x < y with x >= y",
-        "replacing x < y with x <= y",
-        "replacing x < y with x == y",
-        "replacing x < y with x != y",
+        "REPLACE_WITH_TRUE",
+        "REPLACE_WITH_FALSE",
+        "NEGATE_EXPRESSION",
+        "COMPARISION",
     ];
 
-    assert!(checker.has_multiple(lt_msgs, "31"));
+    assert!(checker.has_multiple(lt_msgs, "24"));
 }
 
 #[test]
@@ -203,14 +207,25 @@ fn test_binop_eq_and_off_by_one() {
     let checker = MutationsChecker::new("tests/integration.rs").unwrap();
 
     let eq_msgs = &[
-        "inverting if condition",
-        "replacing if condition with false",
-        "replacing if condition with true",
+        "REPLACE_WITH_TRUE",
+        "REPLACE_WITH_FALSE",
+        "NEGATE_EXPRESSION",
+        "ADD_ONE_TO_LITERAL",
+        "SUB_ONE_TO_LITERAL",
     ];
 
-    assert!(checker.has_multiple(eq_msgs, "35:8: 35:16"));
+    assert!(checker.has_multiple(eq_msgs, "28"));
+}
 
-    let eq_msgs = &["sub one from int constant", "add one to int constant"];
+#[test]
+fn test_redundant_mutations() {
+    let checker = MutationsChecker::new("tests/integration.rs").unwrap();
 
-    assert!(checker.has_multiple(eq_msgs, "35:15: 35:16"));
+    let types = &[
+        "REPLACE_WITH_TRUE",
+        "REPLACE_WITH_FALSE",
+        "NEGATE_EXPRESSION",
+    ];
+
+    assert!(checker.has_multiple(types, "78:8: 78:14"));
 }
