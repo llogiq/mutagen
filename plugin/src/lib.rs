@@ -668,6 +668,28 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
             }
             Expr {
                 id,
+                node: ExprKind::WhileLet(pat, cond, block, opt_label),
+                span,
+                attrs,
+            } => {
+                let (n, current, sym, flag, mask) = self.add_mutations(
+                        cond.span,
+                        &["replacing whileLet Some() condition"],
+                    );
+               
+                let mut_block = quote_expr!(self.cx(), {
+                    if ::mutagen::now($n) { None } else { Some($block) }
+                });
+                
+                P(Expr {
+                    id,
+                    node: ExprKind::WhileLet(pat, mut_block, block, opt_label),
+                    span,
+                    attrs,
+                })
+            }
+            Expr {
+                id,
                 node: ExprKind::ForLoop(pat, expr, block, ident),
                 span,
                 attrs,
