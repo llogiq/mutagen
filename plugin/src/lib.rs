@@ -3,6 +3,8 @@
 extern crate rustc_plugin;
 extern crate syntax;
 extern crate mutagen;
+#[macro_use]
+extern crate bitflags;
 
 use rustc_plugin::registry::Registry;
 use std::collections::HashMap;
@@ -135,17 +137,96 @@ struct Mutator<'a, 'cx: 'a> {
     mutations: BufWriter<File>,
     /// the current mutation count, starting from 1
     current_count: usize,
+    /// set of the types that have been generated
+    types: MutationType,
 }
 
 impl<'a, 'cx: 'a> Mutator<'a, 'cx> {
-    fn add_mutations(&mut self, span: Span, descriptions: &[&str]) -> (usize, usize) {
+    fn add_mutations<'m>(&mut self, span: Span, avoid: MutationType, descriptions: &[Mutation<'m>]) -> (usize, usize) {
         let initial_count = self.current_count;
         let span_desc = self.cx.codemap().span_to_string(span);
-        for desc in descriptions {
-            writeln!(&mut self.mutations, "{} @ {}", desc, span_desc).unwrap()
+        for (i, mutation) in descriptions.iter().enumerate() {
+            // If the current mutation intersect with the mutation types to avoid, skip it and
+            // keep iterating through the following mutations.
+            if avoid.contains(mutation.ty) {
+                continue;
+            }
+
+            // Record that mutation type has been added
+            self.types.insert(mutation.ty);
+
+            // Write current mutation to the file
+            writeln!(&mut self.mutations, "{} - {} - {} @ {}", initial_count + i, mutation.description, mutation.ty.to_string(), span_desc).unwrap()
         }
         self.current_count += descriptions.len();
         (initial_count, self.current_count)
+    }
+}
+
+struct Mutation<'a> {
+    ty: MutationType,
+    description: &'a str,
+}
+
+impl<'a> Mutation<'a> {
+    pub fn new(ty: MutationType, description: &'a str) -> Self {
+        Mutation {
+            ty,
+            description,
+        }
+    }
+}
+
+bitflags! {
+    struct MutationType: u64 {
+        const OTHER = 1 << 0;
+        const REPLACE_WITH_TRUE = 1 << 1;
+        const REPLACE_WITH_FALSE = 1 << 2;
+        const ADD_ONE_TO_LITERAL = 1 << 3;
+        const SUB_ONE_TO_LITERAL = 1 << 4;
+        const REMOVE_RIGHT = 1 << 5;
+        const NEGATE_LEFT = 1 << 6;
+        const NEGATE_RIGHT = 1 << 7;
+        const NEGATE_EXPRESSION = 1 << 8;
+        const COMPARISON = 1 << 9;
+        const OPORTUNISTIC_BINARY = 1 << 10;
+        const OPORTUNISTIC_UNARY = 1 << 11;
+        const ITERATOR_EMPTY = 1 << 12;
+        const ITERATOR_SKIP_FIRST = 1 << 13;
+        const ITERATOR_SKIP_LAST = 1 << 14;
+        const ITERATOR_SKIP_BOUNDS = 1 << 15;
+        const RETURN_DEFAULT = 1 << 16;
+        const RETURN_ARGUMENT = 1 << 17;
+        const EXCHANGE_ARGUMENT = 1 << 18;
+        const CLONE_MUTABLE = 1 << 19;
+    }
+}
+
+impl ToString for MutationType {
+    fn to_string(&self) -> String {
+        match *self {
+            MutationType::OTHER => String::from("OTHER"),
+            MutationType::REPLACE_WITH_TRUE => String::from("REPLACE_WITH_TRUE"),
+            MutationType::REPLACE_WITH_FALSE => String::from("REPLACE_WITH_FALSE"),
+            MutationType::ADD_ONE_TO_LITERAL => String::from("ADD_ONE_TO_LITERAL"),
+            MutationType::SUB_ONE_TO_LITERAL => String::from("SUB_ONE_TO_LITERAL"),
+            MutationType::REMOVE_RIGHT => String::from("REMOVE_RIGHT"),
+            MutationType::NEGATE_LEFT => String::from("NEGATE_LEFT"),
+            MutationType::NEGATE_RIGHT => String::from("NEGATE_RIGHT"),
+            MutationType::NEGATE_EXPRESSION => String::from("NEGATE_EXPRESSION"),
+            MutationType::COMPARISON => String::from("COMPARISION"),
+            MutationType::OPORTUNISTIC_BINARY => String::from("OPORTUNISTIC_BINARY"),
+            MutationType::OPORTUNISTIC_UNARY => String::from("OPORTUNISTIC_UNARY"),
+            MutationType::ITERATOR_EMPTY => String::from("ITERATOR_EMPTY"),
+            MutationType::ITERATOR_SKIP_FIRST => String::from("ITERATOR_SKIP_FIRST"),
+            MutationType::ITERATOR_SKIP_LAST => String::from("ITERATOR_SKIP_LAST"),
+            MutationType::ITERATOR_SKIP_BOUNDS => String::from("ITERATOR_SKIP_BOUNDS"),
+            MutationType::RETURN_DEFAULT=> String::from("RETURN_DEFAULT"),
+            MutationType::RETURN_ARGUMENT => String::from("RETURN_ARGUMENT"),
+            MutationType::EXCHANGE_ARGUMENT => String::from("EXCHANGE_ARGUMENT"),
+            MutationType::CLONE_MUTABLE => String::from("CLONE_MUTABLE"),
+            _ => String::from("UNKNOWN"),
+        }
     }
 }
 
@@ -155,6 +236,8 @@ pub struct MutatorPlugin<'a, 'cx: 'a> {
     info: MutatorInfo,
     /// the mutator itself
     m: Mutator<'a, 'cx>,
+    /// stack of mutation restrictions
+    restrictions: Vec<MutationType>,
 }
 
 struct Resizer(usize);
@@ -215,12 +298,15 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
                 cx,
                 mutations,
                 current_count: count,
-            }
+                types: MutationType::empty(),
+            },
+            restrictions: Vec::new(),
         }
     }
 
-    fn add_mutations(&mut self, span: Span, descriptions: &[&str]) -> (usize, usize, Ident, usize, usize) {
-        let (start_count, end_count) = self.m.add_mutations(span, descriptions);
+    fn add_mutations<'m>(&mut self, span: Span, mutations: &[Mutation<'m>]) -> (usize, usize, Ident, usize, usize) {
+        let avoid = self.parent_restrictions();
+        let (start_count, end_count) = self.m.add_mutations(span, avoid, mutations);
         let info = self.info.method_infos.last_mut().unwrap();
         // must be in a method
         let sym = info.coverage_sym.to_ident();
@@ -302,6 +388,30 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
         self.info.method_infos.last().and_then(|info| info.self_sym)
     }
 
+    /// returns the parent's imposed restrictions
+    fn parent_restrictions(&self) -> MutationType {
+        let restriction_amount = self.restrictions.len();
+        if restriction_amount < 2 {
+            return MutationType::empty();
+        }
+
+        let current_index = restriction_amount - 2;
+        self.restrictions
+            .get(current_index)
+            .cloned()
+            .unwrap_or_else(MutationType::empty)
+    }
+
+    fn current_restrictions(&mut self) -> Option<&mut MutationType> {
+        self.restrictions.last_mut()
+    }
+
+    fn set_restrictions(&mut self, types: MutationType) {
+        if let Some(r) = self.current_restrictions() {
+            *r = types;
+        }
+    }
+
     fn mutate_numeric_constant_expression(
         &mut self,
         lit: &Lit,
@@ -322,7 +432,7 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
                 if int_constant_can_subtract_one(numeric_constant, ty) {
                     let (n, current, sym, flag, mask) = self.add_mutations(
                             s,
-                            &["sub one from int constant"],
+                            &[Mutation::new(MutationType::SUB_ONE_TO_LITERAL, "sub one from int constant")],
                         );
                     mut_expression = quote_expr!(self.cx(),
                                     {
@@ -336,7 +446,7 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
                 if int_constant_can_add_one(numeric_constant as u128, ty) {
                     let (n, current, sym, flag, mask) = self.add_mutations(
                             s,
-                            &["add one to int constant"],
+                            &[Mutation::new(MutationType::ADD_ONE_TO_LITERAL, "add one to int constant")],
                         );
                     mut_expression = quote_expr!(self.cx(),
                                     {
@@ -459,7 +569,9 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
     }
 
     fn fold_expr(&mut self, expr: P<Expr>) -> P<Expr> {
-        expr.and_then(|expr| match expr {
+        self.restrictions.push(MutationType::empty());
+
+        let e = expr.and_then(|expr| match expr {
             e @ Expr {
                 node: ExprKind::Mac(_),
                 ..
@@ -469,13 +581,21 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                 P(e)
             }
             Expr {
+                node: ExprKind::Paren(e),
+                ..
+            } => {
+                // This expression kind is just for pretty print. Inherit the restrictions from
+                // parent for descendant expressions.
+                let parent = self.parent_restrictions();
+                self.set_restrictions(parent);
+                self.fold_expr(e)
+            }
+            Expr {
                 id,
                 node: ExprKind::Binary(op, left, right),
                 span,
                 attrs,
             } => {
-                let left = self.fold_expr(left);
-                let right = self.fold_expr(right);
                 binop::fold_binop(self, id, op, left, right, span, attrs)
             }
             Expr {
@@ -494,15 +614,22 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                 span,
                 attrs,
             } => {
-                let (n, current, sym, flag, mask) = self.add_mutations(
-                    cond.span,
-                    &[
-                        "replacing if condition with true",
-                        "replacing if condition with false",
-                        "inverting if condition",
-                    ],
+                let cond_span = cond.span;
+                self.set_restrictions(
+                    MutationType::REPLACE_WITH_TRUE |
+                    MutationType::REPLACE_WITH_FALSE |
+                    MutationType::NEGATE_EXPRESSION
                 );
                 let cond = self.fold_expr(cond);
+
+                let (n, current, sym, flag, mask) = self.add_mutations(
+                    cond_span,
+                    &[
+                        Mutation::new(MutationType::REPLACE_WITH_TRUE, "replacing if condition with true"),
+                        Mutation::new(MutationType::REPLACE_WITH_FALSE, "replacing if condition with false"),
+                        Mutation::new(MutationType::NEGATE_EXPRESSION, "inverting if condition"),
+                    ],
+                );
                 let then = fold::noop_fold_block(then, self);
                 let opt_else = opt_else.map(|p_else| self.fold_expr(p_else));
                 let mut_cond = quote_expr!(self.cx(), {
@@ -524,7 +651,7 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
             } => {
                 let (n, current, sym, flag, mask) = self.add_mutations(
                         cond.span,
-                        &["replacing while condition with false"],
+                        &[Mutation::new(MutationType::REPLACE_WITH_FALSE, "replacing while condition with false")],
                     );
                 let cond = self.fold_expr(cond);
                 let block = fold::noop_fold_block(block, self);
@@ -548,10 +675,10 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                 let (n, current, sym, flag, mask) = self.add_mutations(
                     expr.span,
                     &[
-                        "empty iterator",
-                        "skip first element",
-                        "skip last element",
-                        "skip first and last element",
+                        Mutation::new(MutationType::ITERATOR_EMPTY, "empty iterator"),
+                        Mutation::new(MutationType::ITERATOR_SKIP_FIRST, "skip first element"),
+                        Mutation::new(MutationType::ITERATOR_SKIP_LAST, "skip last element"),
+                        Mutation::new(MutationType::ITERATOR_SKIP_BOUNDS, "skip first and last element"),
                     ],
                 );
                 let pat = self.fold_pat(pat);
@@ -645,7 +772,11 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                 }
             }
             e => P(fold::noop_fold_expr(e, self)),
-        }) //TODO: more expr mutations
+        }); //TODO: more expr mutations
+
+        self.restrictions.pop();
+
+        e
     }
 
 
@@ -729,9 +860,11 @@ fn coverage(coverage_count: &mut usize) -> (usize, usize) {
 }
 
 fn fold_first_block(block: P<Block>, p: &mut MutatorPlugin) -> P<Block> {
+    let avoid = p.parent_restrictions();
+
     let mut pre_stmts = vec![];
     {
-        let MutatorPlugin { ref mut info, ref mut m } = *p;
+        let MutatorPlugin { ref mut info, ref mut m, .. } = *p;
         if let Some(&mut MethodInfo {
             is_default,
             ref have_output_type,
@@ -749,7 +882,10 @@ fn fold_first_block(block: P<Block>, p: &mut MutatorPlugin) -> P<Block> {
             if is_default {
                 let (n, current) = m.add_mutations(
                     block.span,
-                    &["insert return default()"],
+                    avoid,
+                    &[
+                        Mutation::new(MutationType::RETURN_DEFAULT, "insert return default()"),
+                    ],
                 );
                 let (flag, mask) = coverage(coverage_count);
                 pre_stmts.push(
@@ -763,7 +899,10 @@ fn fold_first_block(block: P<Block>, p: &mut MutatorPlugin) -> P<Block> {
                 let ident = name.to_ident();
                 let (n, current) = m.add_mutations(
                     block.span,
-                    &[&format!("insert return {}", name)],
+                    avoid,
+                    &[
+                        Mutation::new(MutationType::RETURN_ARGUMENT, &format!("insert return {}", name)),
+                    ],
                 );
                 let (flag, mask) = coverage(coverage_count);
                 pre_stmts.push(
@@ -779,7 +918,10 @@ fn fold_first_block(block: P<Block>, p: &mut MutatorPlugin) -> P<Block> {
                     let value_ident = value.to_ident();
                     let (n, current) = m.add_mutations(
                         block.span,
-                        &[&format!("exchange {} with {}", key.as_str(), value_ident)],
+                        avoid,
+                        &[
+                            Mutation::new(MutationType::EXCHANGE_ARGUMENT, &format!("exchange {} with {}", key.as_str(), value_ident)),
+                        ],
                     );
                     let (flag, mask) = coverage(coverage_count);
                     pre_stmts.push(
@@ -803,7 +945,10 @@ fn fold_first_block(block: P<Block>, p: &mut MutatorPlugin) -> P<Block> {
                 let ident_clone = Symbol::gensym(&format!("_{}_clone", ident)).to_ident();
                 let (n, _current) = m.add_mutations(
                     block.span,
-                    &[&format!("clone mutable reference {}", ident)]
+                    avoid,
+                    &[
+                        Mutation::new(MutationType::CLONE_MUTABLE, &format!("clone mutable reference {}", ident)),
+                    ],
                 );
                 let (flag, mask) = coverage(coverage_count);
                 pre_stmts.push(quote_stmt!(m.cx, let mut $ident_clone;).unwrap());

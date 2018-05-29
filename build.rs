@@ -64,11 +64,16 @@ fn write_binop_arm(out: &mut Write,
                    mut_sym: &str,
            shift: bool) -> Result<()> {
     if shift {
-        writeln!(out, "
+        writeln!(out, r#"
             BinOpKind::{0} => {{
+                let left = p.fold_expr(original_left);
+                let right = p.fold_expr(original_right);
+
                 let (n, _current, sym, flag, mask) = p.add_mutations(
                     span,
-                    &[\"(opportunistically) replacing x {3} y with x {4} y\"]
+                    &[
+                        Mutation::new(MutationType::OPORTUNISTIC_BINARY, "(opportunistically) replacing x {3} y with x {4} y"),
+                    ]
                 );
                 quote_expr!(p.cx(), {{
                     let (left, right) = ($left, $right);
@@ -76,17 +81,22 @@ fn write_binop_arm(out: &mut Write,
                         ::mutagen::{0}{2}::{1}(left, right, $n, &$sym[$flag], $mask)
                     }}
                 }})
-            }}", o_trait, o_fn, mut_trait, o_sym, mut_sym)
+            }}"#, o_trait, o_fn, mut_trait, o_sym, mut_sym)
     } else {
-        writeln!(out, "
+        writeln!(out, r#"
             BinOpKind::{0} => {{
+                let left = p.fold_expr(original_left);
+                let right = p.fold_expr(original_right);
+
                 let (n, _current, sym, flag, mask) = p.add_mutations(
                     span,
-                    &[\"(opportunistically) replacing x {3} y with x {4} y\"]
+                    &[
+                        Mutation::new(MutationType::OPORTUNISTIC_BINARY, "(opportunistically) replacing x {3} y with x {4} y"),
+                    ]
                 );
                 quote_expr!(p.cx(),
                     ::mutagen::{0}{2}::{1}($left, $right, $n, &$sym[$flag], $mask))
-            }}", o_trait, o_fn, mut_trait, o_sym, mut_sym)
+            }}"#, o_trait, o_fn, mut_trait, o_sym, mut_sym)
     }
 }
 
@@ -96,16 +106,18 @@ fn write_opassign_arm(out: &mut Write,
                       mut_trait: &str,
                       o_sym: &str,
                       mut_sym: &str) -> Result<()> {
-     writeln!(out, "
+     writeln!(out, r#"
             BinOpKind::{0} => {{
                 let (n, _current, sym, flag, mask) = p.add_mutations(
                     span,
-                    &[\"(opportunistically) replacing x {3}= y with x {4}= y\"]
+                    &[
+                        Mutation::new(MutationType::OPORTUNISTIC_UNARY, "(opportunistically) replacing x {3}= y with x {4}= y"),
+                    ]
                 );
                 quote_expr!(p.cx(), {{
                     ::mutagen::{0}{2}Assign::{1}_assign(&mut $left, $right, $n, &$sym[$flag], $mask)
                 }})
-            }}", o_trait, o_fn, mut_trait, o_sym, mut_sym)
+            }}"#, o_trait, o_fn, mut_trait, o_sym, mut_sym)
 }
 
 static BINOP_PAIRS: &[[&str; 6]] = &[
@@ -178,21 +190,31 @@ impl<T: Clone> MayClone<T> for T {{
 fn write_plugin() -> Result<()> {
     let mut f = File::create("plugin/src/binop.rs")?;
     let mut out = BufWriter::new(&mut f);
-    write!(out, "use super::MutatorPlugin;
+    write!(out, r#"use super::MutatorPlugin;
 use syntax::ast::{{Attribute, BinOp, BinOpKind, Expr, ExprKind, NodeId, ThinVec}};
 use syntax::codemap::Span;
 use syntax::ptr::P;
+use super::{{MutationType, Mutation}};
+use syntax::fold::Folder;
 
-pub fn fold_binop(p: &mut MutatorPlugin, id: NodeId, op: BinOp, left: P<Expr>, right: P<Expr>, span: Span, attrs: ThinVec<Attribute>) -> P<Expr> {{
+pub fn fold_binop(p: &mut MutatorPlugin, id: NodeId, op: BinOp, original_left: P<Expr>, original_right: P<Expr>, span: Span, attrs: ThinVec<Attribute>) -> P<Expr> {{
     match op.node {{
         BinOpKind::And => {{
-            let (n, current, sym, flag, op) = p.add_mutations(span,
+            // avoid restrictions that would lead to a false evaluation, we will already replace
+            // the and with a false expression
+            p.set_restrictions(MutationType::REPLACE_WITH_FALSE);
+
+            let left = p.fold_expr(original_left);
+            let right = p.fold_expr(original_right);
+
+            let (n, current, sym, flag, op) = p.add_mutations(
+                    span,
                     &[
-                        \"replacing _ && _ with false\",
-                        \"replacing _ && _ with true\",
-                        \"replacing x && _ with x\",
-                        \"replacing x && _ with !x\",
-                        \"replacing x && y with x && !y\",
+                        Mutation::new(MutationType::REPLACE_WITH_FALSE, "replacing _ && _ with false"),
+                        Mutation::new(MutationType::REPLACE_WITH_TRUE, "replacing _ && _ with true"),
+                        Mutation::new(MutationType::REMOVE_RIGHT, "replacing x && _ with x"),
+                        Mutation::new(MutationType::NEGATE_LEFT, "replacing x && _ with !x"),
+                        Mutation::new(MutationType::NEGATE_RIGHT, "replacing x && y with x && !y"),
                     ],
                 );
             quote_expr!(p.cx(), {{
@@ -207,16 +229,22 @@ pub fn fold_binop(p: &mut MutatorPlugin, id: NodeId, op: BinOp, left: P<Expr>, r
             }})
         }}
         BinOpKind::Or => {{
+            p.set_restrictions(MutationType::REPLACE_WITH_TRUE);
+
+            let left = p.fold_expr(original_left);
+            let right = p.fold_expr(original_right);
+
             let (n, current, sym, flag, mask) = p.add_mutations(
                     span,
                     &[
-                        \"replacing _ || _ with false\",
-                        \"replacing _ || _ with true\",
-                        \"replacing x || _ with x\",
-                        \"replacing x || _ with !x\",
-                        \"replacing x || y with x || !y\",
+                        Mutation::new(MutationType::REPLACE_WITH_FALSE, "replacing _ || _ with false"),
+                        Mutation::new(MutationType::REPLACE_WITH_TRUE, "replacing _ || _ with true"),
+                        Mutation::new(MutationType::REMOVE_RIGHT, "replacing x || _ with x"),
+                        Mutation::new(MutationType::NEGATE_LEFT, "replacing x || _ with !x"),
+                        Mutation::new(MutationType::NEGATE_RIGHT, "replacing x || y with x || !y"),
                     ],
                 );
+
             quote_expr!(p.cx(), {{
                 ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
                 (match ($left, ::mutagen::diff($n)) {{
@@ -229,12 +257,15 @@ pub fn fold_binop(p: &mut MutatorPlugin, id: NodeId, op: BinOp, left: P<Expr>, r
             }})
         }}
         BinOpKind::Eq => {{
+            let left = p.fold_expr(original_left);
+            let right = p.fold_expr(original_right);
+
             let (n, current, sym, flag, mask) = p.add_mutations(
                     span,
                     &[
-                        \"replacing _ == _ with true\",
-                        \"replacing _ == _ with false\",
-                        \"replacing x == y with x != y\",
+                        Mutation::new(MutationType::REPLACE_WITH_TRUE, "replacing _ == _ with true"),
+                        Mutation::new(MutationType::REPLACE_WITH_FALSE, "replacing _ == _ with false"),
+                        Mutation::new(MutationType::NEGATE_EXPRESSION, "replacing x == y with x != y"),
                     ],
                 );
             quote_expr!(p.cx(), {{
@@ -243,12 +274,15 @@ pub fn fold_binop(p: &mut MutatorPlugin, id: NodeId, op: BinOp, left: P<Expr>, r
             }})
         }}
         BinOpKind::Ne => {{
+            let left = p.fold_expr(original_left);
+            let right = p.fold_expr(original_right);
+
             let (n, current, sym, flag, mask) = p.add_mutations(
                     span,
                     &[
-                        \"replacing _ != _ with true\",
-                        \"replacing _ != _ with false\",
-                        \"replacing x != y with x == y\",
+                        Mutation::new(MutationType::REPLACE_WITH_TRUE, "replacing _ != _ with true"),
+                        Mutation::new(MutationType::REPLACE_WITH_FALSE, "replacing _ != _ with false"),
+                        Mutation::new(MutationType::NEGATE_EXPRESSION, "replacing x != y with x == y"),
                     ],
                 );
             quote_expr!(p.cx(), {{
@@ -257,16 +291,19 @@ pub fn fold_binop(p: &mut MutatorPlugin, id: NodeId, op: BinOp, left: P<Expr>, r
             }})
         }}
         BinOpKind::Gt => {{
+            let left = p.fold_expr(original_left);
+            let right = p.fold_expr(original_right);
+
             let (n, current, sym, flag, mask) = p.add_mutations(
                     span,
                     &[
-                        \"replacing _ > _ with false\",
-                        \"replacing _ > _ with true\",
-                        \"replacing x > y with x < y\",
-                        \"replacing x > y with x <= y\",
-                        \"replacing x > y with x >= y\",
-                        \"replacing x > y with x == y\",
-                        \"replacing x > y with x != y\",
+                        Mutation::new(MutationType::REPLACE_WITH_FALSE, "replacing _ > _ with false"),
+                        Mutation::new(MutationType::REPLACE_WITH_TRUE, "replacing _ > _ with true"),
+                        Mutation::new(MutationType::COMPARISON, "replacing x > y with x < y"),
+                        Mutation::new(MutationType::NEGATE_EXPRESSION, "replacing x > y with x <= y"),
+                        Mutation::new(MutationType::COMPARISON, "replacing x > y with x >= y"),
+                        Mutation::new(MutationType::COMPARISON, "replacing x > y with x == y"),
+                        Mutation::new(MutationType::COMPARISON, "replacing x > y with x != y"),
                     ],
                 );
             quote_expr!(p.cx(), {{
@@ -275,16 +312,19 @@ pub fn fold_binop(p: &mut MutatorPlugin, id: NodeId, op: BinOp, left: P<Expr>, r
             }})
         }}
         BinOpKind::Lt => {{
+            let left = p.fold_expr(original_left);
+            let right = p.fold_expr(original_right);
+
             let (n, current, sym, flag, mask) = p.add_mutations(
                     span,
                     &[
-                        \"replacing _ < _ with false\",
-                        \"replacing _ < _ with true\",
-                        \"replacing x < y with x > y\",
-                        \"replacing x < y with x >= y\",
-                        \"replacing x < y with x <= y\",
-                        \"replacing x < y with x == y\",
-                        \"replacing x < y with x != y\",
+                        Mutation::new(MutationType::REPLACE_WITH_FALSE, "replacing _ < _ with false"),
+                        Mutation::new(MutationType::REPLACE_WITH_TRUE, "replacing _ < _ with true"),
+                        Mutation::new(MutationType::COMPARISON, "replacing x < y with x > y"),
+                        Mutation::new(MutationType::NEGATE_EXPRESSION, "replacing x < y with x >= y"),
+                        Mutation::new(MutationType::COMPARISON, "replacing x < y with x <= y"),
+                        Mutation::new(MutationType::COMPARISON, "replacing x < y with x == y"),
+                        Mutation::new(MutationType::COMPARISON, "replacing x < y with x != y"),
                     ],
                 );
             quote_expr!(p.cx(), {{
@@ -293,16 +333,19 @@ pub fn fold_binop(p: &mut MutatorPlugin, id: NodeId, op: BinOp, left: P<Expr>, r
             }})
         }}
         BinOpKind::Ge => {{
+            let left = p.fold_expr(original_left);
+            let right = p.fold_expr(original_right);
+
             let (n, current, sym, flag, mask) = p.add_mutations(
                     span,
                     &[
-                        \"replacing _ >= _ with false\",
-                        \"replacing _ >= _ with true\",
-                        \"replacing x >= y with x < y\",
-                        \"replacing x >= y with x <= y\",
-                        \"replacing x >= y with x > y\",
-                        \"replacing x >= y with x == y\",
-                        \"replacing x >= y with x != y\",
+                        Mutation::new(MutationType::REPLACE_WITH_FALSE, "replacing _ >= _ with false"),
+                        Mutation::new(MutationType::REPLACE_WITH_TRUE, "replacing _ >= _ with true"),
+                        Mutation::new(MutationType::NEGATE_EXPRESSION, "replacing x >= y with x < y"),
+                        Mutation::new(MutationType::COMPARISON, "replacing x >= y with x <= y"),
+                        Mutation::new(MutationType::COMPARISON, "replacing x >= y with x > y"),
+                        Mutation::new(MutationType::COMPARISON, "replacing x >= y with x == y"),
+                        Mutation::new(MutationType::COMPARISON, "replacing x >= y with x != y"),
                     ],
                 );
             quote_expr!(p.cx(), {{
@@ -311,33 +354,43 @@ pub fn fold_binop(p: &mut MutatorPlugin, id: NodeId, op: BinOp, left: P<Expr>, r
             }})
         }}
         BinOpKind::Le => {{
+            let left = p.fold_expr(original_left);
+            let right = p.fold_expr(original_right);
+
             let (n, current, sym, flag, mask) = p.add_mutations(
                 span,
                 &[
-                    \"replacing _ <= _ with false\",
-                    \"replacing _ <= _ with true\",
-                    \"replacing x <= y with x > y\",
-                    \"replacing x <= y with x >= y\",
-                    \"replacing x <= y with x < y\",
-                    \"replacing x <= y with x == y\",
-                    \"replacing x <= y with x != y\",
+                    Mutation::new(MutationType::REPLACE_WITH_FALSE, "replacing _ <= _ with false"),
+                    Mutation::new(MutationType::REPLACE_WITH_TRUE, "replacing _ <= _ with true"),
+                    Mutation::new(MutationType::NEGATE_EXPRESSION, "replacing x <= y with x > y"),
+                    Mutation::new(MutationType::COMPARISON, "replacing x <= y with x >= y"),
+                    Mutation::new(MutationType::COMPARISON, "replacing x <= y with x < y"),
+                    Mutation::new(MutationType::COMPARISON, "replacing x <= y with x == y"),
+                    Mutation::new(MutationType::COMPARISON, "replacing x <= y with x != y"),
                 ],
             );
             quote_expr!(p.cx(), {{
                 ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
                 ::mutagen::ge(&$right, &$left, $n)
             }})
-        }}")?;
-        for names in BINOP_PAIRS.iter() {
-            write_binop_arm(&mut out, names[0], names[1], names[2], names[4], names[5], names[0].starts_with("Sh"))?;
-            write_binop_arm(&mut out, names[2], names[3], names[0], names[5], names[4], names[0].starts_with("Sh"))?;
-        }
-        write!(out, "_ => P(Expr {{
+        }}"#)?;
+    for names in BINOP_PAIRS.iter() {
+        write_binop_arm(&mut out, names[0], names[1], names[2], names[4], names[5], names[0].starts_with("Sh"))?;
+        write_binop_arm(&mut out, names[2], names[3], names[0], names[5], names[4], names[0].starts_with("Sh"))?;
+    }
+    write!(out, "_ => {{
+            let left = p.fold_expr(original_left);
+            let right = p.fold_expr(original_right);
+
+            let e = P(Expr {{
                 id,
                 node: ExprKind::Binary(op, left, right),
                 span,
                 attrs,
-            }})
+            }});
+
+            e
+        }}
     }}
 }}
 ")?;
