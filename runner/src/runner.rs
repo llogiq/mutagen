@@ -1,17 +1,27 @@
 use std::process::{Command, Stdio};
 use std::path::PathBuf;
 use std::fs::File;
-use std::io::Read;
+use std::io::{Read, Error};
 use std::fs::remove_file;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use wait_timeout::ChildExt;
 
+/// Result from a test run
+pub enum Status {
+    /// test successful
+    Success,
+    /// the test broke with an error code (may be used to signal loop overflows in the future)
+    Error(Option<i32>),
+    /// the test timed out
+    Timeout
+}
+
 /// Runner allows to execute the testsuite with the target mutation count
 pub trait Runner {
     /// run executes the testsuite with the given mutation count and returns the output
     /// if all tests has passed
-    fn run(&mut self, mutation_count: usize) -> Result<(), ()>;
+    fn run(&mut self, mutation_count: usize) -> Result<Status, Error>;
 }
 
 pub struct RuntimeModifier {
@@ -34,10 +44,6 @@ impl RuntimeModifier {
     }
 }
 
-fn to_result(cond: bool) -> Result<(), ()> {
-    if cond { Ok(()) } else { Err(()) }
-}
-
 /// Full suite runner executes all the test at once, given the path of the executable
 pub struct FullSuiteRunner {
     test_executable: PathBuf,
@@ -57,23 +63,31 @@ impl FullSuiteRunner {
 }
 
 impl Runner for FullSuiteRunner {
-    fn run(&mut self, mutation_count: usize) -> Result<(), ()> {
+    fn run(&mut self, mutation_count: usize) -> Result<Status, Error> {
         let mut command = Command::new(&self.test_executable);
         command.env("MUTATION_COUNT", mutation_count.to_string())
             .stdout(Stdio::null());
         if mutation_count == 0 {
             let start = Instant::now();
-            let status = command.status().expect("failed to execute process");
+            let status = command.status()?;
             self.timeout = self.runtime_mod.compute(start.elapsed());
-            to_result(status.success())
-        } else {
-            let mut child = command.spawn().expect("failed to execute process");
-            if let Some(status) = child.wait_timeout(self.timeout)
-                    .expect("error while waiting for test") {
-                to_result(status.success())
+            if status.success() {
+                Ok(Status::Success)
             } else {
-                Err(())
+                Ok(Status::Error(status.code()))
             }
+        } else {
+            let mut child = command.spawn()?;
+            Ok(match child.wait_timeout(self.timeout)? {
+                Some(status) => {
+                    if status.success() {
+                        Status::Success
+                    } else {
+                        Status::Error(status.code())
+                    }
+                }
+                None => Status::Timeout
+            })
         }
     }
 }
@@ -186,22 +200,24 @@ impl CoverageRunner {
 fn execute(runtimes: &HashMap<String, Duration>,
            executable: &PathBuf,
            test_name: &str,
-           mutation_count: usize) -> Result<(), ()> {
+           mutation_count: usize) -> Result<Status, Error> {
     let mut command = Command::new(executable);
     command.args(&[test_name])
            .env("MUTATION_COUNT", mutation_count.to_string())
            .stdout(Stdio::null());
     let timeout = runtimes[test_name];
-    let mut child = command.spawn().expect("failed to execute process");
-    if let Some(status) = child.wait_timeout(timeout).expect("error while waiting for test") {
-        to_result(status.success())
-    } else { // timeout
-        Err(())
-    }
+    let mut child = command.spawn()?;
+    Ok(child.wait_timeout(timeout)?.map_or(Status::Timeout, |status| {
+        if status.success() {
+            Status::Success
+        } else {
+            Status::Error(status.code())
+        }
+    }))
 }
 
 impl Runner for CoverageRunner {
-    fn run(&mut self, mutation_count: usize) -> Result<(), ()> {
+    fn run(&mut self, mutation_count: usize) -> Result<Status, Error> {
         self.tests_with_mutations();
         let CoverageRunner {
             runtime_mod: _,
@@ -209,10 +225,14 @@ impl Runner for CoverageRunner {
             ref test_runtimes,
             ref tests_with_mutations
         } = *self;
-        to_result(tests_with_mutations.tests(mutation_count)
-                    .iter()
-                    .map(|tn| execute(test_runtimes, test_executable, tn, mutation_count))
-                    .all(|test_result| test_result.is_ok()))
+        for tn in tests_with_mutations.tests(mutation_count) {
+            let status = execute(test_runtimes, test_executable, tn, mutation_count)?;
+            match status {
+                Status::Error(_) | Status::Timeout => return Ok(status),
+                _ => {}
+            }
+        }
+        Ok(Status::Success)
     }
 }
 

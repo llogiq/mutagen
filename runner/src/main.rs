@@ -10,7 +10,7 @@ use std::fs::{File, remove_file};
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::str::from_utf8;
-use runner::{CoverageRunner, FullSuiteRunner, Runner};
+use runner::{CoverageRunner, FullSuiteRunner, Runner, Status};
 
 static TARGET_MUTAGEN: &'static str = "target/mutagen";
 static MUTATIONS_LIST: &'static str = "mutations.txt";
@@ -56,9 +56,9 @@ fn run_mutations(runner: &mut Runner, list: &[String]) -> Result<()> {
 
         print!("{} {} ({})", mutation.description, mutation.span, mutation.count);
 
-        let result = runner.run(mutation.count);
+        let result = runner.run(mutation.count)?;
 
-        let status = if let Ok(_) = result {
+        let status = if let Status::Success = result {
             // A succeeding test suite is actually a failure for us.
             // At least on test should have failed
             failures += 1;
@@ -77,7 +77,6 @@ fn run_mutations(runner: &mut Runner, list: &[String]) -> Result<()> {
         list.len() - failures,
         failures
     );
-
     Ok(())
 }
 
