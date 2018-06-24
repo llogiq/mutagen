@@ -10,7 +10,7 @@ lazy_static!{
     static ref MUTAGEN_LOOP_COUNT: HashMap<LoopId, usize> = {
         let mut h = HashMap::new();
 
-        File::open("target/mutagen/loops.txt").map(|file| {
+        let _ = File::open("target/mutagen/loops.txt").map(|file| {
             let reader = BufReader::new(file);
 
             for l in reader.lines() {
@@ -21,7 +21,7 @@ lazy_static!{
                     continue;
                 }
 
-                splits[0].parse::<usize>()
+                let _ = splits[0].parse::<usize>()
                     .map(|lid| {
                        let bound = splits[1].parse().unwrap_or(0usize);
 
@@ -83,14 +83,13 @@ impl<'a> Drop for LoopCount<'a> {
     fn drop(&mut self) {
         let previous = self.atomic.fetch_max(self.count, Ordering::SeqCst);
         if previous < self.count {
-            OpenOptions::new()
-                .create(true)
-                .append(true)
-                .truncate(false)
-                .open("target/mutagen/loops.txt")
-                .and_then(|mut f| {
-                    f.write_all(format!("{},{}\n", self.id, self.count).as_str().as_ref())
-                });
+            if let Ok(mut f) = OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .truncate(false)
+                    .open("target/mutagen/loops.txt") {
+                let _ = f.write_all(format!("{},{}\n", self.id, self.count).as_str().as_ref());
+            }
         }
     }
 }
