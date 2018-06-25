@@ -537,6 +537,10 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                 ty,
                 impl_items,
             ) => {
+                if unsafety == Unsafety::Unsafe {
+                    self.cx().parse_sess.span_diagnostic.fatal("mutagen: unsafe code found")
+                                                        .raise();
+                }
                 self.start_impl(&ty);
                 let k = ItemKind::Impl(
                     unsafety,
@@ -551,6 +555,10 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                 k
             }
             ItemKind::Fn(decl, header, generics, block) => {
+                if header.unsafety == Unsafety::Unsafe {
+                    self.cx().parse_sess.span_diagnostic.fatal("mutagen: unsafe code found")
+                                                        .raise();
+                }
                 self.start_fn(&decl);
                 let k = ItemKind::Fn(
                     decl,
@@ -564,6 +572,14 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
             s @ ItemKind::Static(..) | s @ ItemKind::Const(..) => s,
             k => fold::noop_fold_item_kind(k, self),
         }
+    }
+
+    fn fold_block(&mut self, block: P<Block>) -> P<Block> {
+        if block.rules != BlockCheckMode::Default {
+            self.cx().parse_sess.span_diagnostic.fatal("mutagen: unsafe code found")
+                                                .raise();
+        }
+        fold::noop_fold_block(block, self)
     }
 
     fn fold_expr(&mut self, expr: P<Expr>) -> P<Expr> {
@@ -858,6 +874,9 @@ fn coverage(coverage_count: &mut usize) -> (usize, usize) {
 }
 
 fn fold_first_block(block: P<Block>, p: &mut MutatorPlugin) -> P<Block> {
+    if block.rules != BlockCheckMode::Default {
+        p.cx().parse_sess.span_diagnostic.fatal("mutagen: unsafe code found").raise();
+    }
     let avoid = p.parent_restrictions();
 
     let mut pre_stmts = vec![];
