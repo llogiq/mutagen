@@ -190,12 +190,10 @@ impl<'a, 'cx: 'a> Folder for Plugin<'a, 'cx> {
 
     fn fold_item_kind(&mut self, i: ItemKind) -> ItemKind {
         match i {
-            ItemKind::Fn(decl, unsafety, constness, abi, generics, block) => {
+            ItemKind::Fn(decl, header, generics, block) => {
                 let k = ItemKind::Fn(
                     decl,
-                    unsafety,
-                    constness,
-                    abi,
+                    header,
                     generics,
                     self.method(block),
                 );

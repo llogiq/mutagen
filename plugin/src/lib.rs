@@ -550,13 +550,11 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                 self.end_impl();
                 k
             }
-            ItemKind::Fn(decl, unsafety, constness, abi, generics, block) => {
+            ItemKind::Fn(decl, header, generics, block) => {
                 self.start_fn(&decl);
                 let k = ItemKind::Fn(
                     decl,
-                    unsafety,
-                    constness,
-                    abi,
+                    header,
                     generics,
                     fold_first_block(block, self),
                 );
@@ -1105,9 +1103,11 @@ fn unbox(ty: &Ty) -> Option<&Ty> {
             if box_seg.ident.name != "Box" {
                 return None;
             }
-            if let Some(ref params) = box_seg.parameters {
-                if let PathParameters::AngleBracketed(ref data) = **params {
-                    return Some(&data.types[0]);
+            if let Some(ref params) = box_seg.args {
+                if let GenericArgs::AngleBracketed(ref data) = **params {
+                    if let GenericArg::Type(ref arg_ty) = data.args[0] {
+                        return Some(arg_ty);
+                    }
                 }
             }
         }
@@ -1153,14 +1153,14 @@ fn ty_hash<H: Hasher>(ty: &Ty, pos: usize, h: &mut H) {
         TyKind::TraitObject(ref bounds, ref syn) => {
             h.write_u8(7);
             for bound in bounds {
-                ty_param_bound_hash(bound, pos, h);
+                generic_bound_hash(bound, pos, h);
             }
             syn.hash(h);
         }
         TyKind::ImplTrait(ref bounds) => {
             h.write_u8(8);
             for bound in bounds {
-                ty_param_bound_hash(bound, pos, h);
+                generic_bound_hash(bound, pos, h);
             }
         }
         // don't care about the other values
@@ -1198,10 +1198,10 @@ fn ty_equal(a: &Ty, b: &Ty, inout: bool) -> bool {
             match_path(path, &["Self"])
         }
         (&TyKind::TraitObject(ref abounds, ref asyn), &TyKind::TraitObject(ref bbounds, ref bsyn)) => {
-            asyn == bsyn && vecd(abounds, bbounds, |a, b| ty_param_bound_equal(a, b, inout))
+            asyn == bsyn && vecd(abounds, bbounds, |a, b| generic_bound_equal(a, b, inout))
         }
         (&TyKind::ImplTrait(ref abounds), &TyKind::ImplTrait(ref bbounds)) => {
-            vecd(abounds, bbounds, | a, b| ty_param_bound_equal(a, b, inout))
+            vecd(abounds, bbounds, | a, b| generic_bound_equal(a, b, inout))
         }
         _ => false, // we can safely ignore inferred types, type macros and error types
     }
@@ -1249,22 +1249,37 @@ fn is_whitelisted_path(path: &Path) -> bool {
     LIFETIME_LESS_PATHS.iter().any(|segs| match_path(path, segs))
 }
 
+fn generic_arg_hash<H: Hasher>(arg: &GenericArg, pos: usize, h: &mut H) {
+    match *arg {
+        GenericArg::Lifetime(ref lt) => lifetime_hash(lt, h),
+        GenericArg::Type(ref ty) => ty_hash(ty, pos, h),
+    }
+}
+
+fn generic_arg_equal(a: &GenericArg, b: &GenericArg, inout: bool) -> bool {
+    match (a, b) {
+        (&GenericArg::Lifetime(ref alt), &GenericArg::Lifetime(ref blt)) =>
+            lifetime_equal(alt, blt),
+        (&GenericArg::Type(ref aty), &GenericArg::Type(ref bty)) => ty_equal(aty, bty, inout),
+        _ => false
+    }
+}
+
 fn path_segment_hash<H: Hasher>(seg: &PathSegment, pos: usize, h: &mut H) {
     seg.ident.hash(h);
-    if let Some(ref params) = seg.parameters {
+    if let Some(ref params) = seg.args {
         match **params {
-            PathParameters::AngleBracketed(ref data) => {
-                if data.lifetimes.is_empty() {
-                    h.write_u8(0);
-                    h.write_usize(pos);
-                } else {
-                    h.write_u8(1);
-                    for lt in &data.lifetimes {
-                        lifetime_hash(lt, h);
-                    }
+            GenericArgs::AngleBracketed(ref data) => {
+                h.write_u8(0);
+                for arg in &data.args {
+                    generic_arg_hash(arg, pos, h);
+                }
+                for binding in &data.bindings {
+                    //TODO: ident_hash(binding.ident)
+                    ty_hash(&binding.ty, pos, h);
                 }
             }
-            PathParameters::Parenthesized(ref data) => {
+            GenericArgs::Parenthesized(ref data) => {
                 for i in &data.inputs {
                     ty_hash(i, pos, h);
                 }
@@ -1277,16 +1292,12 @@ fn path_segment_hash<H: Hasher>(seg: &PathSegment, pos: usize, h: &mut H) {
 }
 
 fn path_segment_equal(a: &PathSegment, b: &PathSegment, inout: bool) -> bool {
-    a.ident == b.ident && optd(&a.parameters, &b.parameters, |a, b| match (&**a, &**b) {
-        (&PathParameters::AngleBracketed(ref adata), &PathParameters::AngleBracketed(ref bdata)) => {
-            (if adata.lifetimes.is_empty() {
-                inout && bdata.lifetimes.is_empty()
-            } else {
-                vecd(&adata.lifetimes, &bdata.lifetimes, |a, b| lifetime_equal(a, b))
-            }) && vecd(&adata.types, &bdata.types, |a, b| ty_equal(a, b, inout)) &&
+    a.ident == b.ident && optd(&a.args, &b.args, |a, b| match (&**a, &**b) {
+        (&GenericArgs::AngleBracketed(ref adata), &GenericArgs::AngleBracketed(ref bdata)) => {
+            vecd(&adata.args, &bdata.args, |a, b| generic_arg_equal(a, b, inout)) &&
                 vecd(&adata.bindings, &bdata.bindings, |a, b| ty_bindings_equal(a, b, inout))
         }
-        (&PathParameters::Parenthesized(ref adata), &PathParameters::Parenthesized(ref bdata)) => {
+        (&GenericArgs::Parenthesized(ref adata), &GenericArgs::Parenthesized(ref bdata)) => {
             vecd(&adata.inputs, &bdata.inputs, |a, b| ty_equal(a, b, inout)) &&
                 optd(&adata.output, &bdata.output, |a, b| ty_equal(a, b, inout))
         }
@@ -1302,42 +1313,30 @@ fn lifetime_equal(a: &Lifetime, b: &Lifetime) -> bool {
     a.ident == b.ident
 }
 
-fn lifetime_def_equal(a: &LifetimeDef, b: &LifetimeDef) -> bool {
-    lifetime_equal(&a.lifetime, &b.lifetime) && vecd(&a.bounds, &b.bounds, lifetime_equal)
-}
-
-fn ty_param_hash<H: Hasher>(t: &TyParam, pos: usize, h: &mut H) {
-    t.ident.name.hash(h);
-    for b in &t.bounds {
-        ty_param_bound_hash(b, pos, h);
-    }
-    if let Some(ref default_ty) = t.default {
-        ty_hash(default_ty, pos, h);
-    }
-}
-
-fn ty_param_equal(a: &TyParam, b: &TyParam, inout: bool) -> bool {
-    a.ident == b.ident && vecd(&a.bounds, &b.bounds, |a, b| ty_param_bound_equal(a, b, inout))
-        && optd(&a.default, &b.default, |a, b| ty_equal(a, b, false))
-}
-
 fn generic_param_hash<H: Hasher>(p: &GenericParam, pos: usize, h: &mut H) {
-    match *p {
-        GenericParam::Lifetime(ref ltdef) => {
-            lifetime_hash(&ltdef.lifetime, h);
-            for lt in &ltdef.bounds {
-                lifetime_hash(lt, h);
+    p.ident.name.hash(h);
+    for bound in &p.bounds {
+        generic_bound_hash(bound, pos, h);
+    }
+    match p.kind {
+        GenericParamKind::Lifetime => h.write_u8(37),
+        GenericParamKind::Type { default: ref typaram } => {
+            h.write_u8(43);
+            if let Some(t) = typaram {
+                ty_hash(t, pos, h);
             }
         }
-        GenericParam::Type(ref typaram) => ty_param_hash(typaram, pos, h),
     }
 }
 
 fn generic_param_equal(a: &GenericParam, b: &GenericParam, inout: bool) -> bool {
-    match (a, b) {
-        (&GenericParam::Lifetime(ref altdef), &GenericParam::Lifetime(ref bltdef)) =>
-            lifetime_def_equal(altdef, bltdef),
-        (&GenericParam::Type(ref aty), &GenericParam::Type(ref bty)) => ty_param_equal(aty, bty, inout),
+    a.ident == b.ident && vecd(&a.bounds, &b.bounds, |a, b| generic_bound_equal(a, b, inout)) &&
+    match (&a.kind, &b.kind) {
+        (&GenericParamKind::Lifetime, &GenericParamKind::Lifetime) |
+        (&GenericParamKind::Type { default: None },
+         &GenericParamKind::Type { default: None }) => true,
+        (&GenericParamKind::Type { default: Some(ref aty) },
+         &GenericParamKind::Type { default: Some(ref bty) }) => ty_equal(aty, bty, inout),
         _ => false
     }
 }
@@ -1354,26 +1353,26 @@ fn trait_ref_equal(a: &PolyTraitRef, b: &PolyTraitRef, inout: bool) -> bool {
         path_equal(&a.trait_ref.path, &b.trait_ref.path, inout)
 }
 
-fn ty_param_bound_hash<H: Hasher>(tpb: &TyParamBound, pos: usize, h: &mut H) {
+fn generic_bound_hash<H: Hasher>(tpb: &GenericBound, pos: usize, h: &mut H) {
     match *tpb {
-        TraitTyParamBound(ref t, ref m) => {
+        GenericBound::Trait(ref t, ref m) => {
             h.write_u8(0);
             trait_ref_hash(t, pos, h);
             m.hash(h);
         },
-        RegionTyParamBound(ref lifetime) => {
+        GenericBound::Outlives(ref lifetime) => {
             h.write_u8(1);
             lifetime_hash(lifetime, h);
         }
     }
 }
 
-fn ty_param_bound_equal(a: &TyParamBound, b: &TyParamBound, inout: bool) -> bool {
+fn generic_bound_equal(a: &GenericBound, b: &GenericBound, inout: bool) -> bool {
     match (a, b) {
-        (&TraitTyParamBound(ref atrait, ref amod), &TraitTyParamBound(ref btrait, ref bmod)) => {
-            amod == bmod && trait_ref_equal(atrait, btrait, inout)
+        (&GenericBound::Trait(ref at, ref amod), &GenericBound::Trait(ref bt, ref bmod)) => {
+            amod == bmod && trait_ref_equal(at, bt, inout)
         }
-        (&RegionTyParamBound(ref alt), &RegionTyParamBound(ref blt)) => {
+        (&GenericBound::Outlives(ref alt), &GenericBound::Outlives(ref blt)) => {
             lifetime_equal(alt, blt)
         }
         _ => false
@@ -1475,7 +1474,7 @@ fn is_ty_default(ty: &Ty, self_ty: Option<&Ty>) -> bool {
         TyKind::Path(ref _qself, ref ty_path) => is_path_default(ty_path, self_ty),
         TyKind::TraitObject(ref bounds, _) | TyKind::ImplTrait(ref bounds) => {
             bounds.iter().any(|bound| {
-                if let TraitTyParamBound(ref poly_trait, _) = *bound {
+                if let GenericBound::Trait(ref poly_trait, _) = *bound {
                     poly_trait
                         .trait_ref
                         .path
@@ -1520,12 +1519,15 @@ fn is_path_default(ty_path: &Path, self_ty: Option<&Ty>) -> bool {
     for path in DEFAULT_IF_ARG {
         if match_path(ty_path, path) {
             return ty_path.segments.last().map_or(false, |s| {
-                s.parameters.as_ref().map_or(false, |p| {
+                s.args.as_ref().map_or(false, |p| {
                     if let AngleBracketed(ref data) = **p {
-                        data.types.len() == 1 && is_ty_default(&*data.types[0], self_ty)
-                    } else {
-                        false
+                        if data.args.len() == 1 {
+                            if let GenericArg::Type(ref arg_ty) = data.args[0] {
+                                return is_ty_default(arg_ty, self_ty);
+                            }
+                        }
                     }
+                    false
                 })
             });
         }
