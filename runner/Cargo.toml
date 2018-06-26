@@ -1,6 +1,6 @@
 [package]
 name = "cargo-mutagen"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Hmvp <github@hmvp.nl>", "Andre Bogus <bogusandre@gmail.com>"]
 description = "Mutation testing for Rust – Runner"
 repository = "https://github.com/llogiq/mutagen"
