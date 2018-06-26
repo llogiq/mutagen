@@ -24,7 +24,9 @@ use syntax::util::small_vector::SmallVector;
 use syntax::ast::{IntTy, LitIntType, LitKind, UnOp};
 use syntax::ext::base::MultiItemModifier;
 
-mod binop;
+mod binop {
+    include!(concat!(env!("OUT_DIR"), "/plugin_ops.rs"));
+}
 mod bounded_loop;
 
 
