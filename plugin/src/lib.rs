@@ -105,8 +105,6 @@ pub fn mutator(cx: &mut ExtCtxt, _span: Span, _mi: &MetaItem, a: Annotatable) ->
 
 /// information about the current method
 struct MethodInfo {
-    /// does the return type implement the Default trait (best effort)
-    is_default: bool,
     /// which inputs have the same type as the output?
     have_output_type: Vec<Symbol>,
     /// which inputs have the same type and could be switched?
@@ -319,11 +317,9 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
     }
 
     fn start_fn(&mut self, decl: &FnDecl) {
-        let (is_default, out_ty) = match decl.output {
-            FunctionRetTy::Default(_) => (true, None),
-            FunctionRetTy::Ty(ref ty) => {
-                (is_ty_default(ty, self.info.self_tys.last()), Some(&**ty))
-            }
+        let out_ty = match decl.output {
+            FunctionRetTy::Default(_) => None,
+            FunctionRetTy::Ty(ref ty) => Some(&**ty)
         };
         // arguments of output type
         let mut have_output_type = vec![];
@@ -360,7 +356,6 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
         }
         let coverage_sym = Symbol::gensym(&format!("__COVERAGE{}", self.m.current_count));
         self.info.method_infos.push(MethodInfo {
-            is_default,
             have_output_type,
             interchangeables,
             ref_muts,
@@ -883,7 +878,6 @@ fn fold_first_block(block: P<Block>, p: &mut MutatorPlugin) -> P<Block> {
     {
         let MutatorPlugin { ref mut info, ref mut m, .. } = *p;
         if let Some(&mut MethodInfo {
-            is_default,
             ref have_output_type,
             ref interchangeables,
             ref ref_muts,
@@ -894,24 +888,21 @@ fn fold_first_block(block: P<Block>, p: &mut MutatorPlugin) -> P<Block> {
         {
             let coverage_ident = coverage_sym.to_ident();
             pre_stmts.push(quote_stmt!(m.cx,
-                static $coverage_ident : [::std::sync::atomic::AtomicUsize; 0] =
-                    [::std::sync::atomic::ATOMIC_USIZE_INIT; 0];).unwrap());
-            if is_default {
-                let (n, current) = m.add_mutations(
-                    block.span,
-                    avoid,
-                    &[
-                        Mutation::new(MutationType::RETURN_DEFAULT, "insert return default()"),
-                    ],
-                );
-                let (flag, mask) = coverage(coverage_count);
-                pre_stmts.push(
-                    quote_stmt!(m.cx,
-                        ::mutagen::report_coverage($n..$current, &$coverage_ident[$flag], $mask);
-                        if ::mutagen::now($n) { return Default::default(); })
-                                .unwrap(),
-                        );
-            }
+            static $coverage_ident : [::std::sync::atomic::AtomicUsize; 0] =
+                [::std::sync::atomic::ATOMIC_USIZE_INIT; 0];).unwrap());
+            let (n, _current) = m.add_mutations(
+                block.span,
+                avoid,
+                &[
+                    Mutation::new(MutationType::RETURN_DEFAULT, "insert opportunistic return default()"),
+                ],
+            );
+            let (flag, mask) = coverage(coverage_count);
+            pre_stmts.push(
+                quote_stmt!(m.cx,
+                            if let Some(r) = ::mutagen::Defaulter::get_default($n, &$coverage_ident[$flag], $mask) {
+                                return r;
+                            }).unwrap());
             for name in have_output_type {
                 let ident = name.to_ident();
                 let (n, current) = m.add_mutations(
@@ -1398,161 +1389,12 @@ fn generic_bound_equal(a: &GenericBound, b: &GenericBound, inout: bool) -> bool 
     }
 }
 
-static ALWAYS_DEFAULT: &[&[&str]] = &[
-    &["u8"],
-    &["u16"],
-    &["u32"],
-    &["u64"],
-    &["u128"],
-    &["usize"],
-    &["i8"],
-    &["i16"],
-    &["i32"],
-    &["i64"],
-    &["i128"],
-    &["isize"],
-    &["vec", "Vec"],
-    &["option", "Option"],
-    &["char"],
-    &["str"],
-    &["string", "String"],
-    &["BTreeMap"],
-    &["BTreeSet"],
-    &["HashMap"],
-    &["HashSet"],
-    &["vec_deque", "VecDeque"],
-    &["linked_list", "LinkedList"],
-    &["heap", "Heap"],
-    &["BinaryHeap"],
-    &["time", "Duration"],
-    &["iter", "Empty"],
-    &["fmt", "Error"],
-    &["hash", "SipHasher"],
-    &["hash", "SipHasher24"],
-    &["hash", "BuildHasherDefault"],
-    &["collections", "hash_map", "DefaultHasher"],
-    &["collections", "hash_map", "RandomState"],
-    &["ffi", "CStr"],
-    &["ffi", "CString"],
-    &["ffi", "OsStr"],
-    &["ffi", "OsString"],
-    &["path", "PathBuf"],
-    &["sync", "CondVar"],
-];
-
-static DEFAULT_IF_ARG: &[&[&str]] = &[
-    &["boxed", "Box"],
-    &["rc", "Rc"],
-    &["rc", "Weak"],
-    &["arc", "Arc"],
-    &["arc", "Weak"],
-    &["cell", "Cell"],
-    &["cell", "RefCell"],
-    &["cell", "UnsafeCell"],
-    &["num", "Wrapping"],
-    &["sync", "atomic", "AtomicPtr"],
-    &["sync", "atomic", "AtomicBool"],
-    &["sync", "atomic", "AtomicU8"],
-    &["sync", "atomic", "AtomicU16"],
-    &["sync", "atomic", "AtomicU32"],
-    &["sync", "atomic", "AtomicU64"],
-    &["sync", "atomic", "AtomicUsize"],
-    &["sync", "atomic", "AtomicI8"],
-    &["sync", "atomic", "AtomicI16"],
-    &["sync", "atomic", "AtomicI32"],
-    &["sync", "atomic", "AtomicI64"],
-    &["sync", "atomic", "AtomicIsize"],
-    &["sync", "Mutex"],
-    &["sync", "RwLock"],
-    &["mem", "ManuallyDrop"],
-];
-
 fn is_ty_ref_mut(ty: &Ty) -> bool {
     if let TyKind::Rptr(_, MutTy { mutbl: Mutability::Mutable, .. }) = ty.node {
         true
     } else {
         false
     }
-}
-
-fn is_ty_default(ty: &Ty, self_ty: Option<&Ty>) -> bool {
-    match ty.node {
-        TyKind::Slice(_) | TyKind::Never => true,
-        TyKind::Rptr(_lt, MutTy { ty: ref pty, .. }) => match pty.node {
-            TyKind::Slice(_) => true,
-            TyKind::Path(_, ref ty_path) => match_path(ty_path, &["str"]),
-            _ => false,
-        },
-        TyKind::Paren(ref t) => is_ty_default(t, self_ty),
-        TyKind::Array(ref inner, ref len) => {
-            is_ty_default(inner, self_ty) && get_lit(&len.value).map_or(false, |n| n <= 32)
-        }
-        TyKind::Tup(ref inners) => {
-            inners.len() <= 12 && inners.iter().all(|t| is_ty_default(&*t, self_ty))
-        }
-        TyKind::Path(ref _qself, ref ty_path) => is_path_default(ty_path, self_ty),
-        TyKind::TraitObject(ref bounds, _) | TyKind::ImplTrait(ref bounds) => {
-            bounds.iter().any(|bound| {
-                if let GenericBound::Trait(ref poly_trait, _) = *bound {
-                    poly_trait
-                        .trait_ref
-                        .path
-                        .segments
-                        .last()
-                        .map_or(false, |s| s.ident.name == "Default")
-                } else {
-                    false
-                }
-            })
-        }
-        TyKind::ImplicitSelf => self_ty.map_or(false, |t| is_ty_default(t, None)),
-        TyKind::Typeof(ref expr) => is_expr_default(&expr.value, self_ty),
-        _ => false,
-    }
-}
-
-fn is_expr_default(expr: &Expr, self_ty: Option<&Ty>) -> bool {
-    match expr.node {
-        ExprKind::Path(_, ref path) => is_path_default(path, self_ty),
-        ExprKind::Paren(ref e) => is_expr_default(e, self_ty),
-        ExprKind::AddrOf(_, ref e) => match e.node {
-            ExprKind::Array(ref exprs) => exprs.len() == 1,
-            ExprKind::Path(_, ref path) => match_path(path, &["str"]),
-            _ => false,
-        },
-        ExprKind::Repeat(ref e, ref len) => {
-            is_expr_default(e, self_ty) && get_lit(&len.value).map_or(false, |n| n <= 32)
-        }
-        ExprKind::Array(ref exprs) => exprs.len() == 1, // = Slice
-        ExprKind::Tup(ref exprs) => {
-            exprs.len() <= 12 && exprs.iter().all(|e| is_expr_default(e, self_ty))
-        }
-        _ => false,
-    }
-}
-
-fn is_path_default(ty_path: &Path, self_ty: Option<&Ty>) -> bool {
-    if ALWAYS_DEFAULT.iter().any(|p| match_path(ty_path, p)) {
-        return true;
-    }
-    for path in DEFAULT_IF_ARG {
-        if match_path(ty_path, path) {
-            return ty_path.segments.last().map_or(false, |s| {
-                s.args.as_ref().map_or(false, |p| {
-                    if let AngleBracketed(ref data) = **p {
-                        if data.args.len() == 1 {
-                            if let GenericArg::Type(ref arg_ty) = data.args[0] {
-                                return is_ty_default(arg_ty, self_ty);
-                            }
-                        }
-                    }
-                    false
-                })
-            });
-        }
-    }
-    // TODO: Cow
-    false
 }
 
 fn match_path(path: &Path, pat: &[&str]) -> bool {
