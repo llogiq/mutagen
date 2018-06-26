@@ -7,8 +7,8 @@ extern crate lazy_static;
 use std::env;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-mod ops;
-pub use ops::*;
+include!(concat!(env!("OUT_DIR"), "/ops.rs"));
+
 mod iterators;
 pub mod bounded_loop;
 

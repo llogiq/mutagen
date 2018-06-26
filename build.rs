@@ -1,5 +1,7 @@
+use std::env;
 use std::fs::File;
 use std::io::{Write, BufWriter, Result};
+use std::path::Path;
 
 fn write_binop(out: &mut Write, o_trait: &str, o_fn: &str, mut_trait: &str, mut_fn: &str) ->
     Result<()> {
@@ -22,8 +24,8 @@ where T: {0}<Rhs>,
       T: {2}<Rhs>,
      <T as {2}<Rhs>>::Output: Into<<T as {0}<Rhs>>::Output> {{
     fn {1}(self, rhs: Rhs, mutation_count: usize, coverage: &AtomicUsize, mask: usize) -> Self::Output {{
-    super::report_coverage(mutation_count..(mutation_count + 1), coverage, mask);
-        if super::now(mutation_count) {{
+    report_coverage(mutation_count..(mutation_count + 1), coverage, mask);
+        if now(mutation_count) {{
             {2}::{3}(self, rhs).into()
         }} else {{
             {0}::{1}(self, rhs)
@@ -45,8 +47,8 @@ impl<T, R> {0}{2}Assign<R> for T
 where T: {0}Assign<R>,
       T: {2}Assign<R> {{
     fn {1}_assign(&mut self, rhs: R, mutation_count: usize, coverage: &AtomicUsize, mask: usize) {{
-    super::report_coverage(mutation_count..(mutation_count + 1), coverage, mask);
-        if super::now(mutation_count) {{
+    report_coverage(mutation_count..(mutation_count + 1), coverage, mask);
+        if now(mutation_count) {{
             {2}Assign::{3}_assign(self, rhs);
         }} else {{
             {0}Assign::{1}_assign(self, rhs);
@@ -145,17 +147,17 @@ impl<T> May{0} for T where T: {0} {{
 
 impl<T> May{0} for T where T: {0}, T: Into<<T as {0}>::Output> {{
     fn {1}(self, mutation_count: usize) -> Self::Output {{
-        if super::now(mutation_count) {{ self.into() }} else {{ {0}::{1}(self) }}
+        if now(mutation_count) {{ self.into() }} else {{ {0}::{1}(self) }}
     }}
 }}
 ", op_trait, op_fn)
 }
 
-fn write_ops() -> Result<()> {
-    let mut f = File::create("src/ops.rs")?;
+fn write_ops(out_dir: &str) -> Result<()> {
+    let dest = Path::new(out_dir).join("ops.rs");
+    let mut f = File::create(dest)?;
     let mut out = BufWriter::new(&mut f);
     writeln!(out, "use std::ops::*;
-use std::sync::atomic::AtomicUsize;
 ")?;
     for names in BINOP_PAIRS.iter() {
         write_binop(&mut out, names[0], names[1], names[2], names[3])?;
@@ -180,15 +182,16 @@ impl<T: Clone> MayClone<T> for T {{
         true
     }}
     fn clone(&self, mutation_count: usize, coverage: &AtomicUsize, mask: usize) -> Self {{
-        super::report_coverage(mutation_count..(mutation_count + 1), coverage, mask);
+        report_coverage(mutation_count..(mutation_count + 1), coverage, mask);
         Clone::clone(&self)
     }}
 }}")?;
     out.flush()
 }
 
-fn write_plugin() -> Result<()> {
-    let mut f = File::create("plugin/src/binop.rs")?;
+fn write_plugin(out_dir: &str) -> Result<()> {
+    let dest = Path::new(out_dir).join("plugin_ops.rs");
+    let mut f = File::create(&dest)?;
     let mut out = BufWriter::new(&mut f);
     write!(out, r#"use super::MutatorPlugin;
 use syntax::ast::{{Attribute, BinOp, BinOpKind, Expr, ExprKind, NodeId, ThinVec}};
@@ -421,6 +424,7 @@ pub fn fold_binop(p: &mut MutatorPlugin, id: NodeId, op: BinOp, original_left: P
 }
 
 fn main() {
-    write_ops().unwrap();
-    write_plugin().unwrap();
+    let out_dir = env::var("OUT_DIR").unwrap();
+    write_ops(&out_dir).unwrap();
+    write_plugin(&out_dir).unwrap();
 }
