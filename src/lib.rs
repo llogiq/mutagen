@@ -25,8 +25,7 @@ impl<X> Defaulter for X {
 
 impl<X: Default> Defaulter for X {
     fn get_default(count: usize, flag: &AtomicUsize, mask: usize) -> Option<X> {
-        report_coverage(count..(count + 1), flag, mask);
-        if now(count) {
+        if now(count, flag, mask) {
             Some(Default::default())
         } else {
             None
@@ -160,12 +159,14 @@ pub fn get() -> usize {
 /// check if the argument matches the current mutation count
 ///
 /// this simplifies operations like `if mutagen::MU.now(42) { .. }`
-pub fn now(n: usize) -> bool {
+pub fn now(n: usize, flag: &AtomicUsize, mask: usize) -> bool {
+    report_coverage(n..(n + 1), flag, mask);
     MU.now(n)
 }
 
 /// get the unsigned wrapping difference between the current mutation count and the given count
-pub fn diff(n: usize) -> usize {
+pub fn diff(n: usize, len: usize, flag: &AtomicUsize, mask: usize) -> usize {
+    report_coverage(n..(n + len), flag, mask);
     MU.diff(n)
 }
 
@@ -175,38 +176,45 @@ pub fn next() {
 }
 
 /// use with if expressions, e.g. `if MU.t(..) { .. } else { .. }`
-pub fn t(t: bool, n: usize) -> bool {
+pub fn t(t: bool, n: usize, flag: &AtomicUsize, mask: usize) -> bool {
+    report_coverage(n..(n + 3), flag, mask);
     MU.t(t, n)
 }
 
 /// use with while expressions, e.g. `while Mu.w(..) { .. }`
 ///
 /// this never leads to infinite loops
-pub fn w(t: bool, n: usize) -> bool {
+pub fn w(t: bool, n: usize, flag: &AtomicUsize, mask: usize) -> bool {
+    report_coverage(n..(n + 1), flag, mask);
     MU.w(t, n)
 }
 
 /// use instead of `==`
-pub fn eq<R, T: PartialEq<R>>(x: &T, y: &R, n: usize) -> bool {
+pub fn eq<R, T: PartialEq<R>>(x: &T, y: &R, n: usize, flag: &AtomicUsize, mask: usize) -> bool {
+    report_coverage(n..(n + 3), flag, mask);
     MU.eq(x, y, n)
 }
 
 /// use instead of `!=`
-pub fn ne<R, T: PartialEq<R>>(x: &T, y: &R, n: usize) -> bool {
+pub fn ne<R, T: PartialEq<R>>(x: &T, y: &R, n: usize, flag: &AtomicUsize, mask: usize) -> bool {
+    report_coverage(n..(n + 3), flag, mask);
     MU.ne(x, y, n)
 }
 
 /// use instead of `>` (or, switching operand order `<`)
-pub fn gt<R, T: PartialOrd<R>>(x: &T, y: &R, n: usize) -> bool {
+pub fn gt<R, T: PartialOrd<R>>(x: &T, y: &R, n: usize, flag: &AtomicUsize, mask: usize) -> bool {
+    report_coverage(n..(n + 7), flag, mask);
     MU.gt(x, y, n)
 }
 
 /// use instead of `>=` (or, switching operand order `<=`)
-pub fn ge<R, T: PartialOrd<R>>(x: &T, y: &R, n: usize) -> bool {
+pub fn ge<R, T: PartialOrd<R>>(x: &T, y: &R, n: usize, flag: &AtomicUsize, mask: usize) -> bool {
+    report_coverage(n..(n + 7), flag, mask);
     MU.ge(x, y, n)
 }
 
-pub fn forloop<'a, I: Iterator + 'a>(i: I, n: usize) -> Box<Iterator<Item=I::Item > + 'a> {
+pub fn forloop<'a, I: Iterator + 'a>(i: I, n: usize, flag: &AtomicUsize, mask: usize) -> Box<Iterator<Item=I::Item > + 'a> {
+    report_coverage(n..(n + 4), flag, mask);
     MU.forloop(i, n)
 }
 

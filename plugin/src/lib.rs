@@ -142,7 +142,7 @@ struct Mutator<'a, 'cx: 'a> {
 }
 
 impl<'a, 'cx: 'a> Mutator<'a, 'cx> {
-    fn add_mutations<'m>(&mut self, span: Span, avoid: MutationType, descriptions: &[Mutation<'m>]) -> (usize, usize) {
+    fn add_mutations<'m>(&mut self, span: Span, avoid: MutationType, descriptions: &[Mutation<'m>]) -> usize {
         let initial_count = self.current_count;
         let span_desc = self.cx.codemap().span_to_string(span);
         for (i, mutation) in descriptions.iter().enumerate() {
@@ -159,7 +159,7 @@ impl<'a, 'cx: 'a> Mutator<'a, 'cx> {
             writeln!(&mut self.mutations, "{} - {} - {} @ {}", initial_count + i, mutation.description, mutation.ty.to_string(), span_desc).unwrap()
         }
         self.current_count += descriptions.len();
-        (initial_count, self.current_count)
+        initial_count
     }
 }
 
@@ -304,14 +304,14 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
         }
     }
 
-    fn add_mutations<'m>(&mut self, span: Span, mutations: &[Mutation<'m>]) -> (usize, usize, Ident, usize, usize) {
+    fn add_mutations<'m>(&mut self, span: Span, mutations: &[Mutation<'m>]) -> (usize, Ident, usize, usize) {
         let avoid = self.parent_restrictions();
-        let (start_count, end_count) = self.m.add_mutations(span, avoid, mutations);
+        let start_count = self.m.add_mutations(span, avoid, mutations);
         let info = self.info.method_infos.last_mut().unwrap();
         // must be in a method
         let sym = info.coverage_sym.to_ident();
         let (flag, mask) = coverage(&mut info.coverage_count);
-        (start_count, end_count, sym, flag, mask)
+        (start_count, sym, flag, mask)
     }
 
     fn cx(&mut self) -> &mut ExtCtxt<'cx> {
@@ -331,10 +331,13 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
         let mut argdefs = vec![];
         let mut occs = vec![];
         let mut ref_muts = vec![];
+        let mut self_sym = None;
         for (pos, arg) in decl.inputs.iter().enumerate() {
             destructure_bindings(&arg.pat, &*arg.ty, &mut occs, pos, &mut argdefs);
+            if self_sym.is_none() && arg.is_self() {
+                self_sym = Some(Symbol::gensym("__self_mutated"));
+            }
         }
-        let mut self_sym = None;
         for (sym, ty_args) in argdefs {
             if ty_args.3.is_empty() && out_ty.map_or(false, |t| ty_equal(t, ty_args.1, decl.inputs.len() == 1)) {
                 have_output_type.push(sym);
@@ -342,9 +345,6 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
             if ty_args.0 == BindingMode::ByRef(Mutability::Mutable) ||
                     ty_args.3.is_empty() && is_ty_ref_mut(&ty_args.1) {
                 ref_muts.push(sym);
-                if self_sym.is_none() && sym.as_str() == "self" {
-                    self_sym = Some(Symbol::gensym("__self_mutated"));
-                }
             }
             argtypes.insert(sym, ty_args.clone());
             typeargs.entry(ty_args).or_insert_with(Vec::new).push(sym);
@@ -427,29 +427,25 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
                 }
 
                 if int_constant_can_subtract_one(numeric_constant, ty) {
-                    let (n, current, sym, flag, mask) = self.add_mutations(
+                    let (n, sym, flag, mask) = self.add_mutations(
                             s,
                             &[Mutation::new(MutationType::SUB_ONE_TO_LITERAL, "sub one from int constant")],
                         );
                     mut_expression = quote_expr!(self.cx(),
                                     {
-                                        ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
-
-                                        if ::mutagen::now($n) { $lit - 1 }
+                                        if ::mutagen::now($n, &$sym[$flag], $mask) { $lit - 1 }
                                         else { $mut_expression }
                                     });
                 }
 
                 if int_constant_can_add_one(numeric_constant as u128, ty) {
-                    let (n, current, sym, flag, mask) = self.add_mutations(
+                    let (n, sym, flag, mask) = self.add_mutations(
                             s,
                             &[Mutation::new(MutationType::ADD_ONE_TO_LITERAL, "add one to int constant")],
                         );
                     mut_expression = quote_expr!(self.cx(),
                                     {
-                                        ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
-
-                                        if ::mutagen::now($n) { $lit + 1 }
+                                        if ::mutagen::now($n, &$sym[$flag], $mask) { $lit + 1 }
                                         else { $mut_expression }
                                     });
                 }
@@ -633,7 +629,7 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                 );
                 let cond = self.fold_expr(cond);
 
-                let (n, current, sym, flag, mask) = self.add_mutations(
+                let (n, sym, flag, mask) = self.add_mutations(
                     cond_span,
                     &[
                         Mutation::new(MutationType::REPLACE_WITH_TRUE, "replacing if condition with true"),
@@ -643,10 +639,7 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                 );
                 let then = fold::noop_fold_block(then, self);
                 let opt_else = opt_else.map(|p_else| self.fold_expr(p_else));
-                let mut_cond = quote_expr!(self.cx(), {
-                    ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
-                    ::mutagen::t($cond, $n)
-                });
+                let mut_cond = quote_expr!(self.cx(), ::mutagen::t($cond, $n, &$sym[$flag], $mask));
                 P(Expr {
                     id,
                     node: ExprKind::If(mut_cond, then, opt_else),
@@ -660,15 +653,14 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                 span,
                 attrs,
             } => {
-                let (n, current, sym, flag, mask) = self.add_mutations(
+                let (n, sym, flag, mask) = self.add_mutations(
                         cond.span,
                         &[Mutation::new(MutationType::REPLACE_WITH_FALSE, "replacing while condition with false")],
                     );
                 let cond = self.fold_expr(cond);
                 let block = fold::noop_fold_block(block, self);
                 let mut_cond = quote_expr!(self.cx(), {
-                    ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
-                    ::mutagen::w($cond, $n)
+                    ::mutagen::w($cond, $n, &$sym[$flag], $mask)
                 });
                 P(Expr {
                     id,
@@ -683,7 +675,7 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                 span,
                 attrs,
             } => {
-                let (n, current, sym, flag, mask) = self.add_mutations(
+                let (n, sym, flag, mask) = self.add_mutations(
                     expr.span,
                     &[
                         Mutation::new(MutationType::ITERATOR_EMPTY, "empty iterator"),
@@ -697,8 +689,7 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                 let block = fold::noop_fold_block(block, self);
 
                 let expr = quote_expr!(self.cx(), {
-                    ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
-                    ::mutagen::forloop($expr, $n)
+                    ::mutagen::forloop($expr, $n, &$sym[$flag], $mask)
                 });
 
                 P(Expr {
@@ -892,7 +883,7 @@ fn fold_first_block(block: P<Block>, p: &mut MutatorPlugin) -> P<Block> {
             pre_stmts.push(quote_stmt!(m.cx,
             static $coverage_ident : [::std::sync::atomic::AtomicUsize; 0] =
                 [::std::sync::atomic::ATOMIC_USIZE_INIT; 0];).unwrap());
-            let (n, _current) = m.add_mutations(
+            let n = m.add_mutations(
                 block.span,
                 avoid,
                 &[
@@ -907,7 +898,7 @@ fn fold_first_block(block: P<Block>, p: &mut MutatorPlugin) -> P<Block> {
                             }).unwrap());
             for name in have_output_type {
                 let ident = name.to_ident();
-                let (n, current) = m.add_mutations(
+                let n = m.add_mutations(
                     block.span,
                     avoid,
                     &[
@@ -917,16 +908,15 @@ fn fold_first_block(block: P<Block>, p: &mut MutatorPlugin) -> P<Block> {
                 let (flag, mask) = coverage(coverage_count);
                 pre_stmts.push(
                     quote_stmt!(m.cx,
-                        ::mutagen::report_coverage($n..$current, &$coverage_ident[$flag], $mask);
-                        if ::mutagen::now($n) { return $ident; })
-                                .unwrap(),
-                        );
+                        if ::mutagen::now($n, &$coverage_ident[$flag], $mask) { return $ident; }).unwrap());
             }
             for (ref key, ref values) in interchangeables {
                 for value in values.iter() {
                     let key_ident = key.to_ident();
                     let value_ident = value.to_ident();
-                    let (n, current) = m.add_mutations(
+                    let target_key_ident = if key.as_str() == "self" { self_sym.unwrap().to_ident() } else { key.to_ident() };
+                    let target_value_ident = if value.as_str() == "self" { self_sym.unwrap().to_ident() } else { value.to_ident() };
+                    let n = m.add_mutations(
                         block.span,
                         avoid,
                         &[
@@ -936,8 +926,7 @@ fn fold_first_block(block: P<Block>, p: &mut MutatorPlugin) -> P<Block> {
                     let (flag, mask) = coverage(coverage_count);
                     pre_stmts.push(
                         quote_stmt!(m.cx,
-                            ::mutagen::report_coverage($n..$current, &$coverage_ident[$flag], $mask);
-                            let ($key_ident, $value_ident) = if ::mutagen::now($n) {
+                            let ($target_key_ident, $target_value_ident) = if ::mutagen::now($n, &$coverage_ident[$flag], $mask) {
                                 ($value_ident, $key_ident)
                             } else {
                                 ($key_ident, $value_ident)
@@ -953,7 +942,7 @@ fn fold_first_block(block: P<Block>, p: &mut MutatorPlugin) -> P<Block> {
                     ident
                 };
                 let ident_clone = Symbol::gensym(&format!("_{}_clone", ident)).to_ident();
-                let (n, _current) = m.add_mutations(
+                let n = m.add_mutations(
                     block.span,
                     avoid,
                     &[
