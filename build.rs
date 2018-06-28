@@ -24,8 +24,7 @@ where T: {0}<Rhs>,
       T: {2}<Rhs>,
      <T as {2}<Rhs>>::Output: Into<<T as {0}<Rhs>>::Output> {{
     fn {1}(self, rhs: Rhs, mutation_count: usize, coverage: &AtomicUsize, mask: usize) -> Self::Output {{
-    report_coverage(mutation_count..(mutation_count + 1), coverage, mask);
-        if now(mutation_count) {{
+        if now(mutation_count, coverage, mask) {{
             {2}::{3}(self, rhs).into()
         }} else {{
             {0}::{1}(self, rhs)
@@ -47,8 +46,7 @@ impl<T, R> {0}{2}Assign<R> for T
 where T: {0}Assign<R>,
       T: {2}Assign<R> {{
     fn {1}_assign(&mut self, rhs: R, mutation_count: usize, coverage: &AtomicUsize, mask: usize) {{
-    report_coverage(mutation_count..(mutation_count + 1), coverage, mask);
-        if now(mutation_count) {{
+        if now(mutation_count, coverage, mask) {{
             {2}Assign::{3}_assign(self, rhs);
         }} else {{
             {0}Assign::{1}_assign(self, rhs);
@@ -71,19 +69,19 @@ fn write_unop(out: &mut Write, op_trait: &str, op_fn: &str) -> Result<()> {
     writeln!(out, "
 pub trait May{0} {{
     type Output;
-    fn {1}(self, mutation_count: usize) -> Self::Output;
+    fn {1}(self, mutation_count: usize, coverage: &AtomicUsize, mask: usize) -> Self::Output;
 }}
 
 impl<T> May{0} for T where T: {0} {{
     type Output = <T as {0}>::Output;
-    default fn {1}(self, _mutation_count: usize) -> Self::Output {{
+    default fn {1}(self, _mutation_count: usize, _cov: &AtomicUsize, _mask: usize) -> Self::Output {{
         {0}::{1}(self)
     }}
 }}
 
 impl<T> May{0} for T where T: {0}, T: Into<<T as {0}>::Output> {{
-    fn {1}(self, mutation_count: usize) -> Self::Output {{
-        if now(mutation_count) {{ self.into() }} else {{ {0}::{1}(self) }}
+    fn {1}(self, mutation_count: usize, coverage: &AtomicUsize, mask: usize) -> Self::Output {{
+        if now(mutation_count, coverage, mask) {{ self.into() }} else {{ {0}::{1}(self) }}
     }}
 }}
 ", op_trait, op_fn)

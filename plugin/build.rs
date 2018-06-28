@@ -25,7 +25,7 @@ fn write_binop_arm(out: &mut Write,
                 let left = p.fold_expr(original_left);
                 let right = p.fold_expr(original_right);
 
-                let (n, _current, sym, flag, mask) = p.add_mutations(
+                let (n, sym, flag, mask) = p.add_mutations(
                     span,
                     &[
                         Mutation::new(MutationType::OPORTUNISTIC_BINARY, "(opportunistically) replacing x {3} y with x {4} y"),
@@ -44,7 +44,7 @@ fn write_binop_arm(out: &mut Write,
                 let left = p.fold_expr(original_left);
                 let right = p.fold_expr(original_right);
 
-                let (n, _current, sym, flag, mask) = p.add_mutations(
+                let (n, sym, flag, mask) = p.add_mutations(
                     span,
                     &[
                         Mutation::new(MutationType::OPORTUNISTIC_BINARY, "(opportunistically) replacing x {3} y with x {4} y"),
@@ -64,7 +64,7 @@ fn write_opassign_arm(out: &mut Write,
                       mut_sym: &str) -> Result<()> {
      writeln!(out, r#"
             BinOpKind::{0} => {{
-                let (n, _current, sym, flag, mask) = p.add_mutations(
+                let (n, sym, flag, mask) = p.add_mutations(
                     span,
                     &[
                         Mutation::new(MutationType::OPORTUNISTIC_UNARY, "(opportunistically) replacing x {3}= y with x {4}= y"),
@@ -97,7 +97,7 @@ pub fn fold_binop(p: &mut MutatorPlugin, id: NodeId, op: BinOp, original_left: P
             let left = p.fold_expr(original_left);
             let right = p.fold_expr(original_right);
 
-            let (n, current, sym, flag, op) = p.add_mutations(
+            let (n, sym, flag, mask) = p.add_mutations(
                     span,
                     &[
                         Mutation::new(MutationType::REPLACE_WITH_FALSE, "replacing _ && _ with false"),
@@ -108,8 +108,7 @@ pub fn fold_binop(p: &mut MutatorPlugin, id: NodeId, op: BinOp, original_left: P
                     ],
                 );
             quote_expr!(p.cx(), {{
-                ::mutagen::report_coverage($n..$current, &$sym[$flag], $op);
-                (match ($left, ::mutagen::diff($n)) {{
+                (match ($left, ::mutagen::diff($n, 5, &$sym[$flag], $mask)) {{
                         (_, 0) => false,
                         (_, 1) => true,
                         (x, 2) => x,
@@ -124,7 +123,7 @@ pub fn fold_binop(p: &mut MutatorPlugin, id: NodeId, op: BinOp, original_left: P
             let left = p.fold_expr(original_left);
             let right = p.fold_expr(original_right);
 
-            let (n, current, sym, flag, mask) = p.add_mutations(
+            let (n, sym, flag, mask) = p.add_mutations(
                     span,
                     &[
                         Mutation::new(MutationType::REPLACE_WITH_FALSE, "replacing _ || _ with false"),
@@ -136,8 +135,7 @@ pub fn fold_binop(p: &mut MutatorPlugin, id: NodeId, op: BinOp, original_left: P
                 );
 
             quote_expr!(p.cx(), {{
-                ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
-                (match ($left, ::mutagen::diff($n)) {{
+                (match ($left, ::mutagen::diff($n, 5, &$sym[$flag], $mask)) {{
                     (_, 0) => false,
                     (_, 1) => true,
                     (x, 2) => x,
@@ -150,7 +148,7 @@ pub fn fold_binop(p: &mut MutatorPlugin, id: NodeId, op: BinOp, original_left: P
             let left = p.fold_expr(original_left);
             let right = p.fold_expr(original_right);
 
-            let (n, current, sym, flag, mask) = p.add_mutations(
+            let (n, sym, flag, mask) = p.add_mutations(
                     span,
                     &[
                         Mutation::new(MutationType::REPLACE_WITH_TRUE, "replacing _ == _ with true"),
@@ -158,16 +156,13 @@ pub fn fold_binop(p: &mut MutatorPlugin, id: NodeId, op: BinOp, original_left: P
                         Mutation::new(MutationType::NEGATE_EXPRESSION, "replacing x == y with x != y"),
                     ],
                 );
-            quote_expr!(p.cx(), {{
-                ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
-                ::mutagen::eq(&$left, &$right, $n)
-            }})
+            quote_expr!(p.cx(), ::mutagen::eq(&$left, &$right, $n, &$sym[$flag], $mask))
         }}
         BinOpKind::Ne => {{
             let left = p.fold_expr(original_left);
             let right = p.fold_expr(original_right);
 
-            let (n, current, sym, flag, mask) = p.add_mutations(
+            let (n, sym, flag, mask) = p.add_mutations(
                     span,
                     &[
                         Mutation::new(MutationType::REPLACE_WITH_TRUE, "replacing _ != _ with true"),
@@ -176,15 +171,14 @@ pub fn fold_binop(p: &mut MutatorPlugin, id: NodeId, op: BinOp, original_left: P
                     ],
                 );
             quote_expr!(p.cx(), {{
-                ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
-                ::mutagen::ne(&$left, &$right, $n)
+                ::mutagen::ne(&$left, &$right, $n, &$sym[$flag], $mask)
             }})
         }}
         BinOpKind::Gt => {{
             let left = p.fold_expr(original_left);
             let right = p.fold_expr(original_right);
 
-            let (n, current, sym, flag, mask) = p.add_mutations(
+            let (n, sym, flag, mask) = p.add_mutations(
                     span,
                     &[
                         Mutation::new(MutationType::REPLACE_WITH_FALSE, "replacing _ > _ with false"),
@@ -197,15 +191,14 @@ pub fn fold_binop(p: &mut MutatorPlugin, id: NodeId, op: BinOp, original_left: P
                     ],
                 );
             quote_expr!(p.cx(), {{
-                ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
-                ::mutagen::gt(&$left, &$right, $n)
+                ::mutagen::gt(&$left, &$right, $n, &$sym[$flag], $mask)
             }})
         }}
         BinOpKind::Lt => {{
             let left = p.fold_expr(original_left);
             let right = p.fold_expr(original_right);
 
-            let (n, current, sym, flag, mask) = p.add_mutations(
+            let (n, sym, flag, mask) = p.add_mutations(
                     span,
                     &[
                         Mutation::new(MutationType::REPLACE_WITH_FALSE, "replacing _ < _ with false"),
@@ -218,15 +211,14 @@ pub fn fold_binop(p: &mut MutatorPlugin, id: NodeId, op: BinOp, original_left: P
                     ],
                 );
             quote_expr!(p.cx(), {{
-                ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
-                ::mutagen::gt(&$right, &$left, $n)
+                ::mutagen::gt(&$right, &$left, $n, &$sym[$flag], $mask)
             }})
         }}
         BinOpKind::Ge => {{
             let left = p.fold_expr(original_left);
             let right = p.fold_expr(original_right);
 
-            let (n, current, sym, flag, mask) = p.add_mutations(
+            let (n, sym, flag, mask) = p.add_mutations(
                     span,
                     &[
                         Mutation::new(MutationType::REPLACE_WITH_FALSE, "replacing _ >= _ with false"),
@@ -239,15 +231,14 @@ pub fn fold_binop(p: &mut MutatorPlugin, id: NodeId, op: BinOp, original_left: P
                     ],
                 );
             quote_expr!(p.cx(), {{
-                ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
-                ::mutagen::ge(&$left, &$right, $n)
+                ::mutagen::ge(&$left, &$right, $n, &$sym[$flag], $mask)
             }})
         }}
         BinOpKind::Le => {{
             let left = p.fold_expr(original_left);
             let right = p.fold_expr(original_right);
 
-            let (n, current, sym, flag, mask) = p.add_mutations(
+            let (n, sym, flag, mask) = p.add_mutations(
                 span,
                 &[
                     Mutation::new(MutationType::REPLACE_WITH_FALSE, "replacing _ <= _ with false"),
@@ -260,8 +251,7 @@ pub fn fold_binop(p: &mut MutatorPlugin, id: NodeId, op: BinOp, original_left: P
                 ],
             );
             quote_expr!(p.cx(), {{
-                ::mutagen::report_coverage($n..$current, &$sym[$flag], $mask);
-                ::mutagen::ge(&$right, &$left, $n)
+                ::mutagen::ge(&$right, &$left, $n, &$sym[$flag], $mask)
             }})
         }}"#)?;
     for names in BINOP_PAIRS.iter() {
