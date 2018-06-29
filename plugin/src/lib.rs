@@ -910,12 +910,19 @@ fn fold_first_block(block: P<Block>, p: &mut MutatorPlugin) -> P<Block> {
                     quote_stmt!(m.cx,
                         if ::mutagen::now($n, &$coverage_ident[$flag], $mask) { return $ident; }).unwrap());
             }
+            let mut interchanged_self = false;
             for (key, ref values) in interchangeables {
                 for value in values.iter() {
                     let key_ident = Ident::with_empty_ctxt(*key);
                     let value_ident = Ident::with_empty_ctxt(*value);
-                    let target_key_ident = if key.as_str() == "self" { Ident::with_empty_ctxt(self_sym.unwrap()) } else { Ident::with_empty_ctxt(*key) };
-                    let target_value_ident = if value.as_str() == "self" { Ident::with_empty_ctxt(self_sym.unwrap()) } else { Ident::with_empty_ctxt(*value) };
+                    let target_key_ident = if key.as_str() == "self" {
+                        interchanged_self = true;
+                        Ident::with_empty_ctxt(self_sym.unwrap())
+                    } else { key_ident };
+                    let target_value_ident = if value.as_str() == "self" {
+                        interchanged_self = true;
+                        Ident::with_empty_ctxt(self_sym.unwrap())
+                    } else { value_ident };
                     let n = m.add_mutations(
                         block.span,
                         avoid,
@@ -936,10 +943,15 @@ fn fold_first_block(block: P<Block>, p: &mut MutatorPlugin) -> P<Block> {
             }
             for name in ref_muts {
                 let ident = Ident::with_empty_ctxt(*name);
-                let target_ident = if name.as_str() == "self" {
-                    if let Some(sym) = self_sym { Ident::with_empty_ctxt(*sym) } else { ident }
+                let (ident, target_ident) = if name.as_str() == "self" {
+                    let sym_ident = Ident::with_empty_ctxt(self_sym.unwrap());
+                    if interchanged_self {
+                        (sym_ident, sym_ident)
+                    } else {
+                        (ident, sym_ident)
+                    }
                 } else {
-                    ident
+                    (ident, ident)
                 };
                 let ident_clone = Ident::with_empty_ctxt(Symbol::gensym(&format!("_{}_clone", ident)));
                 let n = m.add_mutations(
