@@ -309,7 +309,7 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
         let start_count = self.m.add_mutations(span, avoid, mutations);
         let info = self.info.method_infos.last_mut().unwrap();
         // must be in a method
-        let sym = info.coverage_sym.to_ident();
+        let sym = Ident::with_empty_ctxt(info.coverage_sym);
         let (flag, mask) = coverage(&mut info.coverage_count);
         (start_count, sym, flag, mask)
     }
@@ -749,7 +749,7 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
             } => {
                 if path == "self" && qself.is_none() {
                     if let Some(sym) = self.get_self_sym() {
-                        let alt_self = sym.to_ident();
+                        let alt_self = Ident::with_empty_ctxt(sym);
                         P(Expr {
                             id,
                             node: ExprKind::Path(None, quote_path!(self.cx(), $alt_self)),
@@ -879,7 +879,7 @@ fn fold_first_block(block: P<Block>, p: &mut MutatorPlugin) -> P<Block> {
             ref self_sym,
         }) = info.method_infos.last_mut()
         {
-            let coverage_ident = coverage_sym.to_ident();
+            let coverage_ident = Ident::with_empty_ctxt(*coverage_sym);
             pre_stmts.push(quote_stmt!(m.cx,
             static $coverage_ident : [::std::sync::atomic::AtomicUsize; 0] =
                 [::std::sync::atomic::ATOMIC_USIZE_INIT; 0];).unwrap());
@@ -897,7 +897,7 @@ fn fold_first_block(block: P<Block>, p: &mut MutatorPlugin) -> P<Block> {
                                 return r;
                             }).unwrap());
             for name in have_output_type {
-                let ident = name.to_ident();
+                let ident = Ident::with_empty_ctxt(*name);
                 let n = m.add_mutations(
                     block.span,
                     avoid,
@@ -910,12 +910,12 @@ fn fold_first_block(block: P<Block>, p: &mut MutatorPlugin) -> P<Block> {
                     quote_stmt!(m.cx,
                         if ::mutagen::now($n, &$coverage_ident[$flag], $mask) { return $ident; }).unwrap());
             }
-            for (ref key, ref values) in interchangeables {
+            for (key, ref values) in interchangeables {
                 for value in values.iter() {
-                    let key_ident = key.to_ident();
-                    let value_ident = value.to_ident();
-                    let target_key_ident = if key.as_str() == "self" { self_sym.unwrap().to_ident() } else { key.to_ident() };
-                    let target_value_ident = if value.as_str() == "self" { self_sym.unwrap().to_ident() } else { value.to_ident() };
+                    let key_ident = Ident::with_empty_ctxt(*key);
+                    let value_ident = Ident::with_empty_ctxt(*value);
+                    let target_key_ident = if key.as_str() == "self" { Ident::with_empty_ctxt(self_sym.unwrap()) } else { Ident::with_empty_ctxt(*key) };
+                    let target_value_ident = if value.as_str() == "self" { Ident::with_empty_ctxt(self_sym.unwrap()) } else { Ident::with_empty_ctxt(*value) };
                     let n = m.add_mutations(
                         block.span,
                         avoid,
@@ -935,13 +935,13 @@ fn fold_first_block(block: P<Block>, p: &mut MutatorPlugin) -> P<Block> {
                 }
             }
             for name in ref_muts {
-                let ident = name.to_ident();
+                let ident = Ident::with_empty_ctxt(*name);
                 let target_ident = if name.as_str() == "self" {
-                    if let Some(sym) = self_sym { sym.to_ident() } else { ident }
+                    if let Some(sym) = self_sym { Ident::with_empty_ctxt(*sym) } else { ident }
                 } else {
                     ident
                 };
-                let ident_clone = Symbol::gensym(&format!("_{}_clone", ident)).to_ident();
+                let ident_clone = Ident::with_empty_ctxt(Symbol::gensym(&format!("_{}_clone", ident)));
                 let n = m.add_mutations(
                     block.span,
                     avoid,
