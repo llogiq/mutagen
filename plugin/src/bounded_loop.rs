@@ -95,15 +95,15 @@ impl<'a, 'cx: 'a> Plugin<'a, 'cx> {
         // TODO: Test 2-level loop
         let block = self.fold_block(block);
         let sym = Symbol::gensym(&format!("__mutagen_loop_id{}", loop_id));
-        let s = sym.to_ident();
+        let ident = Ident::with_empty_ctxt(sym);
 
         let block = quote_block!(self.cx, {
-                    $s.step();
+                    $ident.step();
 
                     $block
                 });
 
-        (block, s)
+        (block, ident)
     }
 
     fn wrap_expression(&mut self, expr: P<Expr>, current_id: LoopId, symbol: Ident) -> P<Expr> {
