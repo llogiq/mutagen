@@ -1158,7 +1158,7 @@ fn ty_hash<H: Hasher>(ty: &Ty, pos: usize, h: &mut H) {
             }
             syn.hash(h);
         }
-        TyKind::ImplTrait(ref bounds) => {
+        TyKind::ImplTrait(_, ref bounds) => {
             h.write_u8(8);
             for bound in bounds {
                 generic_bound_hash(bound, pos, h);
@@ -1201,7 +1201,7 @@ fn ty_equal(a: &Ty, b: &Ty, inout: bool) -> bool {
         (&TyKind::TraitObject(ref abounds, ref asyn), &TyKind::TraitObject(ref bbounds, ref bsyn)) => {
             asyn == bsyn && vecd(abounds, bbounds, |a, b| generic_bound_equal(a, b, inout))
         }
-        (&TyKind::ImplTrait(ref abounds), &TyKind::ImplTrait(ref bbounds)) => {
+        (&TyKind::ImplTrait(_, ref abounds), &TyKind::ImplTrait(_, ref bbounds)) => {
             vecd(abounds, bbounds, | a, b| generic_bound_equal(a, b, inout))
         }
         _ => false, // we can safely ignore inferred types, type macros and error types
