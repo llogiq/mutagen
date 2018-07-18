@@ -273,7 +273,7 @@ impl Folder for Resizer {
 
 
 /// a combination of BindingMode, type and occurrence within the type
-#[derive(Clone, Eq, Debug)]
+#[derive(Clone, Debug)]
 struct ArgTy<'t>(BindingMode, &'t Ty, usize, Vec<TyOcc>);
 
 impl<'t> PartialEq for ArgTy<'t> {
@@ -282,9 +282,16 @@ impl<'t> PartialEq for ArgTy<'t> {
     }
 }
 
+impl<'t> Eq for ArgTy<'t> { }
+
 impl<'t> Hash for ArgTy<'t> {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.0.hash(state);
+        state.write_u8(match self.0 {
+            BindingMode::ByRef(Mutability::Immutable) => 0,
+            BindingMode::ByRef(Mutability::Mutable) => 1,
+            BindingMode::ByValue(Mutability::Immutable) => 2,
+            BindingMode::ByValue(Mutability::Mutable) => 3,
+        });
         ty_hash(self.1, self.2, state);
         self.3.hash(state);
     }
@@ -568,7 +575,7 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
     }
 
     fn fold_block(&mut self, block: P<Block>) -> P<Block> {
-        if block.rules != BlockCheckMode::Default {
+        if let BlockCheckMode::Unsafe(_) = block.rules {
             self.cx().parse_sess.span_diagnostic.fatal("mutagen: unsafe code found")
                                                 .raise();
         }
@@ -862,7 +869,7 @@ fn coverage(coverage_count: &mut usize) -> (usize, usize) {
 }
 
 fn fold_first_block(block: P<Block>, p: &mut MutatorPlugin) -> P<Block> {
-    if block.rules != BlockCheckMode::Default {
+    if let BlockCheckMode::Unsafe(_) = block.rules {
         p.cx().parse_sess.span_diagnostic.fatal("mutagen: unsafe code found").raise();
     }
     let avoid = p.parent_restrictions();
@@ -1156,7 +1163,10 @@ fn ty_hash<H: Hasher>(ty: &Ty, pos: usize, h: &mut H) {
             for bound in bounds {
                 generic_bound_hash(bound, pos, h);
             }
-            syn.hash(h);
+            h.write_u8(match syn {
+                TraitObjectSyntax::Dyn => 0,
+                TraitObjectSyntax::None => 1,
+            });
         }
         TyKind::ImplTrait(_, ref bounds) => {
             h.write_u8(8);
@@ -1165,7 +1175,7 @@ fn ty_hash<H: Hasher>(ty: &Ty, pos: usize, h: &mut H) {
             }
         }
         // don't care about the other values
-        _ => ty.hash(h)
+        _ => h.write_u8(99),
     }
 }
 
@@ -1359,7 +1369,10 @@ fn generic_bound_hash<H: Hasher>(tpb: &GenericBound, pos: usize, h: &mut H) {
         GenericBound::Trait(ref t, ref m) => {
             h.write_u8(0);
             trait_ref_hash(t, pos, h);
-            m.hash(h);
+            h.write_u8(match m {
+                TraitBoundModifier::None => 0,
+                TraitBoundModifier::Maybe => 1,
+            });
         },
         GenericBound::Outlives(ref lifetime) => {
             h.write_u8(1);
