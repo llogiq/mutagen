@@ -81,11 +81,12 @@ fn write_plugin(out_dir: &str) -> Result<()> {
     let mut f = File::create(&dest)?;
     let mut out = BufWriter::new(&mut f);
     write!(out, r#"use super::MutatorPlugin;
-use syntax::ast::{{Attribute, BinOp, BinOpKind, Expr, ExprKind, NodeId, ThinVec}};
-use syntax::codemap::Span;
+use syntax::ast::{{Attribute, BinOp, BinOpKind, Expr, ExprKind, NodeId}};
+use syntax::source_map::Span;
 use syntax::ptr::P;
 use super::{{MutationType, Mutation}};
 use syntax::fold::Folder;
+use syntax::ThinVec;
 
 pub fn fold_binop(p: &mut MutatorPlugin, id: NodeId, op: BinOp, original_left: P<Expr>, original_right: P<Expr>, span: Span, attrs: ThinVec<Attribute>) -> P<Expr> {{
     match op.node {{

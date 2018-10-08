@@ -5,8 +5,11 @@ extern crate syntax;
 extern crate mutagen;
 #[macro_use]
 extern crate bitflags;
+#[macro_use]
+extern crate smallvec;
 
 use rustc_plugin::registry::Registry;
+use smallvec::SmallVec;
 use std::collections::HashMap;
 use std::fs::{create_dir_all, File, OpenOptions};
 use std::hash::{Hash, Hasher};
@@ -15,12 +18,11 @@ use std::iter::repeat;
 use std::mem;
 use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
 use syntax::ast::*;
-use syntax::codemap::{Span, Spanned};
+use syntax::source_map::{Span, Spanned};
 use syntax::ext::base::{Annotatable, ExtCtxt, SyntaxExtension};
-use syntax::fold::{self, Folder};
+use syntax::fold::{self, Folder, ExpectOne};
 use syntax::ptr::P;
 use syntax::symbol::Symbol;
-use syntax::util::small_vector::SmallVector;
 use syntax::ast::{IntTy, LitIntType, LitKind, UnOp};
 use syntax::ext::base::MultiItemModifier;
 
@@ -144,7 +146,7 @@ struct Mutator<'a, 'cx: 'a> {
 impl<'a, 'cx: 'a> Mutator<'a, 'cx> {
     fn add_mutations<'m>(&mut self, span: Span, avoid: MutationType, descriptions: &[Mutation<'m>]) -> usize {
         let initial_count = self.current_count;
-        let span_desc = self.cx.codemap().span_to_string(span);
+        let span_desc = self.cx.source_map().span_to_string(span);
         for (i, mutation) in descriptions.iter().enumerate() {
             // If the current mutation intersect with the mutation types to avoid, skip it and
             // keep iterating through the following mutations.
@@ -465,8 +467,8 @@ impl<'a, 'cx> MutatorPlugin<'a, 'cx> {
 }
 
 impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
-    fn fold_impl_item(&mut self, i: ImplItem) -> SmallVector<ImplItem> {
-        SmallVector::one(match i {
+    fn fold_impl_item(&mut self, i: ImplItem) -> SmallVec<[ImplItem; 1]> {
+        smallvec![match i {
             ImplItem {
                 id,
                 ident,
@@ -495,11 +497,11 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                 ii
             },
             ii => ii,
-        })
+        }]
     }
 
-    fn fold_trait_item(&mut self, i: TraitItem) -> SmallVector<TraitItem> {
-        SmallVector::one(match i {
+    fn fold_trait_item(&mut self, i: TraitItem) -> SmallVec<[TraitItem; 1]> {
+        smallvec![match i {
             TraitItem {
                 id,
                 ident,
@@ -523,7 +525,7 @@ impl<'a, 'cx> Folder for MutatorPlugin<'a, 'cx> {
                 ti
             }
             ti => ti,
-        })
+        }]
     }
 
     fn fold_item_kind(&mut self, i: ItemKind) -> ItemKind {
