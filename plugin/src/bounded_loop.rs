@@ -1,14 +1,14 @@
 use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
 use syntax::ast::*;
-use syntax::codemap::Span;
+use syntax::source_map::Span;
 use syntax::ext::base::{Annotatable, ExtCtxt};
-use syntax::fold::{self, Folder};
+use syntax::fold::{self, Folder, ExpectOne};
 use syntax::ptr::P;
 use syntax::symbol::Symbol;
 use mutagen::bounded_loop::LoopId;
-use syntax::util::small_vector::SmallVector;
 use std::mem;
 use super::Resizer;
+use smallvec::SmallVec;
 
 static LOOP_COUNT: AtomicUsize = AtomicUsize::new(1);
 
@@ -130,8 +130,8 @@ impl<'a, 'cx: 'a> Plugin<'a, 'cx> {
 }
 
 impl<'a, 'cx: 'a> Folder for Plugin<'a, 'cx> {
-    fn fold_impl_item(&mut self, i: ImplItem) -> SmallVector<ImplItem> {
-        SmallVector::one(match i {
+    fn fold_impl_item(&mut self, i: ImplItem) -> SmallVec<[ImplItem; 1]> {
+        smallvec![match i {
             ImplItem {
                 id,
                 ident,
@@ -158,11 +158,11 @@ impl<'a, 'cx: 'a> Folder for Plugin<'a, 'cx> {
                 ii
             },
             ii => ii,
-        })
+        }]
     }
 
-    fn fold_trait_item(&mut self, i: TraitItem) -> SmallVector<TraitItem> {
-        SmallVector::one(match i {
+    fn fold_trait_item(&mut self, i: TraitItem) -> SmallVec<[TraitItem; 1]> {
+        smallvec![match i {
             TraitItem {
                 id,
                 ident,
@@ -185,7 +185,7 @@ impl<'a, 'cx: 'a> Folder for Plugin<'a, 'cx> {
                 ti
             }
             ti => ti,
-        })
+        }]
     }
 
     fn fold_item_kind(&mut self, i: ItemKind) -> ItemKind {
