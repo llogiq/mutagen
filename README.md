@@ -36,7 +36,7 @@ Again, remember you need a nightly `rustc` to compile the plugin. Add the plugin
 ```rust
 [dev-dependencies]
 mutagen = "0.1.1"
-mutagen-plugin = "0.1.1"
+mutagen-plugin = "0.1.2"
 ```
 
 Now, you can add the plugin to your crate by prepending the following:
