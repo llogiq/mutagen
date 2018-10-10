@@ -35,7 +35,7 @@ Again, remember you need a nightly `rustc` to compile the plugin. Add the plugin
 
 ```rust
 [dev-dependencies]
-mutagen = "0.1.1"
+mutagen = "0.1.2"
 mutagen-plugin = "0.1.2"
 ```
 
