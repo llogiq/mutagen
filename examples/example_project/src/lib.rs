@@ -1,10 +1,13 @@
 //! Simple example library
 //!
-#![cfg_attr(test, feature(plugin))]
-#![cfg_attr(test, plugin(mutagen_plugin))]
-
 #[cfg(test)]
 extern crate mutagen;
+
+#[cfg(test)]
+extern crate mutagen_plugin;
+
+#[cfg(test)]
+use mutagen_plugin::mutate;
 
 /// This function counts the number of alphabetic chars
 ///
@@ -57,7 +60,7 @@ pub fn count_chars_loop(c: char, string: &str) -> usize {
             break;
         }
 
-        i -= 1; 
+        i -= 1;
     }
 
     count

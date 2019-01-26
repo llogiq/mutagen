@@ -8,6 +8,7 @@ license = "Apache-2.0/MIT"
 readme = "README.md"
 categories = ["development-tools::testing"]
 keywords = ["testing"]
+edition = "2018"
 
 [dependencies]
 lazy_static = "1.0"

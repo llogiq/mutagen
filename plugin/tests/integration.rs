@@ -1,10 +1,9 @@
-#![feature(plugin)]
-#![plugin(mutagen_plugin)]
 #![allow(unused_variables, dead_code, unused)]
 extern crate mutagen;
 
 mod common;
 
+use mutagen::mutate;
 use common::*;
 
 #[cfg_attr(test, mutate)]
