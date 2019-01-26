@@ -1,8 +1,7 @@
-#![feature(plugin)]
-#![plugin(mutagen_plugin)]
-#![feature(custom_attribute)]
-
 extern crate mutagen;
+extern crate mutagen_plugin;
+
+use mutagen_plugin::mutate;
 
 #[mutate]
 fn main() {

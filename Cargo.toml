@@ -1,13 +1,14 @@
 [package]
-name = "mutagen"
-version = "0.1.2"
 authors = ["Andre Bogus <bogusandre@gmail.com>"]
-description = "Mutation testing for Rust – Support library"
-repository = "https://github.com/llogiq/mutagen"
-license = "Apache-2.0/MIT"
-readme = "README.md"
 categories = ["development-tools::testing"]
+description = "Mutation testing for Rust"
+edition = "2018"
 keywords = ["testing"]
+license = "Apache-2.0/MIT"
+name = "mutagen"
+readme = "README.md"
+repository = "https://github.com/llogiq/mutagen"
+version = "0.1.2"
 
 [dependencies]
 lazy_static = "1.0"

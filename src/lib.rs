@@ -1,13 +1,12 @@
-#![feature(specialization, atomic_min_max, try_from, assoc_unix_epoch)]
+#![feature(specialization, atomic_min_max, try_from)]
 /// Welcome to the mutagen crate. Your entry point will probably be cargo-mutagen, so install it
 /// right away.
-#[macro_use]
-extern crate lazy_static;
+#[macro_use] extern crate lazy_static;
 
+/// The mutate proc_macro_attribute
 use std::env;
+use std::ops::*;
 use std::sync::atomic::{AtomicUsize, Ordering};
-
-include!(concat!(env!("OUT_DIR"), "/ops.rs"));
 
 mod iterators;
 pub mod bounded_loop;
@@ -32,6 +31,169 @@ impl<X: Default> Defaulter for X {
         }
     }
 }
+
+/// Here we don't use an `Option<T>` because unlike with `Defaulter`, `T` may
+/// be unsized. However, this is all OK because `Clone: Sized`
+pub trait MayClone<T> {
+    fn may_clone(&self) -> bool;
+    fn clone(&self, mutation_count: usize, coverage: &AtomicUsize, mask: usize) -> Self;
+}
+
+impl<T> MayClone<T> for T {
+    default fn may_clone(&self) -> bool { false }
+    default fn clone(&self, _mc: usize, _cov: &AtomicUsize, _mask: usize) -> Self { unimplemented!() }
+}
+
+impl<T: Clone> MayClone<T> for T {
+    fn may_clone(&self) -> bool { true }
+    fn clone(&self, mutation_count: usize, coverage: &AtomicUsize, mask: usize) -> Self {
+        report_coverage(mutation_count..(mutation_count + 1), coverage, mask);
+        Clone::clone(&self)
+    }
+}
+
+pub trait Step {
+    fn inc(self, mutation_count: usize, coverage: &AtomicUsize, mask: usize) -> Self;
+    fn dec(self, mutation_count: usize, coverage: &AtomicUsize, mask: usize) -> Self;
+}
+
+macro_rules! step_impl {
+    ($($ty:ty), *) => {
+        $(
+            impl Step for $ty {
+                fn inc(self, mutation_count: usize, coverage: &AtomicUsize, mask: usize) -> Self {
+                    match self.checked_add(1) {
+                        Some(x) => {
+                            if now(mutation_count, coverage, mask) {
+                                x
+                            } else {
+                                self
+                            }
+                        }
+                        None => { self }
+                    }
+                }
+                fn dec(self, mutation_count: usize, coverage: &AtomicUsize, mask: usize) -> Self {
+                    match self.checked_add(1) {
+                        Some(x) => {
+                            if now(mutation_count, coverage, mask) {
+                                x
+                            } else {
+                                self
+                            }
+                        }
+                        None => { self }
+                    }
+                }
+            }
+        )*
+    }
+}
+
+step_impl!(u8, u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, isize);
+
+macro_rules! mutate_binop {
+    ($op_ty:ident, $op_fn:ident, $found_ty:ident, $found_fn:ident, $repl_ty:ident, $repl_fn:ident) => {
+        pub trait $op_ty<Rhs = Self> {
+            type Output;
+            fn $op_fn(self, _rhs: Rhs, _mutation_count: usize, _coverage: &AtomicUsize, _mask: usize) -> Self::Output;
+        }
+
+        impl<T, Rhs> $op_ty<Rhs> for T
+        where T: $found_ty<Rhs> {
+            type Output = <T as $found_ty<Rhs>>::Output;
+            default fn $op_fn(self, rhs: Rhs, _mutation_count: usize, _coverage: &AtomicUsize, _mask: usize) -> Self::Output {
+                $found_ty::$found_fn(self, rhs)
+            }
+        }
+
+        impl<T, Rhs> $op_ty<Rhs> for T
+        where T: $found_ty<Rhs>,
+              T: $repl_ty<Rhs>,
+             <T as $repl_ty<Rhs>>::Output: Into<<T as $found_ty<Rhs>>::Output> {
+            fn $op_fn(self, rhs: Rhs, mutation_count: usize, coverage: &AtomicUsize, mask: usize) -> Self::Output {
+                if now(mutation_count, coverage, mask) {
+                    $repl_ty::$repl_fn(self, rhs).into()
+                } else {
+                    $found_ty::$found_fn(self, rhs)
+                }
+            }
+        }
+    }
+}
+
+mutate_binop!(AddSub, add_sub, Add, add, Sub, sub);
+mutate_binop!(SubAdd, sub_add, Sub, sub, Add, add);
+mutate_binop!(MulDiv, mul_div, Mul, mul, Div, div);
+mutate_binop!(DivMul, div_mul, Div, div, Mul, mul);
+mutate_binop!(ShlShr, shl_shr, Shl, shl, Shr, shr);
+mutate_binop!(ShrShl, shr_shl, Shr, shr, Shl, shl);
+mutate_binop!(BitAndBitOr, bitand_bitor, BitAnd, bitand, BitOr, bitor);
+mutate_binop!(BitOrBitAnd, bitor_bitand, BitOr, bitor, BitAnd, bitand);
+
+macro_rules! mutate_assignop {
+    ($op_ty:ident, $op_fn:ident, $found_ty:ident, $found_fn:ident, $repl_ty:ident, $repl_fn:ident) => {
+        pub trait $op_ty<Rhs=Self> {
+            fn $op_fn(&mut self, _rhs: Rhs, _mutation_count: usize, _coverage: &AtomicUsize, mask: usize);
+        }
+
+        impl<T, R> $op_ty<R> for T where T: $found_ty<R> {
+            default fn $op_fn(&mut self, rhs: R, _mutation_count: usize, _coverage: &AtomicUsize, _mask: usize) {
+                $found_ty::$found_fn(self, rhs);
+            }
+        }
+
+        impl<T, R> $op_ty<R> for T
+        where T: $found_ty<R>,
+              T: $repl_ty<R> {
+            fn $op_fn(&mut self, rhs: R, mutation_count: usize, coverage: &AtomicUsize, mask: usize) {
+                if now(mutation_count, coverage, mask) {
+                    $repl_ty::$repl_fn(self, rhs);
+                } else {
+                    $found_ty::$found_fn(self, rhs);
+                }
+            }
+        }
+    }
+}
+
+mutate_assignop!(AddSubAssign, add_sub_assign, AddAssign, add_assign, SubAssign, sub_assign);
+mutate_assignop!(SubAddAssign, sub_add_assign, SubAssign, sub_assign, AddAssign, add_assign);
+mutate_assignop!(MulDivAssign, mul_div_assign, MulAssign, mul_assign, DivAssign, div_assign);
+mutate_assignop!(DivMulAssign, div_mul_assign, DivAssign, div_assign, MulAssign, mul_assign);
+mutate_assignop!(ShlShrAssign, shl_shr_assign, ShlAssign, shl_assign, ShrAssign, shr_assign);
+mutate_assignop!(ShrShlAssign, shr_shl_assign, ShrAssign, shr_assign, ShlAssign, shl_assign);
+mutate_assignop!(BitAndBitOrAssign, bitand_bitor_assign, BitAndAssign, bitand_assign, BitOrAssign, bitor_assign);
+mutate_assignop!(BitOrBitAndAssign, bitor_bitand_assign, BitOrAssign, bitor_assign, BitAndAssign, bitand_assign);
+
+macro_rules! mutate_unop {
+    ($op_trait:ident, $op_fn:ident, $found_trait:ident, $found_fn:ident) => {
+        pub trait $op_trait {
+            type Output;
+            fn $op_fn(self, _mutation_count: usize, _coverage: &AtomicUsize, _mask: usize) -> Self::Output;
+        }
+
+        impl<T> $op_trait for T where T: $found_trait {
+            type Output = <T as $found_trait>::Output;
+            default fn $op_fn(self, _mutation_count: usize, _cov: &AtomicUsize, _mask: usize) -> Self::Output {
+                $found_trait::$found_fn(self)
+            }
+        }
+
+        impl<T> $op_trait for T where T: $found_trait, T: Into<<T as $found_trait>::Output> {
+            fn $op_fn(self, mutation_count: usize, coverage: &AtomicUsize, mask: usize) -> Self::Output {
+                if now(mutation_count, coverage, mask) {
+                    self.into()
+                } else {
+                    $found_trait::$found_fn(self)
+                }
+            }
+        }
+    }
+}
+
+mutate_unop!(MayNot, may_not, Not, not);
+mutate_unop!(MayNeg, may_neg, Neg, neg);
 
 lazy_static! {
     static ref MU: Mutagen = {
@@ -112,7 +274,7 @@ impl Mutagen {
         }
     }
 
-    /// use instead of `>` (or, switching operand order `<`)
+    /// use instead of `>`
     pub fn gt<R, T: PartialOrd<R>>(&self, x: &T, y: &R, n: usize) -> bool {
         match self.diff(n) {
             0 => false,
@@ -126,7 +288,21 @@ impl Mutagen {
         }
     }
 
-    /// use instead of `>=` (or, switching operand order `<=`)
+    /// use instead of `>`
+    pub fn lt<R, T: PartialOrd<R>>(&self, x: &T, y: &R, n: usize) -> bool {
+        match self.diff(n) {
+            0 => false,
+            1 => true,
+            2 => x > y,
+            3 => x >= y,
+            4 => x <= y,
+            5 => x == y,
+            6 => x != y,
+            _ => x < y,
+        }
+    }
+
+    /// use instead of `>=`
     pub fn ge<R, T: PartialOrd<R>>(&self, x: &T, y: &R, n: usize) -> bool {
         match self.diff(n) {
             0 => false,
@@ -140,6 +316,20 @@ impl Mutagen {
         }
     }
 
+    /// use instead of `>=`
+    pub fn le<R, T: PartialOrd<R>>(&self, x: &T, y: &R, n: usize) -> bool {
+        match self.diff(n) {
+            0 => false,
+            1 => true,
+            2 => x > y,
+            3 => x >= y,
+            4 => x < y,
+            5 => x == y,
+            6 => x != y,
+            _ => x <= y,
+        }
+    }
+
     pub fn forloop<'a, I: Iterator + 'a>(&self, i: I, n: usize) -> Box<Iterator<Item=I::Item> + 'a> {
         match self.diff(n) {
             0 => Box::new(iterators::NoopIterator{inner: i}),
@@ -147,6 +337,22 @@ impl Mutagen {
             2 => Box::new(iterators::SkipLast::new(i)),
             3 => Box::new(iterators::SkipLast::new(i.skip(1))),
             _ => Box::new(i),
+        }
+    }
+
+    pub fn inc<T: Step>(&self, t: T, n: usize, coverage: &AtomicUsize, mask: usize)-> T {
+        t.inc(n, coverage, mask)
+    }
+
+    pub fn dec<T: Step>(&self, t: T, n: usize, coverage: &AtomicUsize, mask: usize) -> T {
+        t.dec(n, coverage, mask)
+    }
+
+    pub fn inc_dec<T: Step>(&self, t: T, n: usize, coverage: &AtomicUsize, mask: usize) -> T {
+        match self.diff(n) {
+            0 => t.inc(n, coverage, mask),
+            1 => t.dec(n, coverage, mask),
+            _ => t,
         }
     }
 }
@@ -213,9 +419,37 @@ pub fn ge<R, T: PartialOrd<R>>(x: &T, y: &R, n: usize, flag: &AtomicUsize, mask:
     MU.ge(x, y, n)
 }
 
+/// use instead of `>` (or, switching operand order `<`)
+pub fn lt<R, T: PartialOrd<R>>(x: &T, y: &R, n: usize, flag: &AtomicUsize, mask: usize) -> bool {
+    report_coverage(n..(n + 7), flag, mask);
+    MU.lt(x, y, n)
+}
+
+/// use instead of `>=` (or, switching operand order `<=`)
+pub fn le<R, T: PartialOrd<R>>(x: &T, y: &R, n: usize, flag: &AtomicUsize, mask: usize) -> bool {
+    report_coverage(n..(n + 7), flag, mask);
+    MU.le(x, y, n)
+}
+
 pub fn forloop<'a, I: Iterator + 'a>(i: I, n: usize, flag: &AtomicUsize, mask: usize) -> Box<Iterator<Item=I::Item > + 'a> {
     report_coverage(n..(n + 4), flag, mask);
     MU.forloop(i, n)
+}
+
+/// increment a literal
+pub fn inc<T: Step>(lit: T, n: usize, flag: &AtomicUsize, mask: usize) -> T {
+    MU.inc(lit, n, flag, mask)
+}
+
+/// decrement a literal
+pub fn dec<T: Step>(lit: T, n: usize, flag: &AtomicUsize, mask: usize) -> T {
+    MU.dec(lit, n, flag, mask)
+}
+
+/// increment or decrement a literal
+pub fn inc_dec<T: Step>(lit: T, n: usize, flag: &AtomicUsize, mask: usize) -> T {
+    //TODO: make this cover both inc and dec
+    MU.inc_dec(lit, n, flag, mask)
 }
 
 #[cfg(test)]

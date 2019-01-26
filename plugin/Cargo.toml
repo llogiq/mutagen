@@ -1,23 +1,36 @@
 [package]
-name = "mutagen-plugin"
-version = "0.1.2"
 authors = ["Andre Bogus <bogusandre@gmail.com>"]
-description = "Mutation testing for Rust – mutator plugin"
-repository = "https://github.com/llogiq/mutagen"
-license = "Apache-2.0/MIT"
 categories = ["development-tools::testing"]
+description = "Mutation testing for Rust – mutator plugin"
+edition = "2018"
 keywords = ["testing"]
-
-[lib]
-crate-type = [ "dylib" ]
-plugin = true
-
-[dependencies]
-mutagen = {"version" = "0.1.2", "path" = ".."}
-bitflags = "1.0"
-
-[dev-dependencies]
-compiletest_rs = "0.3.11"
+license = "Apache-2.0/MIT"
+name = "mutagen-plugin"
+repository = "https://github.com/llogiq/mutagen"
+version = "0.1.2"
 
 [badges]
-travis-ci = { repository = "llogiq/mutagen", branch = "master" }
+
+[badges.travis-ci]
+branch = "master"
+repository = "llogiq/mutagen"
+
+[dependencies]
+bitflags = "1.0"
+lazy_static = "1.2"
+proc-macro2 = { version = "0.4", features = ["proc-macro", "nightly"] }
+quote = "0.6"
+
+[dependencies.mutagen]
+path = ".."
+version = "0.1"
+
+[dependencies.syn]
+features = ["extra-traits", "full", "fold", "parsing", "proc-macro"]
+version = "0.15"
+
+[dev-dependencies]
+compiletest_rs = "0.3"
+
+[lib]
+proc_macro = true
