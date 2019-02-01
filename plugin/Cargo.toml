@@ -18,7 +18,7 @@ repository = "llogiq/mutagen"
 [dependencies]
 bitflags = "1.0.4"
 lazy_static = "1.2.0"
-proc-macro2 = "0.4"
+proc-macro2 = "0.4.27"
 quote = "0.6"
 
 [dependencies.mutagen]
