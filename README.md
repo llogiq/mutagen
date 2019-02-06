@@ -27,11 +27,19 @@ This project is basically an experiment to see what mutations we can still apply
 
 ### A Word of Warning
 
-mutagen will change the code you annotate with the `#[mutate]` attribute. As long as you use it with safe code, all is well. However, running mutagen against unsafe code will very probably break its invariants, with possible dire consequences. So don't run mutagen against modules containing unsafe code under any circumstances.
+Mutagen will change the code you annotate with the `#[mutate]` attribute. This can have dire consequences in some cases.
+
+*Do not use `#[mutate]` with unsafe code.* Doing this would very probably break its invariants. So don't run mutagen against modules or functions containing unsafe code under any circumstances.
+
+*Do not use `#[mutate]` for code that can cause damage if buggy*. By corrupting the behavior or sanity checks of some parts of the program, dangerous accidents can happen. For example by overwriting the wrong file or sending credentials to the wrong server.
+
+*Use `mutagen` as `dev-dependency`, unless otherwise necessary.* Compiling `mutagen` and its plugin is time-intensive and library-users should not have to download `mutagen` as a dependency.
+
+*Use `#[mutate]` for tests only.* This is done by always annotating functions or modules with `#[cfg_attr(test, mutate)]` instead, which applies the `#[mutate]` annotation only in `test` mode. If a function is annotated with plain `#[mutate]` in every mode, the mutation-code is baked into the code even when compiled for release versions. However, when using `mutagen` as `dev-dependency`, adding a plain `#[mutate]` attribute will result in compilation errors in non-test mode since the compiler does not find the annotation.
 
 ### Using mutagen
 
-Again, remember you need a nightly `rustc` to compile the plugin. Add the plugin and helper library as a dev-dependency to your `Cargo.toml`:
+Again, remember you need a nightly `rustc` to compile the plugin. Add the plugin and helper library as a `dev-dependency` to your `Cargo.toml`:
 
 ```rust
 [dev-dependencies]
@@ -42,12 +50,8 @@ mutagen-plugin = "0.1.2"
 Now, you can add the plugin to your crate by prepending the following:
 
 ```rust
-#![cfg_attr(test, feature(plugin))]
-#![cfg_attr(test, plugin(mutagen_plugin))]
-#![feature(custom_attribute)]
-
-#[cfg(test)]
-extern crate mutagen;
+#![cfg(test)]
+use mutagen_plugin::mutate;
 ```
 
 Now you can advise mutagen to mutate any function, method, impl, trait impl or whole module (but *not* the whole crate, this is a restriction of procedural macros for now) by prepending:
