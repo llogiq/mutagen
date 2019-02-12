@@ -60,20 +60,26 @@ You can run `cargo mutagen -- --coverage` in order to reduce the time it takes t
 
 If you want the development version of `cargo-mutagen`, run `cargo install` in the runner dir of this repository. Running `cargo install --force` might be necessary to overwrite any existing `cargo-mutagen` binary.
 
-### How mutagen Works
+### How mutagen works
 
 1. The attribute `#[mutate]` transforms the source code at compile-time
 2. Mutations are introduced at run-time
 
 #### Source code transformations
 
-The attribute `#[mutate]` is a procedural macro that transforms the code on AST-level. Only code annotated with `#[mutate]` gets altered. Known patterns of code (e.g. arithmetic operations, boolean logic, loops, ...) are changed into mutators that behave identically to the original code unless activated. The code transformed code then gets compiled.
+The attribute `#[mutate]` is a procedural macro that transforms the source code on the AST-level during compilation.
+
+Known patterns of code (e.g. arithmetic operations, boolean logic, loops, ...) get replaced by mutators that have the same behavior as the original code but have the ability to introduce specified mutations at run-time when activated.
+
+The compiled test suite contains all mutators.
 
 #### Run-time selection of mutations
 
-The compiled test suite contains all mutators. However, all tests should succeed by running the test suite via `cargo test` since no mutators are active by default.
+A mutation occurs when a mutator is activated for a single run of the test suite. By default no mutator is active and calling `cargo test` should run all tests successfully.
 
-A single mutator can be activated by setting the environment variable `MUTATION_COUNT` to a positive number (e.g. `MUTATION_COUNT=1 cargo test`). In this case, the test suite fail, killing the mutant. If it succeeds, the mutant survives.
+A mutator can be activated by setting the environment variable `MUTATION_ID` to a positive number for a single test suite run (e.g. `MUTATION_COUNT=1 cargo test`). Note that the test suite is not recompiled for each call of `cargo test` if the source code was not changed.
+
+If all tests pass despite the mutation, the mutant survives. Otherwise, the mutant is killed.
 
 ### Trade-offs
 
