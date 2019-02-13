@@ -47,7 +47,7 @@ impl<'a> Mutation<'a> {
 
 fn run_mutations(runner: &mut Runner, list: &[String]) -> Result<()> {
     let max_mutation = list.len();
-    let mut failures = 0usize;
+    let mut survived = 0usize;
 
     println!("Running {} mutations\n", max_mutation);
     for m in list {
@@ -59,13 +59,14 @@ fn run_mutations(runner: &mut Runner, list: &[String]) -> Result<()> {
         let result = runner.run(mutation.count)?;
 
         let status = if let Status::Success = result {
-            // A succeeding test suite is actually a failure for us.
+            // A succeeding test suite means that the mutant survived
+            // It is actually a failure for us.
             // At least on test should have failed
-            failures += 1;
+            survived += 1;
 
-            "FAILED"
+            "SURVIVED"
         } else {
-            "ok"
+            "killed"
         };
 
         println!(" ... {}", status);
@@ -73,9 +74,9 @@ fn run_mutations(runner: &mut Runner, list: &[String]) -> Result<()> {
 
     println!(
         "\nMutation results: {}. {} passed; {} failed\n",
-        if failures == 0 { "ok" } else { "FAILED" },
-        list.len() - failures,
-        failures
+        if survived == 0 { "ok" } else { "FAILED" },
+        list.len() - survived,
+        survived
     );
     Ok(())
 }
