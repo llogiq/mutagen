@@ -1,10 +1,15 @@
 use std::env;
 use std::fs::File;
-use std::io::{Write, BufWriter, Result};
+use std::io::{BufWriter, Result, Write};
 use std::path::Path;
 
-fn write_binop(out: &mut Write, o_trait: &str, o_fn: &str, mut_trait: &str, mut_fn: &str) ->
-    Result<()> {
+fn write_binop(
+    out: &mut Write,
+    o_trait: &str,
+    o_fn: &str,
+    mut_trait: &str,
+    mut_fn: &str,
+) -> Result<()> {
     writeln!(out, "
 pub trait {0}{2}<Rhs = Self> {{
     type Output;
@@ -61,8 +66,8 @@ static BINOP_PAIRS: &[[&str; 6]] = &[
     ["Mul", "mul", "Div", "div", "*", "/"],
     ["Shl", "shl", "Shr", "shr", "<<", ">>"],
     ["BitAnd", "bitand", "BitOr", "bitor", "&", "|"],
-//    ["BitXor", "bitxor", "BitOr", "bitor", "^"], TODO: allow multi-mutations
-//    ["BitAnd", "bitand", "BitXor", "bitxor"],
+    //    ["BitXor", "bitxor", "BitOr", "bitor", "^"], TODO: allow multi-mutations
+    //    ["BitAnd", "bitand", "BitXor", "bitxor"],
 ];
 
 fn write_unop(out: &mut Write, op_trait: &str, op_fn: &str) -> Result<()> {
@@ -91,8 +96,11 @@ fn write_ops(out_dir: &str) -> Result<()> {
     let dest = Path::new(out_dir).join("ops.rs");
     let mut f = File::create(dest)?;
     let mut out = BufWriter::new(&mut f);
-    writeln!(out, "use std::ops::*;
-")?;
+    writeln!(
+        out,
+        "use std::ops::*;
+"
+    )?;
     for names in BINOP_PAIRS.iter() {
         write_binop(&mut out, names[0], names[1], names[2], names[3])?;
         write_binop(&mut out, names[2], names[3], names[0], names[1])?;

@@ -1,12 +1,12 @@
-use std::fmt;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::collections::HashMap;
+use std::fmt;
+use std::fs::File;
 use std::fs::OpenOptions;
 use std::io::Write;
-use std::io::{BufReader, BufRead};
-use std::fs::File;
+use std::io::{BufRead, BufReader};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
-lazy_static!{
+lazy_static! {
     static ref MUTAGEN_LOOP_COUNT: HashMap<LoopId, usize> = {
         let mut h = HashMap::new();
 
@@ -21,12 +21,11 @@ lazy_static!{
                     continue;
                 }
 
-                let _ = splits[0].parse::<usize>()
-                    .map(|lid| {
-                       let bound = splits[1].parse().unwrap_or(0usize);
+                let _ = splits[0].parse::<usize>().map(|lid| {
+                    let bound = splits[1].parse().unwrap_or(0usize);
 
-                        h.insert(LoopId::new(lid), bound);
-                    });
+                    h.insert(LoopId::new(lid), bound);
+                });
             }
         });
 
@@ -84,10 +83,11 @@ impl<'a> Drop for LoopCount<'a> {
         let previous = self.atomic.fetch_max(self.count, Ordering::SeqCst);
         if previous < self.count {
             if let Ok(mut f) = OpenOptions::new()
-                    .create(true)
-                    .append(true)
-                    .truncate(false)
-                    .open("target/mutagen/loops.txt") {
+                .create(true)
+                .append(true)
+                .truncate(false)
+                .open("target/mutagen/loops.txt")
+            {
                 let _ = f.write_all(format!("{},{}\n", self.id, self.count).as_str().as_ref());
             }
         }
@@ -122,10 +122,7 @@ impl LoopBound {
         let count = MUTAGEN_LOOP_COUNT.get(&id).unwrap_or(&0);
         let bound = BoundCalculator::calculate(*count);
 
-        LoopBound {
-            count: 0,
-            bound,
-        }
+        LoopBound { count: 0, bound }
     }
 }
 

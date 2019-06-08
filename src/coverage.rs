@@ -6,13 +6,11 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 pub fn report_coverage(mutations: Range<usize>, flag: &AtomicUsize, mask: usize) {
     if flag.fetch_or(mask, Ordering::SeqCst) & mask != 0 {
-        return // already logged
+        return; // already logged
     }
     if env::var_os("MUTAGEN_COVERAGE").is_some() {
         // TODO: Should parse the env var and check the reporting strategy: file, socket, ...
-        let muts: Vec<String> = mutations
-            .map(|n| format!("{}", n))
-            .collect();
+        let muts: Vec<String> = mutations.map(|n| format!("{}", n)).collect();
 
         let _res = OpenOptions::new()
             .create(true)

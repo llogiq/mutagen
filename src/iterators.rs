@@ -1,4 +1,3 @@
-
 /// NoopIterator is an iterator that will return `None`
 pub struct NoopIterator<I: Iterator> {
     pub inner: I,
@@ -25,10 +24,7 @@ impl<I: Iterator> SkipLast<I> {
     pub fn new(mut inner: I) -> Self {
         let stashed = inner.next();
 
-        SkipLast {
-            inner,
-            stashed,
-        }
+        SkipLast { inner, stashed }
     }
 }
 

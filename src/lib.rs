@@ -9,8 +9,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 include!(concat!(env!("OUT_DIR"), "/ops.rs"));
 
-mod iterators;
 pub mod bounded_loop;
+mod iterators;
 
 mod coverage;
 pub use coverage::report_coverage;
@@ -20,7 +20,9 @@ pub trait Defaulter: Sized {
 }
 
 impl<X> Defaulter for X {
-    default fn get_default(_count: usize, _flag: &AtomicUsize, _mask: usize) -> Option<X> { None }
+    default fn get_default(_count: usize, _flag: &AtomicUsize, _mask: usize) -> Option<X> {
+        None
+    }
 }
 
 impl<X: Default> Defaulter for X {
@@ -35,8 +37,12 @@ impl<X: Default> Defaulter for X {
 
 lazy_static! {
     static ref MU: Mutagen = {
-        let count = env::var("MUTATION_COUNT").map(|s|s.parse().unwrap_or(0)).unwrap_or(0);
-        Mutagen { x: AtomicUsize::new(count) }
+        let count = env::var("MUTATION_COUNT")
+            .map(|s| s.parse().unwrap_or(0))
+            .unwrap_or(0);
+        Mutagen {
+            x: AtomicUsize::new(count),
+        }
     };
 }
 
@@ -140,9 +146,13 @@ impl Mutagen {
         }
     }
 
-    pub fn forloop<'a, I: Iterator + 'a>(&self, i: I, n: usize) -> Box<Iterator<Item=I::Item> + 'a> {
+    pub fn forloop<'a, I: Iterator + 'a>(
+        &self,
+        i: I,
+        n: usize,
+    ) -> Box<Iterator<Item = I::Item> + 'a> {
         match self.diff(n) {
-            0 => Box::new(iterators::NoopIterator{inner: i}),
+            0 => Box::new(iterators::NoopIterator { inner: i }),
             1 => Box::new(i.skip(1)),
             2 => Box::new(iterators::SkipLast::new(i)),
             3 => Box::new(iterators::SkipLast::new(i.skip(1))),
@@ -213,7 +223,12 @@ pub fn ge<R, T: PartialOrd<R>>(x: &T, y: &R, n: usize, flag: &AtomicUsize, mask:
     MU.ge(x, y, n)
 }
 
-pub fn forloop<'a, I: Iterator + 'a>(i: I, n: usize, flag: &AtomicUsize, mask: usize) -> Box<Iterator<Item=I::Item > + 'a> {
+pub fn forloop<'a, I: Iterator + 'a>(
+    i: I,
+    n: usize,
+    flag: &AtomicUsize,
+    mask: usize,
+) -> Box<Iterator<Item = I::Item> + 'a> {
     report_coverage(n..(n + 4), flag, mask);
     MU.forloop(i, n)
 }
