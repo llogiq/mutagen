@@ -1,16 +1,8 @@
-[package]
-name = "mutagen"
-version = "0.1.2"
-authors = ["Andre Bogus <bogusandre@gmail.com>"]
-description = "Mutation testing for Rust – Support library"
-repository = "https://github.com/llogiq/mutagen"
-license = "Apache-2.0/MIT"
-readme = "README.md"
-categories = ["development-tools::testing"]
-keywords = ["testing"]
-
-[dependencies]
-lazy_static = "1.0"
-
-[badges]
-travis-ci = { repository = "llogiq/mutagen", branch = "master" }
+[workspace]
+members = [
+    "mutagen",
+    "mutagen-core",
+    "mutagen-runner",
+    "mutagen-transform",
+    "examples/simple",
+]
