@@ -7,12 +7,5 @@ cache: cargo
 sudo: false
 script:
   - cargo test
-  - pushd plugin
-  - cargo test
-  - popd
-  - pushd runner
-  - cargo install -f
-  - popd
-  - pushd examples/example_project
-  - cargo mutagen
-  - cargo mutagen -- --coverage
+  - pushd examples/simple
+  - cargo run --bin cargo-mutagen --package cargo-mutagen
