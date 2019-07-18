@@ -51,6 +51,9 @@ fn run() -> Fallible<()> {
 
 /// run all mutations on all test-executables
 fn run_mutations(test_bins: &[TestBinTimed], mutations: &[BakedMutation]) -> Fallible<()> {
+    let mut killed = 0;
+    let mut survived = 0;
+
     for m in mutations {
         print!("{} ... ", m.log_string());
         std::io::stdout().flush()?;
@@ -65,11 +68,21 @@ fn run_mutations(test_bins: &[TestBinTimed], mutations: &[BakedMutation]) -> Fal
         }
 
         if mutant_status == MutantStatus::MutantSurvived {
+            survived += 1;
             println!("SURVIVED");
         } else {
-            println!("killed");
+            killed += 1;
+            let mut killed_str = "killed".to_owned();
+            if mutant_status == MutantStatus::Timeout {
+                killed_str += " (timeout)"
+            }
+            println!("{}", killed_str);
         }
     }
+
+    println!();
+    println!("{} mutants killed, {} mutants SURVIVED", killed, survived);
+
     Ok(())
 }
 

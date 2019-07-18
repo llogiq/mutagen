@@ -1,16 +1,6 @@
-use mutagen::mutate;
+#![allow(unused)]
 
-#[mutate]
-pub fn simple_add() -> u8 {
-    1u8 + 2
-}
-#[cfg(test)]
-mod tests {
-
-    use super::*;
-
-    #[test]
-    fn test_foobar() {
-        assert_eq!(simple_add(), 3);
-    }
-}
+mod add1;
+mod bubblesort;
+mod primetest;
+mod ggt;

@@ -51,6 +51,7 @@ impl<'a> TestBinTimed<'a> {
         let mut command = Command::new(self.test_bin.bin_path);
         command.env("MUTATION_ID", mutation.id().to_string());
         command.stdout(Stdio::null());
+        command.stderr(Stdio::null());
         let mut test_run = command.spawn()?;
 
         let wait_time = 5 * self.exe_time + Duration::from_millis(500);
