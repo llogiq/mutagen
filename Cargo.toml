@@ -4,5 +4,6 @@ members = [
     "mutagen-core",
     "mutagen-runner",
     "mutagen-transform",
+    "mutagen-selftest",
     "examples/simple",
 ]

@@ -30,3 +30,23 @@ where
         self.into()
     }
 }
+
+#[cfg(feature = "self_test")]
+pub mod optimistc_types {
+
+    use std::ops::Not;
+
+    #[derive(Debug, PartialEq)]
+    pub struct TypeWithNotOtherOutput();
+    #[derive(Debug, PartialEq)]
+    pub struct TypeWithNotTarget();
+
+    impl Not for TypeWithNotOtherOutput {
+        type Output = TypeWithNotTarget;
+
+        fn not(self) -> <Self as Not>::Output {
+            TypeWithNotTarget()
+        }
+    }
+
+}

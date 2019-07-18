@@ -10,3 +10,12 @@ serde_json = "1.0"
 proc-macro2 = { version = "0.4.28", features = ["span-locations"] }
 failure = "0.1"
 json = "0.11"
+lazy_static = "1.3.0"
+
+[features]
+# this is a flag that is required for integration tests to allow setting the environment configuration from tests.
+# This is not intended to be used for users of `mutagen`.
+self_test = []
+
+[lib]
+doctest = false

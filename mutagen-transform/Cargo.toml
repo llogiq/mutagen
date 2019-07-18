@@ -6,6 +6,10 @@ edition = "2018"
 
 [dependencies]
 lazy_static = "1.2.0"
+serde_json = "1.0"
+failure = "0.1"
+
+mutagen-core = { path = "../mutagen-core" }
 
 # the versions of the following crates are fixed because in the past even minor changes lead to failing code.
 # the `syn` dependency is particularly brittle because helper code for default folds is copied from the source code repository
@@ -13,9 +17,7 @@ lazy_static = "1.2.0"
 quote = "=0.6.13"
 proc-macro2 = { version = "=0.4.30", features = ["span-locations"] }
 syn = { version = "=0.15.39", features = ["full", "extra-traits", "fold"] }
-mutagen-core = { path = "../mutagen-core" }
-serde_json = "1.0"
-failure = "0.1"
 
 [lib]
 proc_macro = true
+doctest = false

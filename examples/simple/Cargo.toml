@@ -6,3 +6,6 @@ edition = "2018"
 
 [dependencies]
 mutagen = {path = "../../mutagen"}
+
+[lib]
+doctest = false

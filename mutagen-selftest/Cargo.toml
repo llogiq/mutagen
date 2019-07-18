@@ -1,0 +1,12 @@
+[package]
+name = "mutagen-selftest"
+version = "0.2.0"
+authors = ["Samuel Pilz <samuel.pilz@posteo.net>"]
+edition = "2018"
+
+[dev-dependencies]
+mutagen = { path = "../mutagen" }
+mutagen-core = { path = "../mutagen-core", features = ["self_test"] }
+
+[lib]
+doctest = false
