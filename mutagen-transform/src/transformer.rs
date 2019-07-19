@@ -4,11 +4,13 @@ use syn::fold::Fold;
 use syn::{Expr, ItemFn};
 
 mod transformer_binop_add;
+mod transformer_binop_eq;
 mod transformer_lit_bool;
 mod transformer_lit_int;
 mod transformer_unop_not;
 
 use transformer_binop_add::MutagenTransformerBinopAdd;
+use transformer_binop_eq::MutagenTransformerBinopEq;
 use transformer_lit_bool::MutagenTransformerLitBool;
 use transformer_lit_int::MutagenTransformerLitInt;
 use transformer_unop_not::MutagenTransformerUnopNot;
@@ -160,13 +162,14 @@ fn mk_transformer(
         "lit_bool" => MutagenTransformer::Expr(box MutagenTransformerLitBool { transform_info }),
         "unop_not" => MutagenTransformer::Expr(box MutagenTransformerUnopNot { transform_info }),
         "binop_add" => MutagenTransformer::Expr(box MutagenTransformerBinopAdd { transform_info }),
+        "binop_eq" => MutagenTransformer::Expr(box MutagenTransformerBinopEq { transform_info }),
         _ => panic!("unknown transformer {}", transformer_name),
     }
 }
 
 // this funciton gives a vec of all transformers, in order they are executed
 fn all_transformers() -> Vec<String> {
-    ["lit_int", "lit_bool", "unop_not", "binop_add"]
+    ["lit_int", "lit_bool", "unop_not", "binop_add", "binop_eq"]
         .iter()
         .copied()
         .map(ToOwned::to_owned)
