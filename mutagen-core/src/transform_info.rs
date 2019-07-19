@@ -4,7 +4,7 @@ use std::fs::{create_dir_all, File};
 use std::io::{BufWriter, Write};
 use std::sync::{Arc, Mutex};
 
-use mutagen_core::{get_mutations_file, BakedMutation, Mutation};
+use crate::{get_mutations_file, BakedMutation, Mutation};
 
 lazy_static! {
     pub static ref GLOBAL_TRANSFORM_INFO: SharedTransformInfo = Default::default();

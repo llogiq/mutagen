@@ -15,7 +15,6 @@ use transformer_lit_bool::MutagenTransformerLitBool;
 use transformer_lit_int::MutagenTransformerLitInt;
 use transformer_unop_not::MutagenTransformerUnopNot;
 
-use crate::args::arg_options::Transformers;
 use crate::transform_info::SharedTransformInfo;
 
 pub enum MutagenTransformer {
@@ -119,69 +118,51 @@ impl Fold for MutagenTransformerBundle {
 }
 
 impl MutagenTransformerBundle {
+
+    pub fn new(expr_transformers: Vec<Box<dyn MutagenExprTransformer>>) -> Self {
+        Self {expr_transformers}
+    }
+
     pub fn mutagen_transform_item_fn(&mut self, target: ItemFn) -> ItemFn {
         self.fold_item_fn(target)
     }
 
-    pub fn new(transformers: Transformers, transform_info: &SharedTransformInfo) -> Self {
-        let transformers = match transformers {
-            Transformers::All => all_transformers(),
-            Transformers::Only(list) => {
-                let mut transformers = list.transformers;
-                transformers.sort_by_key(|t| TRANSFORMER_ORDER[t]);
-                transformers
-            }
-            Transformers::Not(list) => {
-                let mut transformers = all_transformers();
-                for l in &list.transformers {
-                    transformers.remove_item(l);
-                }
-                transformers
-            }
-        };
-
-        let mut expr_transformers = Vec::new();
-        for t in &transformers {
-            let t = mk_transformer(t, &[], transform_info.clone_shared());
-            match t {
-                MutagenTransformer::Expr(t) => expr_transformers.push(t),
-            }
+    pub fn mk_transformer(
+        transformer_name: &str,
+        _transformer_args: &[String],
+        transform_info: SharedTransformInfo,
+    ) -> MutagenTransformer {
+        match transformer_name {
+            "lit_int" => MutagenTransformer::Expr(box MutagenTransformerLitInt { transform_info }),
+            "lit_bool" => MutagenTransformer::Expr(box MutagenTransformerLitBool { transform_info }),
+            "unop_not" => MutagenTransformer::Expr(box MutagenTransformerUnopNot { transform_info }),
+            "binop_add" => MutagenTransformer::Expr(box MutagenTransformerBinopAdd { transform_info }),
+            "binop_eq" => MutagenTransformer::Expr(box MutagenTransformerBinopEq { transform_info }),
+            _ => panic!("unknown transformer {}", transformer_name),
         }
-
-        Self { expr_transformers }
     }
-}
 
-fn mk_transformer(
-    transformer_name: &str,
-    _transformer_args: &[String],
-    transform_info: SharedTransformInfo,
-) -> MutagenTransformer {
-    match transformer_name {
-        "lit_int" => MutagenTransformer::Expr(box MutagenTransformerLitInt { transform_info }),
-        "lit_bool" => MutagenTransformer::Expr(box MutagenTransformerLitBool { transform_info }),
-        "unop_not" => MutagenTransformer::Expr(box MutagenTransformerUnopNot { transform_info }),
-        "binop_add" => MutagenTransformer::Expr(box MutagenTransformerBinopAdd { transform_info }),
-        "binop_eq" => MutagenTransformer::Expr(box MutagenTransformerBinopEq { transform_info }),
-        _ => panic!("unknown transformer {}", transformer_name),
+    // this funciton gives a vec of all transformers, in order they are executed
+    pub fn all_transformers() -> Vec<String> {
+        ["lit_int", "lit_bool", "unop_not", "binop_add", "binop_eq"]
+            .iter()
+            .copied()
+            .map(ToOwned::to_owned)
+            .collect()
     }
-}
 
-// this funciton gives a vec of all transformers, in order they are executed
-fn all_transformers() -> Vec<String> {
-    ["lit_int", "lit_bool", "unop_not", "binop_add", "binop_eq"]
-        .iter()
-        .copied()
-        .map(ToOwned::to_owned)
-        .collect()
+    pub fn transformer_order() -> &'static HashMap<String, usize> {
+        &TRANSFORMER_ORDER
+    }
+
 }
 
 use lazy_static::lazy_static;
 use std::collections::HashMap;
 
 lazy_static! {
-    pub static ref TRANSFORMER_ORDER: HashMap<String, usize> = {
-        all_transformers()
+    static ref TRANSFORMER_ORDER: HashMap<String, usize> = {
+        MutagenTransformerBundle::all_transformers()
             .into_iter()
             .enumerate()
             .map(|(i, s)| (s, i))

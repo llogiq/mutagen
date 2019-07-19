@@ -7,11 +7,7 @@
 extern crate proc_macro;
 use syn::{parse_macro_input, ItemFn};
 
-mod args;
-mod transform_info;
-mod transformer;
-
-use args::MutagenArgs;
+use mutagen_core::mutate_args::MutagenArgs;
 
 #[proc_macro_attribute]
 pub fn mutate(

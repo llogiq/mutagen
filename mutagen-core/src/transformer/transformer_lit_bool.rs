@@ -1,6 +1,6 @@
 use syn::{parse_quote, Expr, ExprLit, Lit, LitBool};
 
-use mutagen_core::Mutation;
+use crate::Mutation;
 
 use super::{ExprTransformerOutput, MutagenExprTransformer};
 use crate::transform_info::SharedTransformInfo;
