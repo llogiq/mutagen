@@ -12,6 +12,6 @@ This library is designed to be fast. We cannot afford re-compiling the test suit
 
 ## Customization
 
-It should be possible to customize the transformers that should be active and the mutations that are implemented. This is especially necessary in case some transformer leads to compile errors for some input. In this case, `#[mutate]` can still be used by leaving out the incorrect transformers. Leaving out only one or few transformers should be easy.
+It should be possible to customize the list of mutators for each method. This is especially necessary in case some mutators leads to compile errors for some input. Omitting a single or few mutators is possible by giving a blacklist. Equivalently, a whitelist of mutators can be given.
 
-Users of `mutagen` should be able to customize some mutations. This applies to mutators that produce a large number of mutations (like int literals) but only a few of them are selected by default.
+Users of `mutagen` should be able to customize some mutations. This is especially relevant for mutators that can produce a large number of mutations (like int literals) but only a few of them are selected by default.

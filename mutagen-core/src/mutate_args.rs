@@ -22,8 +22,7 @@ impl MutagenArgs {
     pub fn args_from_attr(args: TokenStream) -> MutagenArgs {
         let options = ArgOptions::parse(args).expect("invalid options");
 
-        // WIP: better error messages if format is not valid
-
+        // create transform_info
         let transform_info: SharedTransformInfo = match options.conf {
             Conf::Global => {
                 let transform_info = GLOBAL_TRANSFORM_INFO.clone_shared();
@@ -33,6 +32,7 @@ impl MutagenArgs {
             Conf::Local => Default::default(),
         };
 
+        // create transformers
         let transformers = match options.transformers {
             Transformers::All => MutagenTransformerBundle::all_transformers(),
             Transformers::Only(list) => {
@@ -48,21 +48,20 @@ impl MutagenArgs {
                 transformers
             }
         };
-
         let mut expr_transformers = Vec::new();
         for t in &transformers {
-            let t = MutagenTransformerBundle::mk_transformer(t, &[], transform_info.clone_shared());
+            let t = MutagenTransformerBundle::mk_transformer(t, &[]);
             match t {
                 MutagenTransformer::Expr(t) => expr_transformers.push(t),
             }
         }
 
-        let transformer_bundle =MutagenTransformerBundle::new(expr_transformers);
+        let transformer_bundle =
+            MutagenTransformerBundle::new(expr_transformers, transform_info.clone_shared());
 
         MutagenArgs {
             transformer_bundle,
             transform_info,
         }
     }
-
 }

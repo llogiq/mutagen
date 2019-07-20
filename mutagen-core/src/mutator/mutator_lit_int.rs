@@ -1,32 +1,52 @@
 //! Mutator for int literals.
 
+use syn::{parse_quote, Expr, ExprLit, Lit};
+
+use crate::transform_info::SharedTransformInfo;
+use crate::transformer::ExprTransformerOutput;
+use crate::Mutation;
+
 use crate::MutagenRuntimeConfig;
 
-pub struct MutatorLitInt<T> {
-    mutator_id: u32,
-    original_lit: T,
+pub struct MutatorLitInt {}
+
+impl MutatorLitInt {
+    pub fn run<T: IntMutable>(
+        mutator_id: u32,
+        original_lit: T,
+        runtime: MutagenRuntimeConfig,
+    ) -> T {
+        if runtime.mutation_id != mutator_id {
+            original_lit
+        } else {
+            original_lit.add_one()
+        }
+    }
+
+    pub fn transform(e: Expr, transform_info: &SharedTransformInfo) -> ExprTransformerOutput {
+        match e {
+            Expr::Lit(ExprLit {
+                lit: Lit::Int(l), ..
+            }) => {
+                let mutator_id = transform_info
+                    .add_mutation(Mutation::new_spanned("lit_int".to_owned(), l.span()));
+                let expr = parse_quote! {
+                    ::mutagen::mutator::MutatorLitInt::run(
+                            #mutator_id,
+                            #l,
+                            ::mutagen::MutagenRuntimeConfig::get_default()
+                        )
+                };
+                ExprTransformerOutput::changed(expr, l.span())
+            }
+            _ => ExprTransformerOutput::unchanged(e),
+        }
+    }
 }
 
 // trait for operations that mutate integers of any type
 pub trait IntMutable {
     fn add_one(self) -> Self;
-}
-
-impl<T: IntMutable> MutatorLitInt<T> {
-    pub fn new(mutator_id: u32, original_lit: T) -> Self {
-        Self {
-            mutator_id,
-            original_lit,
-        }
-    }
-
-    pub fn run_mutator(self, runtime: MutagenRuntimeConfig) -> T {
-        if runtime.mutation_id != self.mutator_id {
-            self.original_lit
-        } else {
-            self.original_lit.add_one()
-        }
-    }
 }
 
 // implementation for `IntMutable` for all integer types
@@ -65,23 +85,20 @@ mod tests {
 
     #[test]
     pub fn mutator_lit_int_zero_inactive() {
-        let mutator = MutatorLitInt::new(1, 0);
-        let result = mutator.run_mutator(MutagenRuntimeConfig::with_mutation_id(0));
+        let result = MutatorLitInt::run(1, 0, MutagenRuntimeConfig::with_mutation_id(0));
         assert_eq!(result, 0)
     }
 
     #[test]
     pub fn mutator_lit_int_zero_active() {
-        let mutator = MutatorLitInt::new(1, 0);
-        let result = mutator.run_mutator(MutagenRuntimeConfig::with_mutation_id(1));
+        let result = MutatorLitInt::run(1, 0, MutagenRuntimeConfig::with_mutation_id(1));
         assert_eq!(result, 1)
     }
 
     #[test]
     fn lit_u8_suffixed() {
         MutagenRuntimeConfig::test_with_mutation_id(1, || {
-            let mutator = MutatorLitInt::new(1u32, 1u8);
-            let result = mutator.run_mutator(MutagenRuntimeConfig::get_default());
+            let result = MutatorLitInt::run(1u32, 1u8, MutagenRuntimeConfig::get_default());
             assert_eq!(result, 2);
         })
     }

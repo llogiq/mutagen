@@ -13,7 +13,7 @@ The difference to line or branch coverage is that those measure if the code unde
 
 ## Using mutagen
 
-You need a nightly `rustc` to compile the procedural macro.
+You need Rust nightly to compile the procedural macro.
 
 Add the library `mutagen` as a `dev-dependency` to your `Cargo.toml`:
 
@@ -29,7 +29,7 @@ To use the attribute `#[mutate]`, you need to import it.
 use mutagen::mutate;
 ```
 
-Now you can advise mutagen to mutate any function, method, impl, trait impl or whole module (but *not* the whole crate, this is a restriction of procedural macros for now) by prepending `#[cfg_attr(test, mutate)]`. The use of `cfg_attr` ensures the `#[mutate]` attribute will only be active in test mode. The repository contains an example that shows how mutagen could be used.
+Now you can advise mutagen to mutate any function or method by prepending `#[cfg_attr(test, mutate)]`. The use of `cfg_attr` ensures the `#[mutate]` attribute will only be active in test mode. The repository contains an example that shows how mutagen could be used.
 
 If the test-suite does not compile, the provided error messages may be unhelpful since the location of the generated code is not set correctly. E.g.:
 

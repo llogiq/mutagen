@@ -26,9 +26,9 @@ pub fn ggt_rec(mut a: u32, mut b: u32) -> u32 {
         return a;
     }
     if a > b {
-        ggt_rec(a-b, b)
+        ggt_rec(a - b, b)
     } else {
-        ggt_rec(a, b-a)
+        ggt_rec(a, b - a)
     }
 }
 
@@ -39,28 +39,28 @@ mod tests {
 
     #[test]
     fn test_ggt_loop_4_4() {
-        assert_eq!(ggt_loop(4,4), 4)
+        assert_eq!(ggt_loop(4, 4), 4)
     }
     #[test]
     fn test_ggt_loop_3_5() {
-        assert_eq!(ggt_loop(3,5), 1)
+        assert_eq!(ggt_loop(3, 5), 1)
     }
     #[test]
     fn test_ggt_loop_5_3() {
-        assert_eq!(ggt_loop(5,3), 1)
+        assert_eq!(ggt_loop(5, 3), 1)
     }
 
     #[test]
     fn test_ggt_rec_4_4() {
-        assert_eq!(ggt_rec(4,4), 4)
+        assert_eq!(ggt_rec(4, 4), 4)
     }
     #[test]
     fn test_ggt_rec_3_5() {
-        assert_eq!(ggt_rec(3,5), 1)
+        assert_eq!(ggt_rec(3, 5), 1)
     }
     #[test]
     fn test_ggt_rec_5_3() {
-        assert_eq!(ggt_rec(5,3), 1)
+        assert_eq!(ggt_rec(5, 3), 1)
     }
 
 }

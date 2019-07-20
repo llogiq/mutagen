@@ -3,34 +3,27 @@ use quote::ToTokens;
 use syn::fold::Fold;
 use syn::{Expr, ItemFn};
 
-mod transformer_binop_add;
-mod transformer_binop_eq;
-mod transformer_lit_bool;
-mod transformer_lit_int;
-mod transformer_unop_not;
-
-use transformer_binop_add::MutagenTransformerBinopAdd;
-use transformer_binop_eq::MutagenTransformerBinopEq;
-use transformer_lit_bool::MutagenTransformerLitBool;
-use transformer_lit_int::MutagenTransformerLitInt;
-use transformer_unop_not::MutagenTransformerUnopNot;
+use crate::mutator::MutatorBinopAdd;
+use crate::mutator::MutatorBinopEq;
+use crate::mutator::MutatorLitBool;
+use crate::mutator::MutatorLitInt;
+use crate::mutator::MutatorUnopNot;
 
 use crate::transform_info::SharedTransformInfo;
 
 pub enum MutagenTransformer {
-    Expr(Box<dyn MutagenExprTransformer>),
+    Expr(Box<MutagenExprTransformer>),
 }
 
 pub struct MutagenTransformerBundle {
-    pub expr_transformers: Vec<Box<dyn MutagenExprTransformer>>,
+    transform_info: SharedTransformInfo,
+    expr_transformers: Vec<Box<MutagenExprTransformer>>,
 }
 
-/// trait that is implemented by all transformers.
+/// function-type that describes transformers.
 ///
-/// each transformer should not inspect the expression recursively since recursion is performed by the `MutagenTransformerBundle`
-pub trait MutagenExprTransformer {
-    fn map_expr(&mut self, expr: Expr) -> ExprTransformerOutput;
-}
+/// the transformer should not inspect the expression recursively since recursion is performed by the `MutagenTransformerBundle`
+type MutagenExprTransformer = dyn FnMut(Expr, &SharedTransformInfo) -> ExprTransformerOutput;
 
 pub enum ExprTransformerOutput {
     Transformed(TransformedExpr),
@@ -103,7 +96,7 @@ impl Fold for MutagenTransformerBundle {
 
         // call all transformers on this expression
         for t in &mut self.expr_transformers {
-            match t.map_expr(result) {
+            match t(result, &self.transform_info) {
                 ExprTransformerOutput::Transformed(TransformedExpr { expr, span }) => {
                     let transformed = set_true_span::set_true_span(expr.into_token_stream(), span);
                     result = syn::parse2(transformed).unwrap()
@@ -118,9 +111,14 @@ impl Fold for MutagenTransformerBundle {
 }
 
 impl MutagenTransformerBundle {
-
-    pub fn new(expr_transformers: Vec<Box<dyn MutagenExprTransformer>>) -> Self {
-        Self {expr_transformers}
+    pub fn new(
+        expr_transformers: Vec<Box<MutagenExprTransformer>>,
+        transform_info: SharedTransformInfo,
+    ) -> Self {
+        Self {
+            expr_transformers,
+            transform_info,
+        }
     }
 
     pub fn mutagen_transform_item_fn(&mut self, target: ItemFn) -> ItemFn {
@@ -130,14 +128,13 @@ impl MutagenTransformerBundle {
     pub fn mk_transformer(
         transformer_name: &str,
         _transformer_args: &[String],
-        transform_info: SharedTransformInfo,
     ) -> MutagenTransformer {
         match transformer_name {
-            "lit_int" => MutagenTransformer::Expr(box MutagenTransformerLitInt { transform_info }),
-            "lit_bool" => MutagenTransformer::Expr(box MutagenTransformerLitBool { transform_info }),
-            "unop_not" => MutagenTransformer::Expr(box MutagenTransformerUnopNot { transform_info }),
-            "binop_add" => MutagenTransformer::Expr(box MutagenTransformerBinopAdd { transform_info }),
-            "binop_eq" => MutagenTransformer::Expr(box MutagenTransformerBinopEq { transform_info }),
+            "lit_int" => MutagenTransformer::Expr(box MutatorLitInt::transform),
+            "lit_bool" => MutagenTransformer::Expr(box MutatorLitBool::transform),
+            "unop_not" => MutagenTransformer::Expr(box MutatorUnopNot::transform),
+            "binop_add" => MutagenTransformer::Expr(box MutatorBinopAdd::transform),
+            "binop_eq" => MutagenTransformer::Expr(box MutatorBinopEq::transform),
             _ => panic!("unknown transformer {}", transformer_name),
         }
     }
@@ -154,7 +151,6 @@ impl MutagenTransformerBundle {
     pub fn transformer_order() -> &'static HashMap<String, usize> {
         &TRANSFORMER_ORDER
     }
-
 }
 
 use lazy_static::lazy_static;
