@@ -28,11 +28,6 @@ fn run() -> Fallible<()> {
         bail!("test executable(s) not found");
     }
 
-    println!("test suites:");
-    for e in &tests_executables {
-        println!("{}", e.display());
-    }
-
     let test_bins = tests_executables
         .iter()
         .map(|e| TestBin::new(&e))
@@ -42,7 +37,6 @@ fn run() -> Fallible<()> {
     // collect mutations
     let mutations = read_mutations(&check_mutations_file()?)?;
 
-    println!("test mutants:");
     // run the mutations on the test-suites
     run_mutations(&test_bins, &mutations)?;
 

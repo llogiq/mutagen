@@ -56,6 +56,7 @@ impl MutagenTransformInfo {
         if let Some(mutagen_file) = &mut self.mutagen_file {
             let mut w = BufWriter::new(mutagen_file);
             serde_json::to_writer(&mut w, &mutation).expect("unable to write to mutagen file");
+            // write newline
             writeln!(&mut w).expect("unable to write to mutagen file");
         }
 
@@ -69,7 +70,19 @@ impl MutagenTransformInfo {
 
 impl SharedTransformInfo {
     pub fn add_mutation(&self, mutation: Mutation) -> u32 {
-        self.0.lock().unwrap().add_mutation(mutation)
+        self.add_mutations(vec![mutation])
+    }
+
+    pub fn add_mutations(&self, mutations: impl IntoIterator<Item = Mutation>) -> u32 {
+        let mut transform_info = self.0.lock().unwrap();
+
+        // add all mutations within a single lock and return the first id
+        let mut mutation_id = None;
+        for mutation in mutations.into_iter() {
+            let id = transform_info.add_mutation(mutation);
+            mutation_id.get_or_insert(id);
+        }
+        mutation_id.expect("mutations list empty")
     }
 
     pub fn clone_shared(&self) -> Self {

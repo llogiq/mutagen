@@ -33,10 +33,26 @@ impl MutagenRuntimeConfig {
             .unwrap_or(0);
         MutagenRuntimeConfig { mutation_id }
     }
+
+    pub fn is_mutation_active(&self, mutation_id: u32) -> bool {
+        self.mutation_id == mutation_id
+    }
+
+    pub fn in_bounds(&self, mutator_id: u32, num_mutations: u32) -> bool {
+        mutator_id < self.mutation_id && self.mutation_id < num_mutations + mutator_id
+    }
+
+    pub fn get_mutation<'a, T>(&self, mutator_id: u32, mutations: &'a [T]) -> Option<&'a T> {
+        if self.mutation_id < mutator_id {
+            return None;
+        }
+        let index = self.mutation_id - mutator_id;
+        mutations.get(index as usize)
+    }
 }
 
 /// module with functions used for isolated and exhaustive tests of the `#[mutate]` attribute
-#[cfg(feature = "self_test")]
+#[cfg(any(test, feature = "self_test"))]
 mod test_tools {
 
     use super::*;

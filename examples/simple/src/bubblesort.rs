@@ -1,6 +1,6 @@
 use mutagen::mutate;
 
-#[cfg_attr(test, mutate)]
+#[cfg_attr(test, mutate(not(lit_int)))]
 pub fn bubblesort_for(arr: &mut [u8]) {
     let n = arr.len();
     for _ in 1..n {

@@ -2,5 +2,5 @@
 
 mod add1;
 mod bubblesort;
-mod primetest;
 mod ggt;
+mod primetest;

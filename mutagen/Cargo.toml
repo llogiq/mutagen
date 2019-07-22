@@ -10,3 +10,4 @@ mutagen-core = { path = "../mutagen-core" }
 
 [lib]
 doctest = false
+test = false

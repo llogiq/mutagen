@@ -11,16 +11,21 @@ pub struct BakedMutation {
 /// Mutation in source code
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Mutation {
-    mutator: String, // mutator is part of code that is changed
+    mutator: String,  // mutator is part of code that is changed
+    mutation: String, // description of mutation
     span_str: String,
 }
 
 impl Mutation {
-    pub fn new(mutator: String, span_str: String) -> Self {
-        Self { mutator, span_str }
+    pub fn new(mutator: String, mutation: String, span_str: String) -> Self {
+        Self {
+            mutator,
+            mutation,
+            span_str,
+        }
     }
 
-    pub fn new_spanned(mutator: String, span: Span) -> Self {
+    pub fn new_spanned(mutator: String, mutation: String, span: Span) -> Self {
         let start = span.start();
         let end = span.end();
         let source_file = span.unwrap().source_file().path();
@@ -33,7 +38,7 @@ impl Mutation {
             end.column
         );
 
-        Self::new(mutator, span_str)
+        Self::new(mutator, mutation, span_str)
     }
 
     pub fn with_id(self, id: u32) -> BakedMutation {
@@ -48,13 +53,17 @@ impl BakedMutation {
     pub fn mutator(&self) -> &str {
         &self.mutation.mutator
     }
+    pub fn mutation(&self) -> &str {
+        &self.mutation.mutation
+    }
 
     /// Generate a string used for logging
     pub fn log_string(&self) -> String {
         format!(
-            "{}: {} - {}",
+            "{}: {} {}, {}",
             &self.id,
             &self.mutator(),
+            &self.mutation(),
             &self.mutation.span_str
         )
     }

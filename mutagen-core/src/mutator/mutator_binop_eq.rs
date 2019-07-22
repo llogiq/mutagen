@@ -35,8 +35,11 @@ impl MutatorBinopEq {
                 op: BinOp::Eq(op_eq),
                 ..
             }) => {
-                let mutator_id = transform_info
-                    .add_mutation(Mutation::new_spanned("binop_eq".to_owned(), op_eq.span()));
+                let mutator_id = transform_info.add_mutation(Mutation::new_spanned(
+                    "binop_eq".to_owned(),
+                    "replcae `==` with `!=`".to_owned(),
+                    op_eq.span(),
+                ));
                 let expr = parse_quote! {
                     ::mutagen::mutator::MutatorBinopEq::run::<_, _>(
                             #mutator_id,
@@ -59,14 +62,12 @@ mod tests {
 
     #[test]
     fn eq_inative() {
-        let result =
-            MutatorBinopEq::run(1, 5, 4, MutagenRuntimeConfig::with_mutation_id(0));
+        let result = MutatorBinopEq::run(1, 5, 4, MutagenRuntimeConfig::with_mutation_id(0));
         assert_eq!(result, false);
     }
     #[test]
     fn eq_ative() {
-        let result =
-            MutatorBinopEq::run(1, 5, 4, MutagenRuntimeConfig::with_mutation_id(1));
+        let result = MutatorBinopEq::run(1, 5, 4, MutagenRuntimeConfig::with_mutation_id(1));
         assert_eq!(result, true);
     }
 

@@ -31,7 +31,7 @@ where
     }
 }
 
-#[cfg(feature = "self_test")]
+#[cfg(any(test, feature = "self_test"))]
 pub mod optimistc_types {
 
     use std::ops::Not;

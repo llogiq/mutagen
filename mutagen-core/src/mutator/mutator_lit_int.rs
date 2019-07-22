@@ -1,6 +1,6 @@
 //! Mutator for int literals.
 
-use syn::{parse_quote, Expr, ExprLit, Lit};
+use syn::{parse_quote, Expr, ExprLit, Lit, LitInt};
 
 use crate::transform_info::SharedTransformInfo;
 use crate::transformer::ExprTransformerOutput;
@@ -16,10 +16,11 @@ impl MutatorLitInt {
         original_lit: T,
         runtime: MutagenRuntimeConfig,
     ) -> T {
-        if runtime.mutation_id != mutator_id {
-            original_lit
+        let mutations = MutationLitInt::possible_mutations(original_lit.as_u64());
+        if let Some(m) = runtime.get_mutation(mutator_id, &mutations) {
+            m.mutate(original_lit)
         } else {
-            original_lit.add_one()
+            original_lit
         }
     }
 
@@ -28,8 +29,11 @@ impl MutatorLitInt {
             Expr::Lit(ExprLit {
                 lit: Lit::Int(l), ..
             }) => {
-                let mutator_id = transform_info
-                    .add_mutation(Mutation::new_spanned("lit_int".to_owned(), l.span()));
+                let mutator_id = transform_info.add_mutations(
+                    MutationLitInt::possible_mutations(l.value())
+                        .into_iter()
+                        .map(|m| MutationLitInt::to_mutation(m, &l)),
+                );
                 let expr = parse_quote! {
                     ::mutagen::mutator::MutatorLitInt::run(
                             #mutator_id,
@@ -44,9 +48,45 @@ impl MutatorLitInt {
     }
 }
 
+#[derive(Copy, Clone)]
+enum MutationLitInt {
+    Relative(i64),
+}
+
+impl MutationLitInt {
+    fn possible_mutations(val: u64) -> Vec<MutationLitInt> {
+        let mut mutations = vec![];
+        if val != u64::max_value() {
+            mutations.push(MutationLitInt::Relative(1));
+        }
+        if val != 0 {
+            mutations.push(MutationLitInt::Relative(-1));
+        }
+        mutations
+    }
+
+    fn mutate<T: IntMutable>(self, val: T) -> T {
+        match self {
+            Self::Relative(r) => {
+                IntMutable::from_u64((i128::from(val.as_u64()) + i128::from(r)) as u64)
+            }
+        }
+    }
+
+    fn to_mutation(self, l: &LitInt) -> Mutation {
+        let val = l.value();
+        Mutation::new_spanned(
+            "lit_int".to_owned(),
+            format!("replace {} with {}", val, self.mutate::<u64>(val)),
+            l.span(),
+        )
+    }
+}
+
 // trait for operations that mutate integers of any type
-pub trait IntMutable {
-    fn add_one(self) -> Self;
+pub trait IntMutable: Copy {
+    fn from_u64(val: u64) -> Self;
+    fn as_u64(self) -> u64;
 }
 
 // implementation for `IntMutable` for all integer types
@@ -54,8 +94,11 @@ macro_rules! lit_int_mutables {
     { $($suf:ident, $ty:ident),* } => {
         $(
             impl IntMutable for $ty {
-                fn add_one(self) -> Self {
-                    self.checked_add(1).expect("overflow")
+                fn from_u64(val: u64) -> Self {
+                    val as $ty
+                }
+                fn as_u64(self) -> u64 {
+                    self as u64
                 }
             }
         )*
@@ -82,6 +125,7 @@ lit_int_mutables! {
 mod tests {
 
     use super::*;
+    use crate::MutagenRuntimeConfig;
 
     #[test]
     pub fn mutator_lit_int_zero_inactive() {
@@ -96,11 +140,9 @@ mod tests {
     }
 
     #[test]
-    fn lit_u8_suffixed() {
-        MutagenRuntimeConfig::test_with_mutation_id(1, || {
-            let result = MutatorLitInt::run(1u32, 1u8, MutagenRuntimeConfig::get_default());
-            assert_eq!(result, 2);
-        })
+    fn lit_u8_suffixed_active() {
+        let result: u8 = MutatorLitInt::run(1u32, 1u8, MutagenRuntimeConfig::with_mutation_id(1));
+        assert_eq!(result, 2);
     }
 
 }

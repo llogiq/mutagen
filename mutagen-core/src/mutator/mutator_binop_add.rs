@@ -36,8 +36,11 @@ impl MutatorBinopAdd {
                 op: BinOp::Add(op_add),
                 ..
             }) => {
-                let mutator_id = transform_info
-                    .add_mutation(Mutation::new_spanned("binop_add".to_owned(), op_add.span()));
+                let mutator_id = transform_info.add_mutation(Mutation::new_spanned(
+                    "binop_add".to_owned(),
+                    "replace `+` with `-`".to_owned(),
+                    op_add.span(),
+                ));
                 let expr = parse_quote! {
                     ::mutagen::mutator::MutatorBinopAdd::run::<_, _>(
                             #mutator_id,
@@ -60,14 +63,12 @@ mod tests {
 
     #[test]
     fn sum_inative() {
-        let result =
-            MutatorBinopAdd::run(1, 5, 4, MutagenRuntimeConfig::with_mutation_id(0));
+        let result = MutatorBinopAdd::run(1, 5, 4, MutagenRuntimeConfig::with_mutation_id(0));
         assert_eq!(result, 9);
     }
     #[test]
     fn sum_ative() {
-        let result =
-            MutatorBinopAdd::run(1, 5, 4, MutagenRuntimeConfig::with_mutation_id(1));
+        let result = MutatorBinopAdd::run(1, 5, 4, MutagenRuntimeConfig::with_mutation_id(1));
         assert_eq!(result, 1);
     }
 

@@ -6,11 +6,12 @@ Integer literals like `0`, `1u8`, `5isize`
 
 ## Mutations
 
-1. replacing the literal by with a different literal
+1. replacing the literal with a different literal
 
 ## Limitations
 
-none
+* literals cannot be mutated into negative numbers
+* `u128` and `i128` literals are not supported
 
 ## Customization
 

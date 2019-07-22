@@ -15,7 +15,11 @@ use crate::MutagenRuntimeConfig;
 pub struct MutatorUnopNot {}
 
 impl MutatorUnopNot {
-    pub fn run<T: Not>(mutator_id: u32, val: T, runtime: MutagenRuntimeConfig) -> <T as Not>::Output {
+    pub fn run<T: Not>(
+        mutator_id: u32,
+        val: T,
+        runtime: MutagenRuntimeConfig,
+    ) -> <T as Not>::Output {
         if runtime.mutation_id != mutator_id {
             !val
         } else {
@@ -30,8 +34,11 @@ impl MutatorUnopNot {
                 op: UnOp::Not(op_not),
                 ..
             }) => {
-                let mutator_id = transform_info
-                    .add_mutation(Mutation::new_spanned("unop_not".to_owned(), op_not.span()));
+                let mutator_id = transform_info.add_mutation(Mutation::new_spanned(
+                    "unop_not".to_owned(),
+                    "remove `!`".to_owned(),
+                    op_not.span(),
+                ));
                 let expr = parse_quote! {
                     ::mutagen::mutator::MutatorUnopNot::run(
                             #mutator_id,
@@ -44,7 +51,6 @@ impl MutatorUnopNot {
             _ => ExprTransformerOutput::unchanged(e),
         }
     }
-
 }
 
 #[cfg(test)]
@@ -73,13 +79,21 @@ mod tests {
 
     #[test]
     fn optimistic_incorrect_inactive() {
-        let result = MutatorUnopNot::run(1, TypeWithNotOtherOutput(), MutagenRuntimeConfig::with_mutation_id(0));
+        let result = MutatorUnopNot::run(
+            1,
+            TypeWithNotOtherOutput(),
+            MutagenRuntimeConfig::with_mutation_id(0),
+        );
         assert_eq!(result, TypeWithNotTarget());
     }
     #[test]
     #[should_panic]
     fn optimistic_incorrect_active() {
-        MutatorUnopNot::run(1, TypeWithNotOtherOutput(), MutagenRuntimeConfig::with_mutation_id(1));
+        MutatorUnopNot::run(
+            1,
+            TypeWithNotOtherOutput(),
+            MutagenRuntimeConfig::with_mutation_id(1),
+        );
     }
 
 }

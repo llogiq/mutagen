@@ -17,6 +17,7 @@ mod tests {
                 assert_eq!(sum_u32(), 3);
             })
         }
+        // first literal -1
         #[test]
         fn sum_u32_active1() {
             MutagenRuntimeConfig::test_with_mutation_id(1, || {
@@ -24,10 +25,25 @@ mod tests {
             })
         }
 
+        // second literal +1
         #[test]
         fn sum_u32_active2() {
             MutagenRuntimeConfig::test_with_mutation_id(2, || {
+                assert_eq!(sum_u32(), 2);
+            })
+        }
+        // second literal -1
+        #[test]
+        fn sum_u32_active3() {
+            MutagenRuntimeConfig::test_with_mutation_id(3, || {
                 assert_eq!(sum_u32(), 4);
+            })
+        }
+        // first literal -1
+        #[test]
+        fn sum_u32_active4() {
+            MutagenRuntimeConfig::test_with_mutation_id(4, || {
+                assert_eq!(sum_u32(), 2);
             })
         }
     }
@@ -47,10 +63,18 @@ mod tests {
                 assert_eq!(lit_u8_suffixed(), 1);
             })
         }
+        // literal +1
         #[test]
-        fn lit_u8_suffixed_active() {
+        fn lit_u8_suffixed_active1() {
             MutagenRuntimeConfig::test_with_mutation_id(1, || {
                 assert_eq!(lit_u8_suffixed(), 2);
+            })
+        }
+        // literal -1
+        #[test]
+        fn lit_u8_suffixed_active2() {
+            MutagenRuntimeConfig::test_with_mutation_id(2, || {
+                assert_eq!(lit_u8_suffixed(), 0);
             })
         }
     }
