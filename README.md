@@ -11,6 +11,16 @@ A change (mutation) in the program source code is most likely a bug of some kind
 Mutation testing is a way of evaluating the quality of a test suite, similar to code coverage.
 The difference to line or branch coverage is that those measure if the code under test was *executed*, but that says nothing about whether the tests would have caught any error.
 
+## How `mutagen` works
+
+`mutagen`'s  core functionality is implemented via a procedural macro that transforms the source code into
+
+The procedural macro has access the bare AST. Information about inferred types, implemented traits, control flow, data flow or signatures of other functions are not available during the execution of procedural macros. Therefore, the mutations must be possible without
+
+In order to be fast, it is necessary that the compilation of the test suite is performed only once. To achieve this, all mutations are baked into the code once and are selected at runtime via an environment variable. This means the mutations are not allowed to produce code that fails to compile.
+
+This project is basically an experiment to see what mutations we can still apply under those constraints.
+
 ## Using mutagen
 
 You need Rust nightly to compile the procedural macro.
@@ -34,8 +44,8 @@ Now you can advise mutagen to mutate any function or method by prepending `#[cfg
 If the test-suite does not compile, the provided error messages may be unhelpful since the location of the generated code is not set correctly. E.g.:
 
 ```
-X | #[mutate]
-  | ^^^^^^^^^
+X | #[cfg_attr(test, mutate)]
+  |                  ^^^^^^
 ```  
 
 Calling the test suite with `RUSTFLAGS='--cfg procmacro2_semver_exempt' cargo test` sets the spans accordingly and will produce more helpful error messages.
@@ -44,8 +54,8 @@ Calling the test suite with `RUSTFLAGS='--cfg procmacro2_semver_exempt' cargo te
 
 Install `cargo-mutagen`, which can be done by running `cargo install cargo-mutagen`. Run `cargo mutagen` on the project under test for a complete mutation test evaluation.
 
-The mutants can also be run manually: `cargo test` will compile code and write the performed mutations to `target/mutagen/mutations.txt`. This file contains ids descriptions of performed mutations.
-Then, the environment variable `MUTATION_ID` can be used to activate a single mutation as defined by `mutations.txt` file. The environment variable can be set before calling the test suite, i.e. `MUTATION_ID=1 cargo test`, `MUTATION_ID=2 ..`, etc. For every mutation count at of least one, the test suite should fail
+The mutants can also be run manually: `cargo test` will compile code and write the performed mutations to `target/mutagen/mutations`. This file contains ids and descriptions of possible mutations.
+Then, the environment variable `MUTATION_ID` can be used to activate a single mutation as defined by the `mutations` file. The environment variable can be set before calling the test suite, i.e. `MUTATION_ID=1 cargo test`, `MUTATION_ID=2 ..`, etc. For every mutation count at of least one, the test suite should fail
 
 You can run `cargo mutagen -- --coverage` in order to reduce the time it takes to run the mutated code. When running on this mode, it runs the test suite at the beginning of the process and checks which tests are hitting mutated code. Then, for each mutation, instead of running the whole test suite again, it executes only the tests that are affected by the current mutation. This mode is specially useful when the test suite is slow or when the mutated code affects a little part of it.
 

@@ -15,7 +15,9 @@ The attribute `#[mutate]` is a procedural macro that inserts into the program by
 
 Known patterns of code (e.g. arithmetic operations, boolean logic, loops, ...) get replaced by mutators. The code that describes the transformations to insert each mutator is implemented in the same file with the logic of that mutator.
 
-The compiled test suite contains all mutators.
+Each mutator only has access to the plain AST without inferred types or global information. The transformed code must successfully compile regardless of other global information. Unfortunately, the possibilities for performing type-analysis of the code under test is limited since the macro has no access to the code outside the annotated region. 
+
+The test suite is compiled once and contains all mutators.
 
 ## Mutations
 
