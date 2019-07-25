@@ -109,7 +109,7 @@ fn check_mutations_file() -> Fallible<PathBuf> {
     let mutagen_file = get_mutations_file()?;
     if !mutagen_file.exists() {
         bail!(
-            "file `target/mutagen/mutations.txt` is not found\n\
+            "file `target/mutagen/mutations` is not found\n\
              maybe there are not mutations defined or the attribute `#[mutate]` is not enabled"
         )
     }
