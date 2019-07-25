@@ -71,7 +71,7 @@ Mutagen will change the code you annotate with the `#[mutate]` attribute. This c
 
 *Use `#[mutate]` for tests only.* This is done by always annotating functions or modules with `#[cfg_attr(test, mutate)]` instead, which applies the `#[mutate]` annotation only in `test` mode. If a function is annotated with plain `#[mutate]` in every mode, the mutation-code is baked into the code even when compiled for release versions. However, when using `mutagen` as `dev-dependency`, adding a plain `#[mutate]` attribute will result in compilation errors in non-test mode since the compiler does not find the annotation.
 
-*Use `mutagen` as `dev-dependency`, unless otherwise necessary.* Compiling `mutagen` is time-intensive and library-users should not have to download `mutagen` as a dependency.
+*Use `mutagen` as `dev-dependency`, unless otherwise necessary.* This ensures that no code from `mutagen` is part of your released library or application.
 
 ## Contributing
 
