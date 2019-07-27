@@ -32,7 +32,7 @@ impl MutatorLitInt {
                 let mutator_id = transform_info.add_mutations(
                     MutationLitInt::possible_mutations(l.value())
                         .into_iter()
-                        .map(|m| MutationLitInt::to_mutation(m, &l)),
+                        .map(|m| m.to_mutation(&l)),
                 );
                 let expr = parse_quote! {
                     ::mutagen::mutator::MutatorLitInt::run(
@@ -48,13 +48,13 @@ impl MutatorLitInt {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 enum MutationLitInt {
     Relative(i64),
 }
 
 impl MutationLitInt {
-    fn possible_mutations(val: u64) -> Vec<MutationLitInt> {
+    fn possible_mutations(val: u64) -> Vec<Self> {
         let mut mutations = vec![];
         if val != u64::max_value() {
             mutations.push(MutationLitInt::Relative(1));
@@ -73,12 +73,12 @@ impl MutationLitInt {
         }
     }
 
-    fn to_mutation(self, l: &LitInt) -> Mutation {
-        let val = l.value();
+    fn to_mutation(self, original_lit: &LitInt) -> Mutation {
+        let val = original_lit.value();
         Mutation::new_spanned(
             "lit_int".to_owned(),
             format!("replace {} with {}", val, self.mutate::<u64>(val)),
-            l.span(),
+            original_lit.span(),
         )
     }
 }
@@ -143,6 +143,40 @@ mod tests {
     fn lit_u8_suffixed_active() {
         let result: u8 = MutatorLitInt::run(1u32, 1u8, MutagenRuntimeConfig::with_mutation_id(1));
         assert_eq!(result, 2);
+    }
+
+    #[test]
+    fn possible_mutations_with_zero() {
+        assert_eq!(
+            MutationLitInt::possible_mutations(0),
+            vec![MutationLitInt::Relative(1)]
+        );
+    }
+
+    #[test]
+    fn possible_mutations_with_one() {
+        assert_eq!(
+            MutationLitInt::possible_mutations(1),
+            vec![MutationLitInt::Relative(1), MutationLitInt::Relative(-1)]
+        );
+    }
+
+    #[test]
+    fn possible_mutations_with_max_value() {
+        assert_eq!(
+            MutationLitInt::possible_mutations(u64::max_value()),
+            vec![MutationLitInt::Relative(-1)]
+        );
+    }
+
+    #[test]
+    fn mutate_relative1() {
+        assert_eq!(MutationLitInt::Relative(1).mutate(2), 3)
+    }
+
+    #[test]
+    fn mutate_relative_neg1() {
+        assert_eq!(MutationLitInt::Relative(-1).mutate(2), 1)
     }
 
 }

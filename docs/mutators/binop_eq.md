@@ -14,4 +14,4 @@ none
 
 ## Customization
 
-Customization is WIP
+none

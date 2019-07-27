@@ -16,7 +16,7 @@ lazy_static = "1.3.0"
 # The intention is to update the dependencies manually if they have been updated.
 quote = "=0.6.13"
 proc-macro2 = { version = "=0.4.30", features = ["span-locations"] }
-syn = { version = "=0.15.39", features = ["full", "extra-traits", "fold"] }
+syn = { version = "=0.15.42", features = ["full", "extra-traits", "fold"] }
 
 
 [features]

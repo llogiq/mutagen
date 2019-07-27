@@ -4,6 +4,7 @@ use syn::fold::Fold;
 use syn::{Expr, ItemFn};
 
 use crate::mutator::MutatorBinopAdd;
+use crate::mutator::MutatorBinopCmp;
 use crate::mutator::MutatorBinopEq;
 use crate::mutator::MutatorLitBool;
 use crate::mutator::MutatorLitInt;
@@ -135,17 +136,25 @@ impl MutagenTransformerBundle {
             "unop_not" => MutagenTransformer::Expr(box MutatorUnopNot::transform),
             "binop_add" => MutagenTransformer::Expr(box MutatorBinopAdd::transform),
             "binop_eq" => MutagenTransformer::Expr(box MutatorBinopEq::transform),
+            "binop_cmp" => MutagenTransformer::Expr(box MutatorBinopCmp::transform),
             _ => panic!("unknown transformer {}", transformer_name),
         }
     }
 
     // this funciton gives a vec of all transformers, in order they are executed
     pub fn all_transformers() -> Vec<String> {
-        ["lit_int", "lit_bool", "unop_not", "binop_add", "binop_eq"]
-            .iter()
-            .copied()
-            .map(ToOwned::to_owned)
-            .collect()
+        [
+            "lit_int",
+            "lit_bool",
+            "unop_not",
+            "binop_add",
+            "binop_eq",
+            "binop_cmp",
+        ]
+        .iter()
+        .copied()
+        .map(ToOwned::to_owned)
+        .collect()
     }
 
     pub fn transformer_order() -> &'static HashMap<String, usize> {

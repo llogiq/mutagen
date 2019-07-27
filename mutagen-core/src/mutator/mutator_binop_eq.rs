@@ -61,12 +61,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn eq_inative() {
+    fn eq_inactive() {
         let result = MutatorBinopEq::run(1, 5, 4, MutagenRuntimeConfig::with_mutation_id(0));
         assert_eq!(result, false);
     }
     #[test]
-    fn eq_ative() {
+    fn eq_active() {
         let result = MutatorBinopEq::run(1, 5, 4, MutagenRuntimeConfig::with_mutation_id(1));
         assert_eq!(result, true);
     }

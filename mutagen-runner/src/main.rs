@@ -66,11 +66,11 @@ fn run_mutations(test_bins: &[TestBinTimed], mutations: &[BakedMutation]) -> Fal
             println!("SURVIVED");
         } else {
             killed += 1;
-            let mut killed_str = "killed".to_owned();
+            print!("killed");
             if mutant_status == MutantStatus::Timeout {
-                killed_str += " (timeout)"
+                print!(" (timeout)");
             }
-            println!("{}", killed_str);
+            println!();
         }
     }
 
@@ -110,7 +110,7 @@ fn check_mutations_file() -> Fallible<PathBuf> {
     if !mutagen_file.exists() {
         bail!(
             "file `target/mutagen/mutations` is not found\n\
-             maybe there are not mutations defined or the attribute `#[mutate]` is not enabled"
+             maybe there are no mutations defined or the attribute `#[mutate]` is not enabled"
         )
     }
     Ok(mutagen_file)

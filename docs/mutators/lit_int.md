@@ -11,7 +11,7 @@ Integer literals like `0`, `1u8`, `5isize`
 ## Limitations
 
 * literals cannot be mutated into negative numbers
-* `u128` and `i128` literals are not supported
+* literals with a value that does not fit into an `u64` are not mutated
 
 ## Customization
 

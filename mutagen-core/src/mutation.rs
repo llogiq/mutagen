@@ -60,7 +60,7 @@ impl BakedMutation {
     /// Generate a string used for logging
     pub fn log_string(&self) -> String {
         format!(
-            "{}: {} {}, {}",
+            "{}: {}, {}, {}",
             &self.id,
             &self.mutator(),
             &self.mutation(),
