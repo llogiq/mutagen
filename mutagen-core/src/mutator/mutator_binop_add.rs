@@ -5,7 +5,7 @@ use std::ops::Add;
 use syn::spanned::Spanned;
 use syn::{parse_quote, BinOp, Expr, ExprBinary};
 
-use crate::transform_info::SharedTransformInfo;
+use crate::transformer::transform_info::SharedTransformInfo;
 use crate::transformer::ExprTransformerOutput;
 use crate::Mutation;
 
@@ -38,7 +38,8 @@ impl MutatorBinopAdd {
             }) => {
                 let mutator_id = transform_info.add_mutation(Mutation::new_spanned(
                     "binop_add".to_owned(),
-                    "replace `+` with `-`".to_owned(),
+                    "+".to_owned(),
+                    "-".to_owned(),
                     op_add.span(),
                 ));
                 let expr = parse_quote! {

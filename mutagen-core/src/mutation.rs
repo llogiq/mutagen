@@ -11,25 +11,37 @@ pub struct BakedMutation {
 /// Mutation in source code
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Mutation {
-    mutator: String,  // mutator is part of code that is changed
-    mutation: String, // description of mutation
-    span_str: String,
+    mutator: String, // mutator is part of code that is changed
+    original_code: String,
+    mutated_code: String,
+    location: String,
 }
 
 impl Mutation {
-    pub fn new(mutator: String, mutation: String, span_str: String) -> Self {
+    pub fn new(
+        mutator: String,
+        original_code: String,
+        mutated_code: String,
+        location: String,
+    ) -> Self {
         Self {
             mutator,
-            mutation,
-            span_str,
+            original_code,
+            mutated_code,
+            location,
         }
     }
 
-    pub fn new_spanned(mutator: String, mutation: String, span: Span) -> Self {
+    pub fn new_spanned(
+        mutator: String,
+        original_code: String,
+        mutated_code: String,
+        span: Span,
+    ) -> Self {
         let start = span.start();
         let end = span.end();
         let source_file = span.unwrap().source_file().path();
-        let span_str = format!(
+        let location = format!(
             "{}@{}:{}-{}:{}",
             source_file.display(),
             start.line,
@@ -38,7 +50,7 @@ impl Mutation {
             end.column
         );
 
-        Self::new(mutator, mutation, span_str)
+        Self::new(mutator, original_code, mutated_code, location)
     }
 
     pub fn with_id(self, id: u32) -> BakedMutation {
@@ -50,21 +62,28 @@ impl BakedMutation {
     pub fn id(&self) -> u32 {
         self.id
     }
-    pub fn mutator(&self) -> &str {
-        &self.mutation.mutator
-    }
-    pub fn mutation(&self) -> &str {
-        &self.mutation.mutation
-    }
 
     /// Generate a string used for logging
     pub fn log_string(&self) -> String {
+        let mutation_description = if self.mutation.mutated_code.is_empty() {
+            format!("remove `{}`", &self.mutation.original_code)
+        } else if self.mutation.original_code.is_empty() {
+            format!("insert `{}`", &self.mutation.mutated_code)
+        } else {
+            format!(
+                "replace `{}` with `{}`",
+                &self.mutation.original_code, &self.mutation.mutated_code,
+            )
+        };
         format!(
             "{}: {}, {}, {}",
-            &self.id,
-            &self.mutator(),
-            &self.mutation(),
-            &self.mutation.span_str
+            &self.id, &self.mutation.mutator, mutation_description, &self.mutation.location
         )
+    }
+}
+
+impl AsRef<Mutation> for BakedMutation {
+    fn as_ref(&self) -> &Mutation {
+        &self.mutation
     }
 }

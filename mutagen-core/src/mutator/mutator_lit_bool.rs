@@ -2,7 +2,7 @@
 
 use syn::{parse_quote, Expr, ExprLit, Lit, LitBool};
 
-use crate::transform_info::SharedTransformInfo;
+use crate::transformer::transform_info::SharedTransformInfo;
 use crate::transformer::ExprTransformerOutput;
 use crate::Mutation;
 
@@ -27,7 +27,8 @@ impl MutatorLitBool {
             }) => {
                 let mutator_id = transform_info.add_mutation(Mutation::new_spanned(
                     "lit_bool".to_owned(),
-                    format!("replace {:?} with {:?}", value, !value),
+                    format!("{:?}", value),
+                    format!("{:?}", !value),
                     span,
                 ));
                 let expr = parse_quote! {

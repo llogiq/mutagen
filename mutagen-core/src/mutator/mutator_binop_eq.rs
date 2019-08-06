@@ -5,7 +5,7 @@ use std::cmp::PartialEq;
 use syn::spanned::Spanned;
 use syn::{parse_quote, BinOp, Expr, ExprBinary};
 
-use crate::transform_info::SharedTransformInfo;
+use crate::transformer::transform_info::SharedTransformInfo;
 use crate::transformer::ExprTransformerOutput;
 use crate::Mutation;
 
@@ -37,7 +37,8 @@ impl MutatorBinopEq {
             }) => {
                 let mutator_id = transform_info.add_mutation(Mutation::new_spanned(
                     "binop_eq".to_owned(),
-                    "replcae `==` with `!=`".to_owned(),
+                    "==".to_owned(),
+                    "!=".to_owned(),
                     op_eq.span(),
                 ));
                 let expr = parse_quote! {

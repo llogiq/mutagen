@@ -15,7 +15,7 @@ The difference to line or branch coverage is that those measure if the code unde
 
 `mutagen`'s  core functionality is implemented via a procedural macro that transforms the source code into
 
-The procedural macro has access the bare AST. Information about inferred types, implemented traits, control flow, data flow or signatures of other functions are not available during the execution of procedural macros. Therefore, the mutations must be possible without
+The procedural macro has access the bare AST. Information about inferred types, implemented traits, control flow, data flow or signatures of other functions are not available during the execution of procedural macros. Therefore, the mutations must be possible without additional type-information.
 
 In order to be fast, it is necessary that the compilation of the test suite is performed only once. To achieve this, all mutations are baked into the code once and are selected at runtime via an environment variable. This means the mutations are not allowed to produce code that fails to compile.
 

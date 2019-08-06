@@ -1,10 +1,9 @@
 use lazy_static::lazy_static;
-use std::fmt;
 use std::fs::{create_dir_all, File};
 use std::io::{BufWriter, Write};
 use std::sync::{Arc, Mutex};
 
-use crate::{get_mutations_file, BakedMutation, Mutation};
+use crate::{mutagen_file::get_mutations_file, BakedMutation, Mutation};
 
 lazy_static! {
     pub static ref GLOBAL_TRANSFORM_INFO: SharedTransformInfo = Default::default();
@@ -91,14 +90,5 @@ impl SharedTransformInfo {
 
     pub fn with_default_mutagen_file(&self) {
         self.0.lock().unwrap().with_default_mutagen_file()
-    }
-}
-
-impl fmt::Display for MutagenTransformInfo {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        for mutation in self.mutations.iter() {
-            write!(f, "{} - {}", mutation.id(), &mutation.mutator())?;
-        }
-        Ok(())
     }
 }

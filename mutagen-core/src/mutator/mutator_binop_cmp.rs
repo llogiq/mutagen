@@ -5,7 +5,7 @@ use quote::{quote, ToTokens};
 use syn::spanned::Spanned;
 use syn::{parse_quote, BinOp, Expr, ExprBinary};
 
-use crate::transform_info::SharedTransformInfo;
+use crate::transformer::transform_info::SharedTransformInfo;
 use crate::transformer::ExprTransformerOutput;
 use crate::Mutation;
 
@@ -54,7 +54,7 @@ impl MutatorBinopCmp {
 
                 let mutator_id = transform_info.add_mutations(
                     MutationBinopCmp::possible_mutations(op)
-                        .into_iter()
+                        .iter()
                         .map(|m| m.to_mutation(op, tt.span())),
                 );
 
@@ -82,7 +82,7 @@ struct MutationBinopCmp {
 impl MutationBinopCmp {
     fn possible_mutations(original_op: BinopCmp) -> Vec<Self> {
         [BinopCmp::Lt, BinopCmp::Le, BinopCmp::Ge, BinopCmp::Gt]
-            .into_iter()
+            .iter()
             .copied()
             .filter(|&op| op != original_op)
             .map(|op| MutationBinopCmp { op })
@@ -96,7 +96,8 @@ impl MutationBinopCmp {
     fn to_mutation(self, original_op: BinopCmp, span: Span) -> Mutation {
         Mutation::new_spanned(
             "binop_cmp".to_owned(),
-            format!("replace `{}` with `{}`", original_op, self.op),
+            format!("{}", original_op),
+            format!("{}", self.op),
             span,
         )
     }

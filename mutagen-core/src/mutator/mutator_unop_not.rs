@@ -5,7 +5,7 @@ use std::ops::Not;
 use syn::spanned::Spanned;
 use syn::{parse_quote, Expr, ExprUnary, UnOp};
 
-use crate::transform_info::SharedTransformInfo;
+use crate::transformer::transform_info::SharedTransformInfo;
 use crate::transformer::ExprTransformerOutput;
 use crate::Mutation;
 
@@ -36,7 +36,8 @@ impl MutatorUnopNot {
             }) => {
                 let mutator_id = transform_info.add_mutation(Mutation::new_spanned(
                     "unop_not".to_owned(),
-                    "remove `!`".to_owned(),
+                    "!".to_owned(),
+                    "".to_owned(),
                     op_not.span(),
                 ));
                 let expr = parse_quote! {

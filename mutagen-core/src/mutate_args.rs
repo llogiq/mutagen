@@ -9,7 +9,7 @@ mod arg_options;
 
 use arg_options::{ArgOptions, Conf, Transformers};
 
-use crate::transform_info::{SharedTransformInfo, GLOBAL_TRANSFORM_INFO};
+use crate::transformer::transform_info::{SharedTransformInfo, GLOBAL_TRANSFORM_INFO};
 use crate::transformer::{MutagenTransformer, MutagenTransformerBundle};
 
 pub struct MutagenArgs {

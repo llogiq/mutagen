@@ -2,7 +2,7 @@
 
 use syn::{parse_quote, Expr, ExprLit, Lit, LitInt};
 
-use crate::transform_info::SharedTransformInfo;
+use crate::transformer::transform_info::SharedTransformInfo;
 use crate::transformer::ExprTransformerOutput;
 use crate::Mutation;
 
@@ -77,7 +77,8 @@ impl MutationLitInt {
         let val = original_lit.value();
         Mutation::new_spanned(
             "lit_int".to_owned(),
-            format!("replace {} with {}", val, self.mutate::<u64>(val)),
+            format!("{}", val),
+            format!("{}", self.mutate::<u64>(val)),
             original_lit.span(),
         )
     }

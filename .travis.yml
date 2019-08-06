@@ -14,3 +14,6 @@ script:
   # run executable cargo-mutagen on test project
   - pushd examples/simple
   - cargo run --bin cargo-mutagen --package cargo-mutagen
+
+  # check format
+  cargo fmt -- --check

@@ -1,16 +1,16 @@
-#![feature(type_ascription)]
-
 use failure::{bail, format_err, Fallible};
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::prelude::*;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, BufWriter};
 use std::path::PathBuf;
 use std::process;
 use std::process::{Command, Stdio};
 use std::str;
 
 use cargo_mutagen::*;
-use mutagen::{get_mutations_file, BakedMutation};
+use mutagen::mutagen_file::{get_mutations_file, get_mutations_file_json};
+use mutagen::BakedMutation;
 
 fn main() {
     if let Err(err) = run() {
@@ -35,7 +35,7 @@ fn run() -> Fallible<()> {
         .collect::<Fallible<Vec<_>>>()?;
 
     // collect mutations
-    let mutations = read_mutations(&check_mutations_file()?)?;
+    let mutations = read_mutations()?;
 
     // run the mutations on the test-suites
     run_mutations(&test_bins, &mutations)?;
@@ -74,8 +74,12 @@ fn run_mutations(test_bins: &[TestBinTimed], mutations: &[BakedMutation]) -> Fal
         }
     }
 
+    let coverage = ((killed * 10000) / (killed + survived)) as f64 / 100.0;
+
     println!();
-    println!("{} mutants killed, {} mutants SURVIVED", killed, survived);
+    println!("{} mutants killed", killed);
+    println!("{} mutants SURVIVED", survived);
+    println!("{}% mutation coverage", coverage);
 
     Ok(())
 }
@@ -104,28 +108,34 @@ fn compile_tests() -> Fallible<Vec<PathBuf>> {
     Ok(tests)
 }
 
+/// read all mutations from the given file
+///
 /// This functions gets the file that describes all mutations performed on the target program and ensures that it exists.
-fn check_mutations_file() -> Fallible<PathBuf> {
-    let mutagen_file = get_mutations_file()?;
-    if !mutagen_file.exists() {
+/// The list of mutations is also preserved
+fn read_mutations() -> Fallible<Vec<BakedMutation>> {
+    let mutations_file = get_mutations_file()?;
+    if !mutations_file.exists() {
         bail!(
             "file `target/mutagen/mutations` is not found\n\
              maybe there are no mutations defined or the attribute `#[mutate]` is not enabled"
         )
     }
-    Ok(mutagen_file)
-}
 
-/// read all mutations from the given file
-fn read_mutations(mutations_file: &PathBuf) -> Fallible<Vec<BakedMutation>> {
     println!("mutations-file: {}", mutations_file.display());
-    let mut mutations = BufReader::new(File::open(mutations_file)?)
+    let mutations = BufReader::new(File::open(mutations_file)?)
         .lines()
         .map(|line| {
             serde_json::from_str(&line?).map_err(|e| format_err!("mutation format error: {}", e))
         })
         .collect::<Fallible<Vec<BakedMutation>>>()?;
 
-    mutations.sort_unstable_by_key(BakedMutation::id);
+    // write the collected mutations
+    let mutations_map = mutations
+        .iter()
+        .map(|m| (m.id(), m.as_ref()))
+        .collect::<HashMap<_, _>>();
+    let mutations_writer = BufWriter::new(File::create(get_mutations_file_json()?)?);
+    serde_json::to_writer(mutations_writer, &mutations_map)?;
+
     Ok(mutations)
 }
