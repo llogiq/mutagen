@@ -1,6 +1,4 @@
 #![feature(proc_macro_span)]
-#![feature(box_syntax)]
-#![feature(vec_remove_item)]
 #![feature(specialization)]
 
 mod mutation;

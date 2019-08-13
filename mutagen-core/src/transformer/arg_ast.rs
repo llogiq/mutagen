@@ -38,7 +38,7 @@ impl ArgAstList {
             } else if let TokenTree::Literal(next) = next {
                 next.to_string()
             } else {
-                return Err(())
+                return Err(());
             };
 
             args.push(ArgAst::parse_single(name, &mut tt_iter)?);
@@ -55,7 +55,7 @@ impl ArgAstList {
             .map(|ast| Ok(&ast.expect_eq_ref()?.val))
             .collect::<Result<Vec<&ArgFn>, ()>>()?;
         if named_args.len() > 1 {
-            return Err(())
+            return Err(());
         }
         Ok(named_args.get(0).copied())
     }
@@ -86,7 +86,7 @@ impl ArgAst {
             // parse fn-variant
             Some(TokenTree::Group(g)) => {
                 if g.delimiter() != Delimiter::Parenthesis {
-                    return Err(())
+                    return Err(());
                 }
                 let args = ArgAstList::parse_list(g.stream())?;
                 tt_expect_comma_or_end(tt_iter)?;
@@ -96,10 +96,10 @@ impl ArgAst {
             // parse eq-variant
             Some(TokenTree::Punct(p)) => {
                 if p.as_char() == ',' {
-                    return Ok(Self::new_fn(name, ArgAstList(vec![])))
+                    return Ok(Self::new_fn(name, ArgAstList(vec![])));
                 }
                 if p.as_char() != '=' {
-                    return Err(())
+                    return Err(());
                 }
 
                 let next = tt_iter.next();
@@ -108,12 +108,12 @@ impl ArgAst {
                 } else if let Some(TokenTree::Literal(next)) = next {
                     next.to_string()
                 } else {
-                    return Err(())
+                    return Err(());
                 };
 
                 // parse value, only allow ArgFn values.
                 let val = Self::parse_single(next, tt_iter)?.expect_fn()?;
-                return Ok(Self::new_eq(name, val))
+                return Ok(Self::new_eq(name, val));
             }
             _ => return Err(()),
         }
@@ -144,7 +144,7 @@ fn tt_expect_comma_or_end(tt_iter: &mut impl Iterator<Item = TokenTree>) -> Resu
         None => {}
         Some(TokenTree::Punct(p)) => {
             if p.as_char() != ',' {
-                return Err(())
+                return Err(());
             }
         }
         _ => return Err(()),
@@ -340,10 +340,7 @@ mod tests {
         );
         let expected2 = ArgEq::new(
             "y".to_string(),
-            ArgFn::new(
-                "b".to_owned(),
-                ArgAstList(vec![]),
-            ),
+            ArgFn::new("b".to_owned(), ArgAstList(vec![])),
         );
 
         let expected = ArgAstList(vec![ArgAst::ArgEq(expected1), ArgAst::ArgEq(expected2)]);

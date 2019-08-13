@@ -84,12 +84,12 @@ impl MutagenTransformerBundle {
         _transformer_args: &[String],
     ) -> MutagenTransformer {
         match transformer_name {
-            "lit_int" => MutagenTransformer::Expr(box MutatorLitInt::transform),
-            "lit_bool" => MutagenTransformer::Expr(box MutatorLitBool::transform),
-            "unop_not" => MutagenTransformer::Expr(box MutatorUnopNot::transform),
-            "binop_add" => MutagenTransformer::Expr(box MutatorBinopAdd::transform),
-            "binop_eq" => MutagenTransformer::Expr(box MutatorBinopEq::transform),
-            "binop_cmp" => MutagenTransformer::Expr(box MutatorBinopCmp::transform),
+            "lit_int" => MutagenTransformer::Expr(Box::new(MutatorLitInt::transform)),
+            "lit_bool" => MutagenTransformer::Expr(Box::new(MutatorLitBool::transform)),
+            "unop_not" => MutagenTransformer::Expr(Box::new(MutatorUnopNot::transform)),
+            "binop_add" => MutagenTransformer::Expr(Box::new(MutatorBinopAdd::transform)),
+            "binop_eq" => MutagenTransformer::Expr(Box::new(MutatorBinopEq::transform)),
+            "binop_cmp" => MutagenTransformer::Expr(Box::new(MutatorBinopCmp::transform)),
             _ => panic!("unknown transformer {}", transformer_name),
         }
     }
@@ -137,7 +137,10 @@ impl MutagenTransformerBundle {
             Transformers::Not(list) => {
                 let mut transformers = Self::all_transformers();
                 for l in &list.transformers {
-                    transformers.remove_item(l);
+                    // transformers.remove_item(l)
+                    if let Some(pos) = transformers.iter().position(|x| *x == *l) {
+                        transformers.remove(pos);
+                    }
                 }
                 transformers
             }
