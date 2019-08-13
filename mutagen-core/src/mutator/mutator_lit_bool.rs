@@ -71,5 +71,4 @@ mod tests {
         let result = MutatorLitBool::run(1, true, MutagenRuntimeConfig::with_mutation_id(1));
         assert_eq!(result, false)
     }
-
 }

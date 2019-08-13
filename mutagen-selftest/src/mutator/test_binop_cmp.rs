@@ -6,7 +6,7 @@ mod tests {
         use ::mutagen::MutagenRuntimeConfig;
 
         // simple comparison
-        #[mutate(conf(local), only(binop_cmp))]
+        #[mutate(conf = local(expected_mutations = 3), mutators = only(binop_cmp))]
         fn lt(left: i32, right: i32) -> bool {
             left < right
         }
@@ -53,7 +53,7 @@ mod tests {
         use ::mutagen::MutagenRuntimeConfig;
 
         // simple comparison
-        #[mutate(conf(local), only(binop_cmp))]
+        #[mutate(conf = local(expected_mutations = 3), mutators = only(binop_cmp))]
         fn le(left: i32, right: i32) -> bool {
             left <= right
         }
@@ -100,7 +100,7 @@ mod tests {
         use ::mutagen::MutagenRuntimeConfig;
 
         // simpge comparison
-        #[mutate(conf(local), only(binop_cmp))]
+        #[mutate(conf = local(expected_mutations = 3), mutators = only(binop_cmp))]
         fn ge(left: i32, right: i32) -> bool {
             left >= right
         }
@@ -147,7 +147,7 @@ mod tests {
         use ::mutagen::MutagenRuntimeConfig;
 
         // simple comparison
-        #[mutate(conf(local), only(binop_cmp))]
+        #[mutate(conf = local(expected_mutations = 3), mutators = only(binop_cmp))]
         fn gt(left: i32, right: i32) -> bool {
             left > right
         }
@@ -187,5 +187,4 @@ mod tests {
             })
         }
     }
-
 }

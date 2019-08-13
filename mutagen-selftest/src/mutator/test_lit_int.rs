@@ -7,7 +7,7 @@ mod tests {
         use ::mutagen::MutagenRuntimeConfig;
 
         // test that literals, that are nested in a outside expressen, are mutated
-        #[mutate(conf(local), only(lit_int))]
+        #[mutate(conf = local(expected_mutations = 4), mutators = only(lit_int))]
         fn sum_u32() -> u32 {
             1 + 2
         }
@@ -53,7 +53,7 @@ mod tests {
         use ::mutagen::mutate;
         use ::mutagen::MutagenRuntimeConfig;
 
-        #[mutate(conf(local), only(lit_int))]
+        #[mutate(conf = local(expected_mutations = 2), mutators = only(lit_int))]
         fn lit_u8_suffixed() -> u8 {
             1u8
         }
@@ -78,42 +78,12 @@ mod tests {
             })
         }
     }
-    mod test_lit_u8_max_value {
-
-        use ::mutagen::mutate;
-        use ::mutagen::MutagenRuntimeConfig;
-
-        #[mutate(conf(local), only(lit_int))]
-        fn lit_u8_max_value() -> u8 {
-            255
-        }
-        #[test]
-        fn lit_u8_max_value_inactive() {
-            MutagenRuntimeConfig::test_with_mutation_id(0, || {
-                assert_eq!(lit_u8_max_value(), 255);
-            })
-        }
-        // literal +1 -> wraps around
-        #[test]
-        fn lit_u8_max_value_active1() {
-            MutagenRuntimeConfig::test_with_mutation_id(1, || {
-                assert_eq!(lit_u8_max_value(), 0);
-            })
-        }
-        // literal -1
-        #[test]
-        fn lit_u8_max_value_active2() {
-            MutagenRuntimeConfig::test_with_mutation_id(2, || {
-                assert_eq!(lit_u8_max_value(), 254);
-            })
-        }
-    }
     mod test_lit_u8_overflown_literal {
 
         use ::mutagen::mutate;
         use ::mutagen::MutagenRuntimeConfig;
 
-        #[mutate(conf(local), only(lit_int))]
+        #[mutate(conf = local, mutators = only(lit_int))]
         fn lit_u8_overflown_literal() -> u8 {
             255
         }

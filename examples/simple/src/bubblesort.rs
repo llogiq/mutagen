@@ -57,5 +57,4 @@ mod tests {
         bubblesort_while(&mut arr);
         assert_eq!(&*arr, [1, 2, 3]);
     }
-
 }

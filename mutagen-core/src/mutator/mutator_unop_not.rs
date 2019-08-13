@@ -96,5 +96,4 @@ mod tests {
             MutagenRuntimeConfig::with_mutation_id(1),
         );
     }
-
 }

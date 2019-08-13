@@ -7,7 +7,7 @@ mod tests {
         use ::mutagen::MutagenRuntimeConfig;
 
         // simple test that sums 2 u32 values. Unfortunately, the tag `u32` is necessary
-        #[mutate(conf(local), only(binop_add))]
+        #[mutate(conf = local(expected_mutations = 1), mutators = only(binop_add))]
         fn sum_u32() -> u32 {
             5u32 + 1
         }
@@ -23,7 +23,6 @@ mod tests {
                 assert_eq!(sum_u32(), 4);
             })
         }
-
     }
 
     mod test_str_add {
@@ -32,7 +31,7 @@ mod tests {
         use ::mutagen::MutagenRuntimeConfig;
 
         // strings cannot be subtracted, the mutation that changes `+` into `-` should panic
-        #[mutate(conf(local), only(binop_add))]
+        #[mutate(conf = local(expected_mutations = 1), mutators = only(binop_add))]
         fn str_add() -> String {
             "a".to_string() + "b"
         }
@@ -57,7 +56,7 @@ mod tests {
         use ::mutagen::MutagenRuntimeConfig;
 
         // sum of multiple values without brackets
-        #[mutate(conf(local), only(binop_add))]
+        #[mutate(conf = local(expected_mutations = 2), mutators = only(binop_add))]
         pub fn multiple_adds(i: usize) -> usize {
             i + 4 + 1
         }

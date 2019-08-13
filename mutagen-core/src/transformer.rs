@@ -1,7 +1,10 @@
-use proc_macro2::Span;
+use proc_macro2::{Span, TokenStream};
+use quote::ToTokens;
 use syn::fold::Fold;
 use syn::{Expr, ItemFn};
 
+mod arg_ast;
+mod mutate_args;
 mod set_true_span;
 pub mod transform_info;
 
@@ -54,7 +57,127 @@ impl ExprTransformerOutput {
 impl Fold for MutagenTransformerBundle {
     fn fold_expr(&mut self, e: Expr) -> Expr {
         // transform content of the expression first
-        let mut result = match e {
+        let mut result = self.fold_expr_default(e);
+
+        // call all transformers on this expression
+        for transformer in &mut self.expr_transformers {
+            result = match transformer(result, &self.transform_info) {
+                ExprTransformerOutput::Transformed(TransformedExpr { expr, span }) => {
+                    set_true_span::set_true_span_expr(expr, span)
+                }
+                ExprTransformerOutput::Unchanged(e) => e,
+            }
+        }
+        result
+    }
+}
+
+impl MutagenTransformerBundle {
+    pub fn mutagen_process_item_fn(&mut self, target: ItemFn) -> TokenStream {
+        let stream = self.fold_item_fn(target).into_token_stream();
+        self.transform_info.check_mutations();
+        stream
+    }
+
+    pub fn mk_transformer(
+        transformer_name: &str,
+        _transformer_args: &[String],
+    ) -> MutagenTransformer {
+        match transformer_name {
+            "lit_int" => MutagenTransformer::Expr(box MutatorLitInt::transform),
+            "lit_bool" => MutagenTransformer::Expr(box MutatorLitBool::transform),
+            "unop_not" => MutagenTransformer::Expr(box MutatorUnopNot::transform),
+            "binop_add" => MutagenTransformer::Expr(box MutatorBinopAdd::transform),
+            "binop_eq" => MutagenTransformer::Expr(box MutatorBinopEq::transform),
+            "binop_cmp" => MutagenTransformer::Expr(box MutatorBinopCmp::transform),
+            _ => panic!("unknown transformer {}", transformer_name),
+        }
+    }
+
+    // this funciton gives a vec of all transformers, in order they are executed
+    pub fn all_transformers() -> Vec<String> {
+        [
+            "lit_int",
+            "lit_bool",
+            "unop_not",
+            "binop_add",
+            "binop_eq",
+            "binop_cmp",
+        ]
+        .iter()
+        .copied()
+        .map(ToOwned::to_owned)
+        .collect()
+    }
+
+    pub fn transformer_order() -> &'static HashMap<String, usize> {
+        &TRANSFORMER_ORDER
+    }
+
+    /// parse the arguments of the `#[mutate]` attribute
+    fn setup_from_attr(args: TokenStream) -> Self {
+        use self::mutate_args::*;
+
+        let options = ArgOptions::parse(args).expect("invalid options");
+
+        // create transform_info
+        let transform_info: SharedTransformInfo = match options.conf {
+            Conf::Global => SharedTransformInfo::global_info(),
+            Conf::Local(local_conf) => SharedTransformInfo::local_info(local_conf),
+        };
+
+        // create transformers
+        let transformers = match options.transformers {
+            Transformers::All => Self::all_transformers(),
+            Transformers::Only(list) => {
+                let mut transformers = list.transformers;
+                transformers.sort_by_key(|t| Self::transformer_order()[t]);
+                transformers
+            }
+            Transformers::Not(list) => {
+                let mut transformers = Self::all_transformers();
+                for l in &list.transformers {
+                    transformers.remove_item(l);
+                }
+                transformers
+            }
+        };
+        let mut expr_transformers = Vec::new();
+        for t in &transformers {
+            let t = Self::mk_transformer(t, &[]);
+            match t {
+                MutagenTransformer::Expr(t) => expr_transformers.push(t),
+            }
+        }
+
+        Self {
+            expr_transformers,
+            transform_info,
+        }
+    }
+}
+
+use lazy_static::lazy_static;
+use std::collections::HashMap;
+
+lazy_static! {
+    static ref TRANSFORMER_ORDER: HashMap<String, usize> = {
+        MutagenTransformerBundle::all_transformers()
+            .into_iter()
+            .enumerate()
+            .map(|(i, s)| (s, i))
+            .collect()
+    };
+}
+
+pub fn do_transform_item_fn(args: TokenStream, input: ItemFn) -> TokenStream {
+    MutagenTransformerBundle::setup_from_attr(args.into()).mutagen_process_item_fn(input)
+}
+
+// default fold of expr
+impl MutagenTransformerBundle {
+    fn fold_expr_default(&mut self, e: Expr) -> Expr {
+        match e {
             Expr::Box(e0) => Expr::Box(self.fold_expr_box(e0)),
             Expr::InPlace(e0) => Expr::InPlace(self.fold_expr_in_place(e0)),
             Expr::Array(e0) => Expr::Array(self.fold_expr_array(e0)),
@@ -95,81 +218,6 @@ impl Fold for MutagenTransformerBundle {
             Expr::TryBlock(e0) => Expr::TryBlock(self.fold_expr_try_block(e0)),
             Expr::Yield(e0) => Expr::Yield(self.fold_expr_yield(e0)),
             Expr::Verbatim(e0) => Expr::Verbatim(self.fold_expr_verbatim(e0)),
-        };
-
-        // call all transformers on this expression
-        for transformer in &mut self.expr_transformers {
-            result = match transformer(result, &self.transform_info) {
-                ExprTransformerOutput::Transformed(TransformedExpr { expr, span }) => {
-                    set_true_span::set_true_span_expr(expr, span)
-                }
-                ExprTransformerOutput::Unchanged(e) => e,
-            }
-        }
-        result
-    }
-}
-
-impl MutagenTransformerBundle {
-    pub fn new(
-        expr_transformers: Vec<Box<MutagenExprTransformer>>,
-        transform_info: SharedTransformInfo,
-    ) -> Self {
-        Self {
-            expr_transformers,
-            transform_info,
         }
     }
-
-    pub fn mutagen_transform_item_fn(&mut self, target: ItemFn) -> ItemFn {
-        self.fold_item_fn(target)
-    }
-
-    pub fn mk_transformer(
-        transformer_name: &str,
-        _transformer_args: &[String],
-    ) -> MutagenTransformer {
-        match transformer_name {
-            "lit_int" => MutagenTransformer::Expr(box MutatorLitInt::transform),
-            "lit_bool" => MutagenTransformer::Expr(box MutatorLitBool::transform),
-            "unop_not" => MutagenTransformer::Expr(box MutatorUnopNot::transform),
-            "binop_add" => MutagenTransformer::Expr(box MutatorBinopAdd::transform),
-            "binop_eq" => MutagenTransformer::Expr(box MutatorBinopEq::transform),
-            "binop_cmp" => MutagenTransformer::Expr(box MutatorBinopCmp::transform),
-            _ => panic!("unknown transformer {}", transformer_name),
-        }
-    }
-
-    // this funciton gives a vec of all transformers, in order they are executed
-    pub fn all_transformers() -> Vec<String> {
-        [
-            "lit_int",
-            "lit_bool",
-            "unop_not",
-            "binop_add",
-            "binop_eq",
-            "binop_cmp",
-        ]
-        .iter()
-        .copied()
-        .map(ToOwned::to_owned)
-        .collect()
-    }
-
-    pub fn transformer_order() -> &'static HashMap<String, usize> {
-        &TRANSFORMER_ORDER
-    }
-}
-
-use lazy_static::lazy_static;
-use std::collections::HashMap;
-
-lazy_static! {
-    static ref TRANSFORMER_ORDER: HashMap<String, usize> = {
-        MutagenTransformerBundle::all_transformers()
-            .into_iter()
-            .enumerate()
-            .map(|(i, s)| (s, i))
-            .collect()
-    };
 }

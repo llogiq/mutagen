@@ -24,5 +24,4 @@ mod tests {
     fn test_simple_add_u8() {
         assert_eq!(simple_add_u8(), 3);
     }
-
 }

@@ -62,5 +62,4 @@ mod tests {
     fn test_ggt_rec_5_3() {
         assert_eq!(ggt_rec(5, 3), 1)
     }
-
 }

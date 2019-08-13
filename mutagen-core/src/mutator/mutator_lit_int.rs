@@ -179,5 +179,4 @@ mod tests {
     fn mutate_relative_neg1() {
         assert_eq!(MutationLitInt::Relative(-1).mutate(2), 1)
     }
-
 }

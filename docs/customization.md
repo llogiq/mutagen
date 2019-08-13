@@ -4,7 +4,7 @@ The behavior of `mutagen` and the attribute `#[mutate]` can be customized by add
 
 ## Configuring the list of mutators
 
-The list of active mutators for a function to be run can be specified by adding arguments `only(...)` and `not(...)`. In both cases, a list of mutators is required inside the brackets.
+The list of active mutators for a function to be run can be specified by adding arguments `mutators = only(...)` and `not(...)`. In both cases, a list of mutators is required inside the brackets.
 
 The details of all mutators are described in their own folder (see: [overview](mutators)).
 
@@ -12,13 +12,13 @@ The details of all mutators are described in their own folder (see: [overview](m
 
 ```rust
 // only mutate int-literals
-#[mutate(only(lit_int))]
+#[mutate(mutators = only(lit_int))]
 
 // only mutate int-literals and `+` operations.
-#[mutate(only(lit_int, binop_add))]
+#[mutate(mutators = only(lit_int, binop_add))]
 
 // include all mutations except bool literal mutations
-#[mutate(not(lit_bool))]
+#[mutate(mutators = not(lit_bool))]
 ```
 
 ## WIP: arguments for mutators

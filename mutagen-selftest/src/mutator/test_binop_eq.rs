@@ -6,7 +6,7 @@ mod tests {
         use ::mutagen::MutagenRuntimeConfig;
 
         // simple comparison
-        #[mutate(conf(local), only(binop_eq))]
+        #[mutate(conf = local(expected_mutations = 1), mutators = only(binop_eq))]
         fn eq(left: i32, right: i32) -> bool {
             left == right
         }
@@ -31,7 +31,7 @@ mod tests {
         use ::mutagen::MutagenRuntimeConfig;
 
         // simple comparison
-        #[mutate(conf(local), only(binop_eq))]
+        #[mutate(conf = local(expected_mutations = 1), mutators = only(binop_eq))]
         fn ne(left: i32, right: i32) -> bool {
             left != right
         }

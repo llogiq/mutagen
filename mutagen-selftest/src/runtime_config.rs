@@ -15,5 +15,4 @@ mod tests {
             assert_eq!(MutagenRuntimeConfig::get_default().mutation_id, 0);
         })
     }
-
 }

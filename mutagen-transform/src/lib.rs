@@ -7,20 +7,14 @@
 extern crate proc_macro;
 use syn::{parse_macro_input, ItemFn};
 
-use mutagen_core::mutate_args::MutagenArgs;
+use mutagen_core::do_transform_item_fn;
 
 #[proc_macro_attribute]
 pub fn mutate(
     attr: proc_macro::TokenStream,
     item: proc_macro::TokenStream,
 ) -> proc_macro::TokenStream {
-    use quote::ToTokens;
-
-    // read args and initialize transformers
-    let mut args = MutagenArgs::args_from_attr(attr.into());
-
-    // run transformers one after the other
     let input = parse_macro_input!(item as ItemFn);
-    let result = args.transformer_bundle.mutagen_transform_item_fn(input);
-    result.into_token_stream().into()
+
+    do_transform_item_fn(attr.into(), input).into()
 }

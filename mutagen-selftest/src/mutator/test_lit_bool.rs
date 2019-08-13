@@ -6,7 +6,7 @@ mod tests {
         use ::mutagen::mutate;
         use ::mutagen::MutagenRuntimeConfig;
 
-        #[mutate(conf(local), only(lit_bool))]
+        #[mutate(conf = local(expected_mutations = 1), mutators = only(lit_bool))]
         fn simple_true() -> bool {
             true
         }
@@ -30,7 +30,7 @@ mod tests {
         use ::mutagen::MutagenRuntimeConfig;
 
         // constant false
-        #[mutate(conf(local), only(lit_bool))]
+        #[mutate(conf = local(expected_mutations = 1), mutators = only(lit_bool))]
         fn simple_false() -> bool {
             false
         }
@@ -46,6 +46,5 @@ mod tests {
                 assert_eq!(simple_false(), true);
             })
         }
-
     }
 }

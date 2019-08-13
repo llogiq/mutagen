@@ -48,5 +48,4 @@ pub mod optimistc_types {
             TypeWithNotTarget()
         }
     }
-
 }
