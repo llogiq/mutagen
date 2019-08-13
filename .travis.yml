@@ -16,4 +16,4 @@ script:
   - cargo run --bin cargo-mutagen --package cargo-mutagen
 
   # check format
-  cargo fmt -- --check
+  - cargo fmt -- --check
