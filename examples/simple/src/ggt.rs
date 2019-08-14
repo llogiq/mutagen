@@ -19,7 +19,7 @@ pub fn ggt_loop(mut a: u32, mut b: u32) -> u32 {
 
 #[cfg_attr(test, mutate)]
 pub fn ggt_rec(mut a: u32, mut b: u32) -> u32 {
-    if a == 0 || b == 0 {
+    if a == b || a == 0 || b == 0  {
         return a | b;
     }
     if a > b {
@@ -58,5 +58,13 @@ mod tests {
     #[test]
     fn test_ggt_rec_5_3() {
         assert_eq!(ggt_rec(5, 3), 1)
+    }
+    #[test]
+    fn test_ggt_rec_0_2() {
+        assert_eq!(ggt_loop(0, 2), 2)
+    }
+    #[test]
+    fn test_ggt_rec_2_0() {
+        assert_eq!(ggt_loop(2, 0), 2)
     }
 }

@@ -5,7 +5,7 @@ pub fn primetest(n: u32) -> bool {
     if n % 2 == 0 {
         return n == 2;
     }
-    if n <= 2 {
+    if n == 1 {
         return false;
     }
     let mut k = 3;
@@ -23,6 +23,10 @@ mod tests {
 
     use super::*;
 
+    #[test]
+    fn test_primetest_0() {
+        assert!(!primetest(0))
+    }
     #[test]
     fn test_primetest_1() {
         assert!(!primetest(1))
