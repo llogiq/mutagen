@@ -8,5 +8,6 @@
 | `MutatorLitBool` | inverts bool literals | `false` -> `true` |
 | `MutatorBinopAdd` | changes `+` to `-` | `x+y` -> `x-y` |
 | `MutatorBinopCmp` | changes one comparison (`<`, `<=`, `>=`, `>`) to another | `x>y` -> `x<=y` |
-| `MutatorBinopEq` | changes `==` to `!=` | `x==y` -> `x!=y` |
+| `MutatorBinopEq` | changes `==` to `!=` and vice versa | `x==y` -> `x!=y` |
+| `MutatorBinopBool` | changes `&&` to `||` and vice versa | `x||y` -> `x&&y` |
 | `MutatorUnopNot` | removes the negation `!` | `!x` -> `x` |

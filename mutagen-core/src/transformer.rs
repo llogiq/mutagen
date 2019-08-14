@@ -9,6 +9,7 @@ mod set_true_span;
 pub mod transform_info;
 
 use crate::mutator::MutatorBinopAdd;
+use crate::mutator::MutatorBinopBool;
 use crate::mutator::MutatorBinopCmp;
 use crate::mutator::MutatorBinopEq;
 use crate::mutator::MutatorLitBool;
@@ -90,6 +91,7 @@ impl MutagenTransformerBundle {
             "binop_add" => MutagenTransformer::Expr(Box::new(MutatorBinopAdd::transform)),
             "binop_eq" => MutagenTransformer::Expr(Box::new(MutatorBinopEq::transform)),
             "binop_cmp" => MutagenTransformer::Expr(Box::new(MutatorBinopCmp::transform)),
+            "binop_bool" => MutagenTransformer::Expr(Box::new(MutatorBinopBool::transform)),
             _ => panic!("unknown transformer {}", transformer_name),
         }
     }
@@ -103,6 +105,7 @@ impl MutagenTransformerBundle {
             "binop_add",
             "binop_eq",
             "binop_cmp",
+            "binop_bool",
         ]
         .iter()
         .copied()

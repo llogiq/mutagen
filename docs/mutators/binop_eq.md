@@ -7,6 +7,7 @@
 ## Mutations
 
 1. replacing `==` with `!=`
+1. replacing `!=` with `==`
 
 ## Limitations
 

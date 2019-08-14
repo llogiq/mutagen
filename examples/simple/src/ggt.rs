@@ -19,11 +19,8 @@ pub fn ggt_loop(mut a: u32, mut b: u32) -> u32 {
 
 #[cfg_attr(test, mutate)]
 pub fn ggt_rec(mut a: u32, mut b: u32) -> u32 {
-    if a == 0 {
-        return b;
-    }
-    if b == 0 {
-        return a;
+    if a == 0 || b == 0 {
+        return a | b;
     }
     if a > b {
         ggt_rec(a - b, b)

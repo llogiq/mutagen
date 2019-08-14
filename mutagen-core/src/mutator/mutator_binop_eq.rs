@@ -1,4 +1,4 @@
-//! Mutator for binary operation `==`.
+//! Mutator for binary operations `==` and `!=`
 
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
