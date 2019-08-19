@@ -8,13 +8,7 @@ mod mutate_args;
 mod set_true_span;
 pub mod transform_info;
 
-use crate::mutator::MutatorBinopAdd;
-use crate::mutator::MutatorBinopBool;
-use crate::mutator::MutatorBinopCmp;
-use crate::mutator::MutatorBinopEq;
-use crate::mutator::MutatorLitBool;
-use crate::mutator::MutatorLitInt;
-use crate::mutator::MutatorUnopNot;
+use crate::mutator::*;
 
 use transform_info::SharedTransformInfo;
 
@@ -121,10 +115,6 @@ impl MutagenTransformerBundle {
         .collect()
     }
 
-    pub fn transformer_order() -> &'static HashMap<String, usize> {
-        &TRANSFORMER_ORDER
-    }
-
     /// parse the arguments of the `#[mutate]` attribute
     fn setup_from_attr(args: TokenStream) -> Self {
         use self::mutate_args::*;
@@ -142,7 +132,7 @@ impl MutagenTransformerBundle {
             Transformers::All => Self::all_transformers(),
             Transformers::Only(list) => {
                 let mut transformers = list.transformers;
-                transformers.sort_by_key(|t| Self::transformer_order()[t]);
+                transformers.sort_by_key(|t| TRANSFORMER_ORDER[t]);
                 transformers
             }
             Transformers::Not(list) => {
