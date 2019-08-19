@@ -11,12 +11,9 @@ failure = "0.1"
 json = "0.11"
 lazy_static = "1.3.0"
 
-# the versions of the following crates are fixed because in the past even minor changes lead to failing code.
-# the `syn` dependency is particularly brittle because helper code for default folds is copied from the source code repository
-# The intention is to update the dependencies manually if they have been updated.
-quote = "=0.6.13"
-proc-macro2 = { version = "=0.4.30", features = ["span-locations"] }
-syn = { version = "=0.15.42", features = ["full", "extra-traits", "fold"] }
+quote = "1.0.2"
+proc-macro2 = { version = "1.0.1", features = ["span-locations"] }
+syn = { version = "1.0.3", features = ["full", "extra-traits", "fold"] }
 
 
 [features]

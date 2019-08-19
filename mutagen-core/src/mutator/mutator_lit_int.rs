@@ -1,6 +1,7 @@
 //! Mutator for int literals.
 
-use syn::{parse_quote, Expr, ExprLit, Lit, LitInt};
+use proc_macro2::Span;
+use syn::{parse_quote, Expr, ExprLit, Lit};
 
 use crate::transformer::transform_info::SharedTransformInfo;
 use crate::transformer::ExprTransformerOutput;
@@ -27,21 +28,31 @@ impl MutatorLitInt {
     pub fn transform(e: Expr, transform_info: &SharedTransformInfo) -> ExprTransformerOutput {
         match e {
             Expr::Lit(ExprLit {
-                lit: Lit::Int(l), ..
+                lit: Lit::Int(lit),
+                attrs,
             }) => {
+                let lit_val = match lit.base10_parse::<u64>() {
+                    Ok(v) => v,
+                    Err(_) => {
+                        return ExprTransformerOutput::unchanged(Expr::Lit(ExprLit {
+                            lit: Lit::Int(lit),
+                            attrs,
+                        }))
+                    }
+                };
                 let mutator_id = transform_info.add_mutations(
-                    MutationLitInt::possible_mutations(l.value())
+                    MutationLitInt::possible_mutations(lit_val)
                         .into_iter()
-                        .map(|m| m.to_mutation(&l)),
+                        .map(|m| m.to_mutation(lit_val, lit.span())),
                 );
                 let expr = parse_quote! {
                     ::mutagen::mutator::MutatorLitInt::run(
                             #mutator_id,
-                            #l,
+                            #lit,
                             ::mutagen::MutagenRuntimeConfig::get_default()
                         )
                 };
-                ExprTransformerOutput::changed(expr, l.span())
+                ExprTransformerOutput::changed(expr, lit.span())
             }
             _ => ExprTransformerOutput::unchanged(e),
         }
@@ -73,13 +84,12 @@ impl MutationLitInt {
         }
     }
 
-    fn to_mutation(self, original_lit: &LitInt) -> Mutation {
-        let val = original_lit.value();
+    fn to_mutation(self, val: u64, span: Span) -> Mutation {
         Mutation::new_spanned(
             "lit_int".to_owned(),
             format!("{}", val),
             format!("{}", self.mutate::<u64>(val)),
-            original_lit.span(),
+            span,
         )
     }
 }

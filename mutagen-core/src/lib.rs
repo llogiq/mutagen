@@ -1,3 +1,4 @@
+// proc-macro-span feature is required because `proc_macro2` does not export the api for getting source files for spans
 #![feature(proc_macro_span)]
 #![feature(specialization)]
 
