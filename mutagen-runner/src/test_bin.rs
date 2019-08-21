@@ -5,8 +5,7 @@ use std::time::{Duration, Instant};
 
 use wait_timeout::ChildExt;
 
-use super::MutantStatus;
-use mutagen_core::comm::BakedMutation;
+use mutagen_core::comm::{BakedMutation, MutantStatus};
 
 /// wrapper around a test-binary that can be executed
 pub struct TestBin<'a> {
@@ -63,9 +62,9 @@ impl<'a> TestBinTimed<'a> {
         Ok(match timeout {
             Some(status) => {
                 if status.success() {
-                    MutantStatus::MutantSurvived
+                    MutantStatus::Survived
                 } else {
-                    MutantStatus::MutantKilled(status.code())
+                    MutantStatus::Killed(status.code())
                 }
             }
             None => {

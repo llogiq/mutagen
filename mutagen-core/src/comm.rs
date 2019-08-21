@@ -11,7 +11,9 @@
 mod coverage;
 mod mutagen_files;
 mod mutation;
+mod report;
 
 pub use coverage::CoverageHit;
 pub use mutagen_files::*;
 pub use mutation::{BakedMutation, Mutation};
+pub use report::{MutagenReport, MutantStatus};

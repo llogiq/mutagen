@@ -10,7 +10,7 @@ use std::str;
 
 use cargo_mutagen::*;
 use mutagen_core::comm;
-use mutagen_core::comm::{BakedMutation, CoverageHit};
+use mutagen_core::comm::{BakedMutation, CoverageHit, MutantStatus, MutagenReport};
 
 fn main() {
     if let Err(err) = run() {
@@ -40,7 +40,7 @@ fn run() -> Fallible<()> {
     let coverage = read_coverage()?;
 
     // run the mutations on the test-suites
-    run_mutations(&test_bins, &mutations, &coverage)?;
+    run_mutations(&test_bins, mutations, &coverage)?;
 
     Ok(())
 }
@@ -48,12 +48,10 @@ fn run() -> Fallible<()> {
 /// run all mutations on all test-executables
 fn run_mutations(
     test_bins: &[TestBinTimed],
-    mutations: &[BakedMutation],
+    mutations: Vec<BakedMutation>,
     coverage: &HashSet<u32>,
 ) -> Fallible<()> {
-    let mut killed = 0;
-    let mut survived = 0;
-    let mut not_covered = 0;
+    let mut mutagen_report = MutagenReport::new();
 
     for m in mutations {
         print!("{} ... ", m.log_string());
@@ -62,10 +60,10 @@ fn run_mutations(
         let mutant_covered = coverage.contains(&m.mutator_id());
         let mutant_status = if mutant_covered {
             // run all test binaries
-            let mut mutant_status = MutantStatus::MutantSurvived;
+            let mut mutant_status = MutantStatus::Survived;
             for bin in test_bins {
-                mutant_status = bin.check_mutant(m)?;
-                if mutant_status != MutantStatus::MutantSurvived {
+                mutant_status = bin.check_mutant(&m)?;
+                if mutant_status != MutantStatus::Survived {
                     break;
                 }
             }
@@ -74,36 +72,12 @@ fn run_mutations(
             MutantStatus::NotCovered
         };
 
-        match mutant_status {
-            MutantStatus::MutantSurvived => {
-                survived += 1;
-                println!("SURVIVED");
-            }
-            MutantStatus::NotCovered => {
-                not_covered += 1;
-                survived += 1;
-                println!("NOT COVERED");
-            }
-            _ => {
-                killed += 1;
-                print!("killed");
-                if mutant_status == MutantStatus::Timeout {
-                    print!(" (timeout)");
-                }
-                println!();
-            }
-        }
+        mutagen_report.add_mutation_result(m, mutant_status);
+
+        println!("{}", mutant_status);
     }
 
-    let coverage = ((killed * 10000) / (killed + survived)) as f64 / 100.0;
-
-    println!();
-    println!("{} mutants killed", killed);
-    println!(
-        "{} mutants SURVIVED ({} NOT COVERED)",
-        survived, not_covered
-    );
-    println!("{}% mutation coverage", coverage);
+    mutagen_report.summary().print();
 
     Ok(())
 }

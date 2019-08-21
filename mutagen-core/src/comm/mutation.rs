@@ -2,7 +2,7 @@ use proc_macro2::Span;
 use serde::{Deserialize, Serialize};
 
 /// description of a single mutation baked into the code with a given id
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct BakedMutation {
     id: u32,
     // id of the mutator that generates this mutation
@@ -11,7 +11,7 @@ pub struct BakedMutation {
 }
 
 /// Mutation in source code
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Mutation {
     mutator: String, // mutator is part of code that is changed
     original_code: String,
