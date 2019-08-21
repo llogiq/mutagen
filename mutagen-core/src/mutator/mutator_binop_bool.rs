@@ -141,5 +141,126 @@ impl fmt::Display for BinopBool {
 
 #[cfg(test)]
 mod tests {
-    // TODO: implement tests
+
+    use super::*;
+
+    #[test]
+    fn possible_mutations_and() {
+        assert_eq!(
+            MutationBinopBool::possible_mutations(BinopBool::And),
+            vec![MutationBinopBool { op: BinopBool::Or }]
+        )
+    }
+
+    #[test]
+    fn possible_mutations_or() {
+        assert_eq!(
+            MutationBinopBool::possible_mutations(BinopBool::Or),
+            vec![MutationBinopBool { op: BinopBool::And }]
+        )
+    }
+
+    #[test]
+    fn short_circuit_left_and_false() {
+        assert_eq!(BinopBool::And.short_circuit_left(false), Some(false))
+    }
+    #[test]
+    fn short_circuit_left_and_true() {
+        assert_eq!(BinopBool::And.short_circuit_left(true), None)
+    }
+
+    #[test]
+    fn short_circuit_left_or_false() {
+        assert_eq!(BinopBool::Or.short_circuit_left(false), None)
+    }
+    #[test]
+    fn short_circuit_left_or_true() {
+        assert_eq!(BinopBool::Or.short_circuit_left(true), Some(true))
+    }
+
+    #[test]
+    fn mutator_and_inactive() {
+        assert_eq!(
+            MutatorBinopBool::run_left(
+                1,
+                BinopBool::And,
+                true,
+                &MutagenRuntimeConfig::without_mutation()
+            ),
+            None
+        );
+        assert_eq!(
+            MutatorBinopBool::run_left(
+                1,
+                BinopBool::And,
+                false,
+                &MutagenRuntimeConfig::without_mutation()
+            ),
+            Some(false)
+        );
+    }
+    #[test]
+    fn mutator_and_active() {
+        assert_eq!(
+            MutatorBinopBool::run_left(
+                1,
+                BinopBool::And,
+                true,
+                &MutagenRuntimeConfig::with_mutation_id(1)
+            ),
+            Some(true)
+        );
+        assert_eq!(
+            MutatorBinopBool::run_left(
+                1,
+                BinopBool::And,
+                false,
+                &MutagenRuntimeConfig::with_mutation_id(1)
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn mutator_or_inactive() {
+        assert_eq!(
+            MutatorBinopBool::run_left(
+                1,
+                BinopBool::Or,
+                true,
+                &MutagenRuntimeConfig::without_mutation()
+            ),
+            Some(true)
+        );
+        assert_eq!(
+            MutatorBinopBool::run_left(
+                1,
+                BinopBool::Or,
+                false,
+                &MutagenRuntimeConfig::without_mutation()
+            ),
+            None
+        );
+    }
+    #[test]
+    fn mutator_or_active() {
+        assert_eq!(
+            MutatorBinopBool::run_left(
+                1,
+                BinopBool::Or,
+                true,
+                &MutagenRuntimeConfig::with_mutation_id(1)
+            ),
+            None
+        );
+        assert_eq!(
+            MutatorBinopBool::run_left(
+                1,
+                BinopBool::Or,
+                false,
+                &MutagenRuntimeConfig::with_mutation_id(1)
+            ),
+            Some(false)
+        );
+    }
 }
