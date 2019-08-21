@@ -3,11 +3,11 @@
 use std::ops::Add;
 use std::ops::Deref;
 
+use quote::quote_spanned;
 use syn::spanned::Spanned;
-use syn::{parse_quote, BinOp, Expr, ExprBinary};
+use syn::{BinOp, Expr, ExprBinary};
 
 use crate::transformer::transform_info::SharedTransformInfo;
-use crate::transformer::ExprTransformerOutput;
 use crate::Mutation;
 
 use crate::optimistic::AddToSub;
@@ -30,7 +30,7 @@ impl MutatorBinopAdd {
         }
     }
 
-    pub fn transform(e: Expr, transform_info: &SharedTransformInfo) -> ExprTransformerOutput {
+    pub fn transform(e: Expr, transform_info: &SharedTransformInfo) -> Expr {
         match e {
             Expr::Binary(ExprBinary {
                 left,
@@ -44,17 +44,17 @@ impl MutatorBinopAdd {
                     "-".to_owned(),
                     op_add.span(),
                 ));
-                let expr = parse_quote! {
+                syn::parse2(quote_spanned! {op_add.span()=>
                     ::mutagen::mutator::MutatorBinopAdd::run(
                             #mutator_id,
                             #left,
                             #right,
                             ::mutagen::MutagenRuntimeConfig::get_default()
                         )
-                };
-                ExprTransformerOutput::changed(expr, op_add.span())
+                })
+                .expect("transformed code invalid")
             }
-            _ => ExprTransformerOutput::unchanged(e),
+            _ => e,
         }
     }
 }

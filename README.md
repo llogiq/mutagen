@@ -41,15 +41,6 @@ use mutagen::mutate;
 
 Now you can advise mutagen to mutate any function or method by prepending `#[cfg_attr(test, mutate)]`. The use of `cfg_attr` ensures the `#[mutate]` attribute will only be active in test mode. The repository contains an example that shows how mutagen could be used.
 
-If the test-suite does not compile, the provided error messages may be unhelpful since the location of the generated code is not set correctly. E.g.:
-
-```
-X | #[cfg_attr(test, mutate)]
-  |                  ^^^^^^
-```  
-
-Calling the test suite with `RUSTFLAGS='--cfg procmacro2_semver_exempt' cargo test` sets the spans accordingly and will produce more helpful error messages.
-
 ### Running mutagen
 
 Install `cargo-mutagen`, which can be done by running `cargo install cargo-mutagen`. Run `cargo mutagen` on the project under test for a complete mutation test evaluation.

@@ -3,11 +3,11 @@
 use std::ops::Deref;
 use std::ops::Not;
 
+use quote::quote_spanned;
 use syn::spanned::Spanned;
-use syn::{parse_quote, Expr, ExprUnary, UnOp};
+use syn::{Expr, ExprUnary, UnOp};
 
 use crate::transformer::transform_info::SharedTransformInfo;
-use crate::transformer::ExprTransformerOutput;
 use crate::Mutation;
 
 use crate::optimistic::NotToNone;
@@ -29,7 +29,7 @@ impl MutatorUnopNot {
         }
     }
 
-    pub fn transform(e: Expr, transform_info: &SharedTransformInfo) -> ExprTransformerOutput {
+    pub fn transform(e: Expr, transform_info: &SharedTransformInfo) -> Expr {
         match e {
             Expr::Unary(ExprUnary {
                 expr,
@@ -42,16 +42,16 @@ impl MutatorUnopNot {
                     "".to_owned(),
                     op_not.span(),
                 ));
-                let expr = parse_quote! {
+                syn::parse2(quote_spanned! {op_not.span()=>
                     ::mutagen::mutator::MutatorUnopNot::run(
                             #mutator_id,
                             #expr,
                             ::mutagen::MutagenRuntimeConfig::get_default()
                         )
-                };
-                ExprTransformerOutput::changed(expr, op_not.span())
+                })
+                .expect("transformed code invalid")
             }
-            _ => ExprTransformerOutput::unchanged(e),
+            _ => e,
         }
     }
 }

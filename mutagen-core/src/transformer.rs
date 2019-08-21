@@ -1,11 +1,10 @@
-use proc_macro2::{Span, TokenStream};
+use proc_macro2::TokenStream;
 use quote::ToTokens;
 use syn::fold::Fold;
 use syn::{parse2, Expr, ItemFn};
 
 mod arg_ast;
 mod mutate_args;
-mod set_true_span;
 pub mod transform_info;
 
 use crate::mutator::*;
@@ -32,30 +31,7 @@ pub struct MutagenTransformerBundle {
 /// function-type that describes transformers.
 ///
 /// the transformer should not inspect the expression recursively since recursion is performed by the `MutagenTransformerBundle`
-type MutagenExprTransformer = dyn FnMut(Expr, &SharedTransformInfo) -> ExprTransformerOutput;
-
-pub enum ExprTransformerOutput {
-    Transformed(TransformedExpr),
-    Unchanged(Expr),
-}
-
-/// An Expr that has been transformed.
-///
-/// This struct also contains the span of the original code for further processing
-pub struct TransformedExpr {
-    expr: Expr,
-    span: Span,
-}
-
-impl ExprTransformerOutput {
-    pub fn unchanged(expr: Expr) -> Self {
-        ExprTransformerOutput::Unchanged(expr)
-    }
-
-    pub fn changed(expr: Expr, span: Span) -> Self {
-        ExprTransformerOutput::Transformed(TransformedExpr { expr, span })
-    }
-}
+type MutagenExprTransformer = dyn FnMut(Expr, &SharedTransformInfo) -> Expr;
 
 impl Fold for MutagenTransformerBundle {
     fn fold_expr(&mut self, e: Expr) -> Expr {
@@ -64,12 +40,7 @@ impl Fold for MutagenTransformerBundle {
 
         // call all transformers on this expression
         for transformer in &mut self.expr_transformers {
-            result = match transformer(result, &self.transform_info) {
-                ExprTransformerOutput::Transformed(TransformedExpr { expr, span }) => {
-                    set_true_span::set_true_span_expr(expr, span)
-                }
-                ExprTransformerOutput::Unchanged(e) => e,
-            }
+            result = transformer(result, &self.transform_info);
         }
         result
     }

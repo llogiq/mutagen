@@ -3,12 +3,12 @@
 use std::ops::Deref;
 
 use proc_macro2::{Span, TokenStream};
+use quote::quote_spanned;
 use quote::{quote, ToTokens};
 use syn::spanned::Spanned;
-use syn::{parse_quote, BinOp, Expr, ExprBinary};
+use syn::{BinOp, Expr, ExprBinary};
 
 use crate::transformer::transform_info::SharedTransformInfo;
-use crate::transformer::ExprTransformerOutput;
 use crate::Mutation;
 
 use crate::MutagenRuntimeConfig;
@@ -32,7 +32,7 @@ impl MutatorBinopCmp {
         }
     }
 
-    pub fn transform(e: Expr, transform_info: &SharedTransformInfo) -> ExprTransformerOutput {
+    pub fn transform(e: Expr, transform_info: &SharedTransformInfo) -> Expr {
         match e {
             Expr::Binary(ExprBinary {
                 left,
@@ -46,12 +46,12 @@ impl MutatorBinopCmp {
                     BinOp::Ge(t) => (BinopCmp::Ge, t.into_token_stream()),
                     BinOp::Gt(t) => (BinopCmp::Gt, t.into_token_stream()),
                     _ => {
-                        return ExprTransformerOutput::unchanged(Expr::Binary(ExprBinary {
+                        return Expr::Binary(ExprBinary {
                             left,
                             right,
                             op,
                             attrs,
-                        }))
+                        })
                     }
                 };
 
@@ -61,7 +61,7 @@ impl MutatorBinopCmp {
                         .map(|m| m.to_mutation(op, tt.span())),
                 );
 
-                let expr = parse_quote! {
+                syn::parse2(quote_spanned! {op.span()=>
                     ::mutagen::mutator::MutatorBinopCmp::run(
                             #mutator_id,
                             #left,
@@ -69,10 +69,10 @@ impl MutatorBinopCmp {
                             #op,
                             ::mutagen::MutagenRuntimeConfig::get_default()
                         )
-                };
-                ExprTransformerOutput::changed(expr, tt.span())
+                })
+                .expect("transformed code invalid")
             }
-            _ => ExprTransformerOutput::unchanged(e),
+            _ => e,
         }
     }
 }

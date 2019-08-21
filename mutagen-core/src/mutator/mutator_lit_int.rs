@@ -3,10 +3,10 @@
 use std::ops::Deref;
 
 use proc_macro2::Span;
-use syn::{parse_quote, Expr, ExprLit, Lit};
+use quote::quote_spanned;
+use syn::{Expr, ExprLit, Lit};
 
 use crate::transformer::transform_info::SharedTransformInfo;
-use crate::transformer::ExprTransformerOutput;
 use crate::Mutation;
 
 use crate::MutagenRuntimeConfig;
@@ -28,7 +28,7 @@ impl MutatorLitInt {
         }
     }
 
-    pub fn transform(e: Expr, transform_info: &SharedTransformInfo) -> ExprTransformerOutput {
+    pub fn transform(e: Expr, transform_info: &SharedTransformInfo) -> Expr {
         match e {
             Expr::Lit(ExprLit {
                 lit: Lit::Int(lit),
@@ -37,10 +37,10 @@ impl MutatorLitInt {
                 let lit_val = match lit.base10_parse::<u64>() {
                     Ok(v) => v,
                     Err(_) => {
-                        return ExprTransformerOutput::unchanged(Expr::Lit(ExprLit {
+                        return Expr::Lit(ExprLit {
                             lit: Lit::Int(lit),
                             attrs,
-                        }))
+                        })
                     }
                 };
                 let mutator_id = transform_info.add_mutations(
@@ -48,16 +48,16 @@ impl MutatorLitInt {
                         .into_iter()
                         .map(|m| m.to_mutation(lit_val, lit.span())),
                 );
-                let expr = parse_quote! {
+                syn::parse2(quote_spanned! {lit.span()=>
                     ::mutagen::mutator::MutatorLitInt::run(
                             #mutator_id,
                             #lit,
                             ::mutagen::MutagenRuntimeConfig::get_default()
                         )
-                };
-                ExprTransformerOutput::changed(expr, lit.span())
+                })
+                .expect("transformed code invalid")
             }
-            _ => ExprTransformerOutput::unchanged(e),
+            _ => e,
         }
     }
 }

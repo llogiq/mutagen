@@ -2,10 +2,10 @@
 
 use std::ops::Deref;
 
-use syn::{parse_quote, Expr, ExprLit, Lit, LitBool};
+use quote::quote_spanned;
+use syn::{Expr, ExprLit, Lit, LitBool};
 
 use crate::transformer::transform_info::SharedTransformInfo;
-use crate::transformer::ExprTransformerOutput;
 use crate::Mutation;
 
 use crate::MutagenRuntimeConfig;
@@ -26,7 +26,7 @@ impl MutatorLitBool {
         }
     }
 
-    pub fn transform(e: Expr, transform_info: &SharedTransformInfo) -> ExprTransformerOutput {
+    pub fn transform(e: Expr, transform_info: &SharedTransformInfo) -> Expr {
         match e {
             Expr::Lit(ExprLit {
                 lit: Lit::Bool(LitBool { value, span }),
@@ -38,16 +38,16 @@ impl MutatorLitBool {
                     format!("{:?}", !value),
                     span,
                 ));
-                let expr = parse_quote! {
+                syn::parse2(quote_spanned! {span=>
                     ::mutagen::mutator::MutatorLitBool::run(
                             #mutator_id,
                             #value,
                             ::mutagen::MutagenRuntimeConfig::get_default()
                         )
-                };
-                ExprTransformerOutput::changed(expr, span)
+                })
+                .expect("transformed code invalid")
             }
-            _ => ExprTransformerOutput::unchanged(e),
+            _ => e,
         }
     }
 }
