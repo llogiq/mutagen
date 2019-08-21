@@ -1,5 +1,7 @@
 //! Mutator for int literals.
 
+use std::ops::Deref;
+
 use proc_macro2::Span;
 use syn::{parse_quote, Expr, ExprLit, Lit};
 
@@ -15,8 +17,9 @@ impl MutatorLitInt {
     pub fn run<T: IntMutable>(
         mutator_id: u32,
         original_lit: T,
-        runtime: MutagenRuntimeConfig,
+        runtime: impl Deref<Target = MutagenRuntimeConfig>,
     ) -> T {
+        runtime.covered(mutator_id);
         let mutations = MutationLitInt::possible_mutations(original_lit.as_u64());
         if let Some(m) = runtime.get_mutation(mutator_id, &mutations) {
             m.mutate(original_lit)
@@ -140,19 +143,19 @@ mod tests {
 
     #[test]
     pub fn mutator_lit_int_zero_inactive() {
-        let result = MutatorLitInt::run(1, 0, MutagenRuntimeConfig::with_mutation_id(0));
+        let result = MutatorLitInt::run(1, 0, &MutagenRuntimeConfig::without_mutation());
         assert_eq!(result, 0)
     }
 
     #[test]
     pub fn mutator_lit_int_zero_active() {
-        let result = MutatorLitInt::run(1, 0, MutagenRuntimeConfig::with_mutation_id(1));
+        let result = MutatorLitInt::run(1, 0, &MutagenRuntimeConfig::with_mutation_id(1));
         assert_eq!(result, 1)
     }
 
     #[test]
     fn lit_u8_suffixed_active() {
-        let result: u8 = MutatorLitInt::run(1u32, 1u8, MutagenRuntimeConfig::with_mutation_id(1));
+        let result: u8 = MutatorLitInt::run(1u32, 1u8, &MutagenRuntimeConfig::with_mutation_id(1));
         assert_eq!(result, 2);
     }
 

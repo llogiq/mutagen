@@ -13,7 +13,7 @@ mod tests {
         }
         #[test]
         fn boolnot_inactive() {
-            MutagenRuntimeConfig::test_with_mutation_id(0, || {
+            MutagenRuntimeConfig::test_without_mutation(|| {
                 assert_eq!(boolnot(false), true);
                 assert_eq!(boolnot(true), false);
             })
@@ -40,7 +40,7 @@ mod tests {
         }
         #[test]
         fn optimistic_incorrect_inactive() {
-            MutagenRuntimeConfig::test_with_mutation_id(0, || {
+            MutagenRuntimeConfig::test_without_mutation(|| {
                 assert_eq!(
                     optimistic_incorrect(TypeWithNotOtherOutput()),
                     TypeWithNotTarget()
@@ -67,7 +67,7 @@ mod tests {
         }
         #[test]
         fn double_negation_inactive() {
-            MutagenRuntimeConfig::test_with_mutation_id(0, || {
+            MutagenRuntimeConfig::test_without_mutation(|| {
                 assert_eq!(double_negation(true), true);
                 assert_eq!(double_negation(false), false);
             })

@@ -12,7 +12,7 @@ mod tests {
         }
         #[test]
         fn lt_inactive() {
-            MutagenRuntimeConfig::test_with_mutation_id(0, || {
+            MutagenRuntimeConfig::test_without_mutation(|| {
                 assert_eq!(lt(1, 2), true);
                 assert_eq!(lt(3, 3), false);
                 assert_eq!(lt(5, 4), false);
@@ -59,7 +59,7 @@ mod tests {
         }
         #[test]
         fn le_inactive() {
-            MutagenRuntimeConfig::test_with_mutation_id(0, || {
+            MutagenRuntimeConfig::test_without_mutation(|| {
                 assert_eq!(le(1, 2), true);
                 assert_eq!(le(3, 3), true);
                 assert_eq!(le(5, 4), false);
@@ -106,7 +106,7 @@ mod tests {
         }
         #[test]
         fn ge_inactive() {
-            MutagenRuntimeConfig::test_with_mutation_id(0, || {
+            MutagenRuntimeConfig::test_without_mutation(|| {
                 assert_eq!(ge(1, 2), false);
                 assert_eq!(ge(3, 3), true);
                 assert_eq!(ge(5, 4), true);
@@ -153,7 +153,7 @@ mod tests {
         }
         #[test]
         fn gt_inactive() {
-            MutagenRuntimeConfig::test_with_mutation_id(0, || {
+            MutagenRuntimeConfig::test_without_mutation(|| {
                 assert_eq!(gt(1, 2), false);
                 assert_eq!(gt(3, 3), false);
                 assert_eq!(gt(5, 4), true);

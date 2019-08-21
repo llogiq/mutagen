@@ -1,5 +1,6 @@
 //! Mutator for binary operation `+`.
 
+use std::ops::Deref;
 use std::ops::Not;
 
 use syn::spanned::Spanned;
@@ -18,12 +19,13 @@ impl MutatorUnopNot {
     pub fn run<T: Not>(
         mutator_id: u32,
         val: T,
-        runtime: MutagenRuntimeConfig,
+        runtime: impl Deref<Target = MutagenRuntimeConfig>,
     ) -> <T as Not>::Output {
-        if runtime.mutation_id != mutator_id {
-            !val
-        } else {
+        runtime.covered(mutator_id);
+        if runtime.is_mutation_active(mutator_id) {
             val.may_none()
+        } else {
+            !val
         }
     }
 
@@ -62,17 +64,17 @@ mod tests {
     #[test]
     fn boolnot_inactive() {
         // input is true, but will be negated by non-active mutator
-        let result = MutatorUnopNot::run(1, true, MutagenRuntimeConfig::with_mutation_id(0));
+        let result = MutatorUnopNot::run(1, true, &MutagenRuntimeConfig::without_mutation());
         assert_eq!(result, false);
     }
     #[test]
     fn boolnot_active() {
-        let result = MutatorUnopNot::run(1, true, MutagenRuntimeConfig::with_mutation_id(1));
+        let result = MutatorUnopNot::run(1, true, &MutagenRuntimeConfig::with_mutation_id(1));
         assert_eq!(result, true);
     }
     #[test]
     fn intnot_active() {
-        let result = MutatorUnopNot::run(1, 1, MutagenRuntimeConfig::with_mutation_id(1));
+        let result = MutatorUnopNot::run(1, 1, &MutagenRuntimeConfig::with_mutation_id(1));
         assert_eq!(result, 1);
     }
 
@@ -83,7 +85,7 @@ mod tests {
         let result = MutatorUnopNot::run(
             1,
             TypeWithNotOtherOutput(),
-            MutagenRuntimeConfig::with_mutation_id(0),
+            &MutagenRuntimeConfig::without_mutation(),
         );
         assert_eq!(result, TypeWithNotTarget());
     }
@@ -93,7 +95,7 @@ mod tests {
         MutatorUnopNot::run(
             1,
             TypeWithNotOtherOutput(),
-            MutagenRuntimeConfig::with_mutation_id(1),
+            &MutagenRuntimeConfig::with_mutation_id(1),
         );
     }
 }

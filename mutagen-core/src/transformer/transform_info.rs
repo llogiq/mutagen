@@ -43,17 +43,17 @@ impl MutagenTransformInfo {
             if !mutagen_dir.exists() {
                 create_dir_all(&mutagen_dir).unwrap();
             }
-            let mutagen_file = File::create(mutagen_filepath.clone())
-                .unwrap_or_else(|_| panic!("unable to open file {:?}", mutagen_filepath));
+            let mutagen_file = File::create(&mutagen_filepath)
+                .unwrap_or_else(|_| panic!("unable to open file {:?}", &mutagen_filepath));
 
             self.mutagen_file = Some(mutagen_file);
         }
     }
 
     /// add a mutation and return the id used for it, also writes the mutation to the global file.
-    pub fn add_mutation(&mut self, mutation: Mutation) -> u32 {
+    pub fn add_mutation(&mut self, mutation: Mutation, mutator_id: u32) -> u32 {
         let mut_id = 1 + self.mutations.len() as u32;
-        let mutation = mutation.with_id(mut_id);
+        let mutation = mutation.with_id(mut_id, mutator_id);
 
         // write the mutation if file was configured
         if let Some(mutagen_file) = &mut self.mutagen_file {
@@ -72,6 +72,10 @@ impl MutagenTransformInfo {
 
     pub fn get_num_mutations(&self) -> u32 {
         self.mutations.len() as u32
+    }
+
+    pub fn get_next_mutation_id(&self) -> u32 {
+        self.mutations.len() as u32 + 1
     }
 
     pub fn check_mutations(&mut self) {
@@ -118,13 +122,13 @@ impl SharedTransformInfo {
     pub fn add_mutations(&self, mutations: impl IntoIterator<Item = Mutation>) -> u32 {
         let mut transform_info = self.lock_tranform_info();
 
+        let mutator_id = transform_info.get_next_mutation_id();
+
         // add all mutations within a single lock and return the first id
-        let mut mutation_id = None;
         for mutation in mutations.into_iter() {
-            let id = transform_info.add_mutation(mutation);
-            mutation_id.get_or_insert(id);
+            transform_info.add_mutation(mutation, mutator_id);
         }
-        mutation_id.expect("mutations list empty")
+        mutator_id
     }
 
     pub fn clone_shared(&self) -> Self {

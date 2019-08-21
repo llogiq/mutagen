@@ -12,7 +12,7 @@ mod tests {
         }
         #[test]
         fn simple_true_inactive() {
-            MutagenRuntimeConfig::test_with_mutation_id(0, || {
+            MutagenRuntimeConfig::test_without_mutation(|| {
                 assert_eq!(simple_true(), true);
             })
         }
@@ -36,7 +36,7 @@ mod tests {
         }
         #[test]
         fn simple_false_inactive() {
-            MutagenRuntimeConfig::test_with_mutation_id(0, || {
+            MutagenRuntimeConfig::test_without_mutation(|| {
                 assert_eq!(simple_false(), false);
             })
         }

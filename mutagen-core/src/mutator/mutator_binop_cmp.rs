@@ -1,5 +1,7 @@
 //! Mutator for comparison operations `<`, `<=`, `=>`, `>`
 
+use std::ops::Deref;
+
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
 use syn::spanned::Spanned;
@@ -19,8 +21,9 @@ impl MutatorBinopCmp {
         left: L,
         right: R,
         original_op: BinopCmp,
-        runtime: MutagenRuntimeConfig,
+        runtime: impl Deref<Target = MutagenRuntimeConfig>,
     ) -> bool {
+        runtime.covered(mutator_id);
         let mutations = MutationBinopCmp::possible_mutations(original_op);
         if let Some(m) = runtime.get_mutation(mutator_id, &mutations) {
             m.mutate(left, right)
@@ -59,7 +62,7 @@ impl MutatorBinopCmp {
                 );
 
                 let expr = parse_quote! {
-                    ::mutagen::mutator::MutatorBinopCmp::run::<_, _>(
+                    ::mutagen::mutator::MutatorBinopCmp::run(
                             #mutator_id,
                             #left,
                             #right,
@@ -214,7 +217,7 @@ mod tests {
                 1,
                 2,
                 BinopCmp::Gt,
-                MutagenRuntimeConfig::with_mutation_id(0)
+                &MutagenRuntimeConfig::without_mutation()
             ),
             false
         );
@@ -224,7 +227,7 @@ mod tests {
                 5,
                 4,
                 BinopCmp::Gt,
-                MutagenRuntimeConfig::with_mutation_id(0)
+                &MutagenRuntimeConfig::without_mutation()
             ),
             true
         );
@@ -237,7 +240,7 @@ mod tests {
                 1,
                 2,
                 BinopCmp::Gt,
-                MutagenRuntimeConfig::with_mutation_id(1)
+                &MutagenRuntimeConfig::with_mutation_id(1)
             ),
             true
         );
@@ -247,7 +250,7 @@ mod tests {
                 3,
                 3,
                 BinopCmp::Gt,
-                MutagenRuntimeConfig::with_mutation_id(1)
+                &MutagenRuntimeConfig::with_mutation_id(1)
             ),
             false
         );

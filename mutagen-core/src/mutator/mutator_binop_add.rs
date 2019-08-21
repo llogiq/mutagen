@@ -1,6 +1,7 @@
 //! Mutator for binary operation `+`.
 
 use std::ops::Add;
+use std::ops::Deref;
 
 use syn::spanned::Spanned;
 use syn::{parse_quote, BinOp, Expr, ExprBinary};
@@ -19,12 +20,13 @@ impl MutatorBinopAdd {
         mutator_id: u32,
         left: L,
         right: R,
-        runtime: MutagenRuntimeConfig,
+        runtime: impl Deref<Target = MutagenRuntimeConfig>,
     ) -> <L as Add<R>>::Output {
-        if runtime.mutation_id != mutator_id {
-            left + right
-        } else {
+        runtime.covered(mutator_id);
+        if runtime.is_mutation_active(mutator_id) {
             left.may_sub(right)
+        } else {
+            left + right
         }
     }
 
@@ -43,7 +45,7 @@ impl MutatorBinopAdd {
                     op_add.span(),
                 ));
                 let expr = parse_quote! {
-                    ::mutagen::mutator::MutatorBinopAdd::run::<_, _>(
+                    ::mutagen::mutator::MutatorBinopAdd::run(
                             #mutator_id,
                             #left,
                             #right,
@@ -64,12 +66,12 @@ mod tests {
 
     #[test]
     fn sum_inative() {
-        let result = MutatorBinopAdd::run(1, 5, 4, MutagenRuntimeConfig::with_mutation_id(0));
+        let result = MutatorBinopAdd::run(1, 5, 4, &MutagenRuntimeConfig::without_mutation());
         assert_eq!(result, 9);
     }
     #[test]
     fn sum_ative() {
-        let result = MutatorBinopAdd::run(1, 5, 4, MutagenRuntimeConfig::with_mutation_id(1));
+        let result = MutatorBinopAdd::run(1, 5, 4, &MutagenRuntimeConfig::with_mutation_id(1));
         assert_eq!(result, 1);
     }
 
@@ -79,7 +81,7 @@ mod tests {
             1,
             "x".to_string(),
             "y",
-            MutagenRuntimeConfig::with_mutation_id(0),
+            &MutagenRuntimeConfig::without_mutation(),
         );
         assert_eq!(&result, "xy");
     }
@@ -90,7 +92,7 @@ mod tests {
             1,
             "x".to_string(),
             "y",
-            MutagenRuntimeConfig::with_mutation_id(1),
+            &MutagenRuntimeConfig::with_mutation_id(1),
         );
     }
 }

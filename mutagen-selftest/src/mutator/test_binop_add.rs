@@ -13,7 +13,7 @@ mod tests {
         }
         #[test]
         fn sum_u32_inactive() {
-            MutagenRuntimeConfig::test_with_mutation_id(0, || {
+            MutagenRuntimeConfig::test_without_mutation(|| {
                 assert_eq!(sum_u32(), 6);
             })
         }
@@ -37,7 +37,7 @@ mod tests {
         }
         #[test]
         fn str_add_inactive() {
-            MutagenRuntimeConfig::test_with_mutation_id(0, || {
+            MutagenRuntimeConfig::test_without_mutation(|| {
                 assert_eq!(&str_add(), "ab");
             })
         }
@@ -63,7 +63,7 @@ mod tests {
 
         #[test]
         fn multiple_adds_inactive() {
-            MutagenRuntimeConfig::test_with_mutation_id(0, || {
+            MutagenRuntimeConfig::test_without_mutation(|| {
                 assert_eq!(multiple_adds(5), 10);
             })
         }

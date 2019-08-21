@@ -42,7 +42,7 @@ mod test_x {
 
     #[test]
     pub fn x_inactive() {
-        test_with_mutation_id(0, || {
+        test_without_mutation( || {
             // test and assert on `x()` where no mutations have been performed
         })
     }

@@ -1,5 +1,7 @@
 //! Mutator for binary operations `&&` and `&&`.
 
+use std::ops::Deref;
+
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
 use syn::spanned::Spanned;
@@ -18,8 +20,9 @@ impl MutatorBinopBool {
         mutator_id: u32,
         original_op: BinopBool,
         left: bool,
-        runtime: MutagenRuntimeConfig,
+        runtime: impl Deref<Target = MutagenRuntimeConfig>,
     ) -> Option<bool> {
+        runtime.covered(mutator_id);
         let mutations = MutationBinopBool::possible_mutations(original_op);
         let op = runtime
             .get_mutation(mutator_id, &mutations)
@@ -137,4 +140,6 @@ impl fmt::Display for BinopBool {
 }
 
 #[cfg(test)]
-mod tests {}
+mod tests {
+    // TODO: implement tests
+}

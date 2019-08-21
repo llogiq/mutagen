@@ -12,7 +12,7 @@ mod tests {
         }
         #[test]
         fn eq_inactive() {
-            MutagenRuntimeConfig::test_with_mutation_id(0, || {
+            MutagenRuntimeConfig::test_without_mutation(|| {
                 assert_eq!(eq(1, 2), false);
                 assert_eq!(eq(3, 3), true);
             })
@@ -37,7 +37,7 @@ mod tests {
         }
         #[test]
         fn ne_inactive() {
-            MutagenRuntimeConfig::test_with_mutation_id(0, || {
+            MutagenRuntimeConfig::test_without_mutation(|| {
                 assert_eq!(ne(1, 2), true);
                 assert_eq!(ne(3, 3), false);
             })

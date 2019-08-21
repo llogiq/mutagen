@@ -7,6 +7,8 @@ const DEFAULT_MUTAGEN_DIR: &str = "target/mutagen";
 const DEFAULT_MUTAGEN_FILENAME: &str = "mutations";
 const JSON_MUTAGEN_FILENAME: &str = "mutations.json";
 
+const DEFAULT_COVERAGE_FILENAME: &str = "coverage";
+
 /// Finds the file that contains the descriptions of all mutations as written by the procedural macro
 pub fn get_mutations_file() -> Fallible<PathBuf> {
     Ok(mutagen_dir()?.join(DEFAULT_MUTAGEN_FILENAME))
@@ -14,6 +16,10 @@ pub fn get_mutations_file() -> Fallible<PathBuf> {
 
 pub fn get_mutations_file_json() -> Fallible<PathBuf> {
     Ok(mutagen_dir()?.join(JSON_MUTAGEN_FILENAME))
+}
+
+pub fn get_coverage_file() -> Fallible<PathBuf> {
+    Ok(mutagen_dir()?.join(DEFAULT_COVERAGE_FILENAME))
 }
 
 /// queries `cargo` for the workspace root and locates the directory to write mutagen-specific information

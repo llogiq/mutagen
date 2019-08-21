@@ -13,7 +13,7 @@ mod tests {
         }
         #[test]
         fn sum_u32_inactive() {
-            MutagenRuntimeConfig::test_with_mutation_id(0, || {
+            MutagenRuntimeConfig::test_without_mutation(|| {
                 assert_eq!(sum_u32(), 3);
             })
         }
@@ -59,7 +59,7 @@ mod tests {
         }
         #[test]
         fn lit_u8_suffixed_inactive() {
-            MutagenRuntimeConfig::test_with_mutation_id(0, || {
+            MutagenRuntimeConfig::test_without_mutation(|| {
                 assert_eq!(lit_u8_suffixed(), 1);
             })
         }
@@ -89,7 +89,7 @@ mod tests {
         }
         #[test]
         fn lit_u8_overflown_literal_inactive() {
-            MutagenRuntimeConfig::test_with_mutation_id(0, || {
+            MutagenRuntimeConfig::test_without_mutation(|| {
                 assert_eq!(lit_u8_overflown_literal(), 255);
             })
         }

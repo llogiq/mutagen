@@ -11,7 +11,7 @@ mod tests {
         }
         #[test]
         fn and_inactive() {
-            MutagenRuntimeConfig::test_with_mutation_id(0, || {
+            MutagenRuntimeConfig::test_without_mutation(|| {
                 assert_eq!(and(|| true, || true), true);
                 assert_eq!(and(|| false, || true), false);
                 assert_eq!(and(|| true, || false), false);
@@ -29,7 +29,7 @@ mod tests {
         }
         #[test]
         fn and_short_circuit_inactive() {
-            MutagenRuntimeConfig::test_with_mutation_id(0, || {
+            MutagenRuntimeConfig::test_without_mutation(|| {
                 assert_eq!(and(|| false, || panic!()), false);
             })
         }
@@ -52,7 +52,7 @@ mod tests {
         }
         #[test]
         fn or_inactive() {
-            MutagenRuntimeConfig::test_with_mutation_id(0, || {
+            MutagenRuntimeConfig::test_without_mutation(|| {
                 assert_eq!(or(|| true, || true), true);
                 assert_eq!(or(|| false, || true), true);
                 assert_eq!(or(|| true, || false), true);
@@ -70,7 +70,7 @@ mod tests {
         }
         #[test]
         fn or_short_circuit_inactive() {
-            MutagenRuntimeConfig::test_with_mutation_id(0, || {
+            MutagenRuntimeConfig::test_without_mutation(|| {
                 assert_eq!(or(|| true, || panic!()), true);
             })
         }
