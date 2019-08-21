@@ -52,8 +52,8 @@ pub struct CoverageCounter {
 }
 
 #[derive(Serialize, Deserialize)]
-struct CoverageHit {
-    mutator_id: u32,
+pub struct CoverageHit {
+    pub mutator_id: u32,
 }
 
 impl MutagenRuntimeConfig {

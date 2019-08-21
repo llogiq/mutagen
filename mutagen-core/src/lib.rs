@@ -11,6 +11,7 @@ pub mod mutator;
 pub mod optimistic;
 
 pub use mutation::{BakedMutation, Mutation};
+pub use runtime_config::CoverageHit;
 pub use runtime_config::MutagenRuntimeConfig;
 
 pub use transformer::do_transform_item_fn;

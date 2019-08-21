@@ -1,5 +1,5 @@
 use failure::{bail, format_err, Fallible};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::{BufRead, BufReader, BufWriter};
@@ -9,8 +9,9 @@ use std::process::{Command, Stdio};
 use std::str;
 
 use cargo_mutagen::*;
-use mutagen::mutagen_file::{get_mutations_file, get_mutations_file_json};
-use mutagen::BakedMutation;
+use mutagen_core::mutagen_file::*;
+use mutagen_core::BakedMutation;
+use mutagen_core::CoverageHit;
 
 fn main() {
     if let Err(err) = run() {
@@ -28,49 +29,70 @@ fn run() -> Fallible<()> {
         bail!("test executable(s) not found");
     }
 
-    let test_bins = tests_executables
-        .iter()
-        .map(|e| TestBin::new(&e))
-        .map(|b| b.run_test())
-        .collect::<Fallible<Vec<_>>>()?;
-
     // collect mutations
     let mutations = read_mutations()?;
 
+    let test_bins = tests_executables
+        .iter()
+        .map(|e| TestBin::new(&e))
+        .map(|b| b.run_test(mutations.len() as u32))
+        .collect::<Fallible<Vec<_>>>()?;
+
+    let coverage = read_coverage()?;
+
     // run the mutations on the test-suites
-    run_mutations(&test_bins, &mutations)?;
+    run_mutations(&test_bins, &mutations, &coverage)?;
 
     Ok(())
 }
 
 /// run all mutations on all test-executables
-fn run_mutations(test_bins: &[TestBinTimed], mutations: &[BakedMutation]) -> Fallible<()> {
+fn run_mutations(
+    test_bins: &[TestBinTimed],
+    mutations: &[BakedMutation],
+    coverage: &HashSet<u32>,
+) -> Fallible<()> {
     let mut killed = 0;
     let mut survived = 0;
+    let mut not_covered = 0;
 
     for m in mutations {
         print!("{} ... ", m.log_string());
         std::io::stdout().flush()?;
 
-        let mut mutant_status = MutantStatus::MutantSurvived;
-
-        for bin in test_bins {
-            mutant_status = bin.check_mutant(m)?;
-            if mutant_status != MutantStatus::MutantSurvived {
-                break;
+        let mutant_covered = coverage.contains(&m.mutator_id());
+        let mutant_status = if mutant_covered {
+            // run all test binaries
+            let mut mutant_status = MutantStatus::MutantSurvived;
+            for bin in test_bins {
+                mutant_status = bin.check_mutant(m)?;
+                if mutant_status != MutantStatus::MutantSurvived {
+                    break;
+                }
             }
-        }
-
-        if mutant_status == MutantStatus::MutantSurvived {
-            survived += 1;
-            println!("SURVIVED");
+            mutant_status
         } else {
-            killed += 1;
-            print!("killed");
-            if mutant_status == MutantStatus::Timeout {
-                print!(" (timeout)");
+            MutantStatus::NotCovered
+        };
+
+        match mutant_status {
+            MutantStatus::MutantSurvived => {
+                survived += 1;
+                println!("SURVIVED");
             }
-            println!();
+            MutantStatus::NotCovered => {
+                not_covered += 1;
+                survived += 1;
+                println!("NOT COVERED");
+            }
+            _ => {
+                killed += 1;
+                print!("killed");
+                if mutant_status == MutantStatus::Timeout {
+                    print!(" (timeout)");
+                }
+                println!();
+            }
         }
     }
 
@@ -78,7 +100,8 @@ fn run_mutations(test_bins: &[TestBinTimed], mutations: &[BakedMutation]) -> Fal
 
     println!();
     println!("{} mutants killed", killed);
-    println!("{} mutants SURVIVED", survived);
+    println!("{} mutants SURVIVED (including not covered)", survived);
+    println!("{} mutants NOT COVERED", not_covered);
     println!("{}% mutation coverage", coverage);
 
     Ok(())
@@ -138,4 +161,22 @@ fn read_mutations() -> Fallible<Vec<BakedMutation>> {
     serde_json::to_writer(mutations_writer, &mutations_map)?;
 
     Ok(mutations)
+}
+
+/// read all coverage-hits from the coverage-file
+fn read_coverage() -> Fallible<HashSet<u32>> {
+    let coverage_file = get_coverage_file()?;
+    if !coverage_file.exists() {
+        bail!("file `target/mutagen/coverage` is not found")
+    }
+
+    println!("coverage-file: {}", coverage_file.display());
+    BufReader::new(File::open(coverage_file)?)
+        .lines()
+        .map(|line| {
+            serde_json::from_str::<CoverageHit>(&line?)
+                .map(|c| c.mutator_id)
+                .map_err(|e| format_err!("coverage format error: {}", e))
+        })
+        .collect::<Fallible<HashSet<u32>>>()
 }

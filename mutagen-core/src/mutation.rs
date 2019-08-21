@@ -69,6 +69,10 @@ impl BakedMutation {
         self.id
     }
 
+    pub fn mutator_id(&self) -> u32 {
+        self.mutator_id
+    }
+
     /// Generate a string used for logging
     pub fn log_string(&self) -> String {
         let mutation_description = if self.mutation.mutated_code.is_empty() {

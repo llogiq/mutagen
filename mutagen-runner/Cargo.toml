@@ -7,8 +7,8 @@ edition = "2018"
 json = "0.11"
 failure = "0.1"
 wait-timeout = "0.1.5"
-mutagen = { path = "../mutagen"}
 serde_json = "1.0"
+mutagen-core = { path = "../mutagen-core"}
 
 [badges]
 travis-ci = { repository = "llogiq/mutagen", branch = "master" }

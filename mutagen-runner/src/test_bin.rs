@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 use wait_timeout::ChildExt;
 
 use super::MutantStatus;
-use mutagen::BakedMutation;
+use mutagen_core::BakedMutation;
 
 /// wrapper around a test-binary that can be executed
 pub struct TestBin<'a> {
@@ -25,14 +25,17 @@ impl<'a> TestBin<'a> {
     }
 
     // run the test and record the time required.
-    pub fn run_test(self) -> Fallible<TestBinTimed<'a>> {
+    pub fn run_test(self, num_mutations: u32) -> Fallible<TestBinTimed<'a>> {
         let test_start = Instant::now();
 
         // run test suite
         let mut command = Command::new(self.bin_path);
+        command.env("MUTAGEN_MODE", "coverage");
+        command.env("MUTAGEN_NUM_MUTATIONS", format!("{}", num_mutations));
         command.stdout(Stdio::null());
         let mut test_run = command.spawn()?;
         let status = test_run.wait()?;
+        let exe_time = test_start.elapsed();
 
         if !status.success() {
             bail!("test suite fails. Retry after `cargo test` succeeds");
@@ -40,7 +43,7 @@ impl<'a> TestBin<'a> {
 
         Ok(TestBinTimed {
             test_bin: self,
-            exe_time: test_start.elapsed(),
+            exe_time,
         })
     }
 }
