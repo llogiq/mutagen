@@ -23,7 +23,7 @@ use std::ops::Deref;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::RwLock;
 
-use crate::mutagen_file::get_coverage_file;
+use crate::comm;
 
 lazy_static! {
     static ref RUNTIME_CONFIG: RwLock<MutagenRuntimeConfig> =
@@ -122,7 +122,7 @@ impl MutagenRuntimeConfig {
 impl CoverageCounter {
     fn new(max_mutations: u32) -> Self {
         let counter = (0..=max_mutations).map(|_| AtomicU64::new(0)).collect();
-        let coverage_filepath = get_coverage_file().unwrap();
+        let coverage_filepath = comm::get_coverage_file().unwrap();
         let coverage_file = File::create(&coverage_filepath)
             .unwrap_or_else(|_| panic!("unable to open file {:?}", &coverage_filepath));
 

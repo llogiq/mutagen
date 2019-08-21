@@ -7,8 +7,8 @@ use quote::quote_spanned;
 use syn::spanned::Spanned;
 use syn::{BinOp, Expr, ExprBinary};
 
+use crate::comm::Mutation;
 use crate::transformer::transform_info::SharedTransformInfo;
-use crate::Mutation;
 
 use crate::optimistic::AddToSub;
 use crate::MutagenRuntimeConfig;

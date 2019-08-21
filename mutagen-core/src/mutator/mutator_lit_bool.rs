@@ -5,8 +5,8 @@ use std::ops::Deref;
 use quote::quote_spanned;
 use syn::{Expr, ExprLit, Lit, LitBool};
 
+use crate::comm::Mutation;
 use crate::transformer::transform_info::SharedTransformInfo;
-use crate::Mutation;
 
 use crate::MutagenRuntimeConfig;
 

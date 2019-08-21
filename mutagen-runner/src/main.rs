@@ -1,17 +1,16 @@
-use failure::{bail, format_err, Fallible};
+use failure::{bail, Fallible};
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::prelude::*;
-use std::io::{BufRead, BufReader, BufWriter};
+use std::io::BufWriter;
 use std::path::PathBuf;
 use std::process;
 use std::process::{Command, Stdio};
 use std::str;
 
 use cargo_mutagen::*;
-use mutagen_core::mutagen_file::*;
-use mutagen_core::BakedMutation;
-use mutagen_core::CoverageHit;
+use mutagen_core::comm;
+use mutagen_core::comm::{BakedMutation, CoverageHit};
 
 fn main() {
     if let Err(err) = run() {
@@ -100,8 +99,10 @@ fn run_mutations(
 
     println!();
     println!("{} mutants killed", killed);
-    println!("{} mutants SURVIVED (including not covered)", survived);
-    println!("{} mutants NOT COVERED", not_covered);
+    println!(
+        "{} mutants SURVIVED ({} NOT COVERED)",
+        survived, not_covered
+    );
     println!("{}% mutation coverage", coverage);
 
     Ok(())
@@ -136,7 +137,7 @@ fn compile_tests() -> Fallible<Vec<PathBuf>> {
 /// This functions gets the file that describes all mutations performed on the target program and ensures that it exists.
 /// The list of mutations is also preserved
 fn read_mutations() -> Fallible<Vec<BakedMutation>> {
-    let mutations_file = get_mutations_file()?;
+    let mutations_file = comm::get_mutations_file()?;
     if !mutations_file.exists() {
         bail!(
             "file `target/mutagen/mutations` is not found\n\
@@ -145,19 +146,14 @@ fn read_mutations() -> Fallible<Vec<BakedMutation>> {
     }
 
     println!("mutations-file: {}", mutations_file.display());
-    let mutations = BufReader::new(File::open(mutations_file)?)
-        .lines()
-        .map(|line| {
-            serde_json::from_str(&line?).map_err(|e| format_err!("mutation format error: {}", e))
-        })
-        .collect::<Fallible<Vec<BakedMutation>>>()?;
+    let mutations = comm::read_items::<BakedMutation, _>(mutations_file)?;
 
     // write the collected mutations
     let mutations_map = mutations
         .iter()
         .map(|m| (m.id(), m.as_ref()))
         .collect::<HashMap<_, _>>();
-    let mutations_writer = BufWriter::new(File::create(get_mutations_file_json()?)?);
+    let mutations_writer = BufWriter::new(File::create(comm::get_mutations_file_json()?)?);
     serde_json::to_writer(mutations_writer, &mutations_map)?;
 
     Ok(mutations)
@@ -165,18 +161,12 @@ fn read_mutations() -> Fallible<Vec<BakedMutation>> {
 
 /// read all coverage-hits from the coverage-file
 fn read_coverage() -> Fallible<HashSet<u32>> {
-    let coverage_file = get_coverage_file()?;
+    let coverage_file = comm::get_coverage_file()?;
     if !coverage_file.exists() {
         bail!("file `target/mutagen/coverage` is not found")
     }
 
     println!("coverage-file: {}", coverage_file.display());
-    BufReader::new(File::open(coverage_file)?)
-        .lines()
-        .map(|line| {
-            serde_json::from_str::<CoverageHit>(&line?)
-                .map(|c| c.mutator_id)
-                .map_err(|e| format_err!("coverage format error: {}", e))
-        })
-        .collect::<Fallible<HashSet<u32>>>()
+    let coverage_hits = comm::read_items::<CoverageHit, _>(coverage_file)?;
+    Ok(coverage_hits.iter().map(|c| c.mutator_id).collect())
 }

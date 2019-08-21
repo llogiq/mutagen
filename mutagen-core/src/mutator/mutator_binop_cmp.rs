@@ -8,8 +8,8 @@ use quote::{quote, ToTokens};
 use syn::spanned::Spanned;
 use syn::{BinOp, Expr, ExprBinary};
 
+use crate::comm::Mutation;
 use crate::transformer::transform_info::SharedTransformInfo;
-use crate::Mutation;
 
 use crate::MutagenRuntimeConfig;
 

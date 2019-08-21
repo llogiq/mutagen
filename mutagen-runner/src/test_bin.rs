@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 use wait_timeout::ChildExt;
 
 use super::MutantStatus;
-use mutagen_core::BakedMutation;
+use mutagen_core::comm::BakedMutation;
 
 /// wrapper around a test-binary that can be executed
 pub struct TestBin<'a> {

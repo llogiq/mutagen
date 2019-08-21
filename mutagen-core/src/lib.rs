@@ -2,15 +2,13 @@
 #![feature(proc_macro_span)]
 #![feature(specialization)]
 
-mod mutation;
 mod runtime_config;
 mod transformer;
 
-pub mod mutagen_file;
+pub mod comm;
 pub mod mutator;
 pub mod optimistic;
 
-pub use mutation::{BakedMutation, Mutation};
 pub use runtime_config::CoverageHit;
 pub use runtime_config::MutagenRuntimeConfig;
 

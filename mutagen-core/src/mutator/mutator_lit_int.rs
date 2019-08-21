@@ -6,8 +6,8 @@ use proc_macro2::Span;
 use quote::quote_spanned;
 use syn::{Expr, ExprLit, Lit};
 
+use crate::comm::Mutation;
 use crate::transformer::transform_info::SharedTransformInfo;
-use crate::Mutation;
 
 use crate::MutagenRuntimeConfig;
 

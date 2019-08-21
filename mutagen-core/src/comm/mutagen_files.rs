@@ -1,4 +1,7 @@
 use failure::{bail, format_err, Fallible};
+use serde::{de::DeserializeOwned, Serialize};
+use std::fs::File;
+use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::str;
@@ -35,4 +38,20 @@ fn mutagen_dir() -> Fallible<PathBuf> {
             .ok_or_else(|| format_err!("cargo metadata misses workspace_root"))?,
     );
     Ok(root_dir.join(DEFAULT_MUTAGEN_DIR))
+}
+
+pub fn read_items<T: DeserializeOwned, P: AsRef<Path>>(filepath: P) -> Fallible<Vec<T>> {
+    BufReader::new(File::open(filepath)?)
+        .lines()
+        .map(|line| {
+            serde_json::from_str(&line?).map_err(|e| format_err!("mutation format error: {}", e))
+        })
+        .collect()
+}
+
+pub fn append_item<T: Serialize + ?Sized>(file: &mut File, item: &T) -> Fallible<()> {
+    let mut w = BufWriter::new(file);
+    serde_json::to_writer(&mut w, item)?;
+    writeln!(&mut w)?; // write newline
+    Ok(())
 }

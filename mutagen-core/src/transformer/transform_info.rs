@@ -1,11 +1,11 @@
 use lazy_static::lazy_static;
 use std::fs::{create_dir_all, File};
-use std::io::{BufWriter, Write};
 use std::iter;
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use super::mutate_args::LocalConf;
-use crate::{mutagen_file::get_mutations_file, BakedMutation, Mutation};
+use crate::comm;
+use crate::comm::{BakedMutation, Mutation};
 
 lazy_static! {
     static ref GLOBAL_TRANSFORM_INFO: SharedTransformInfo = Default::default();
@@ -38,7 +38,7 @@ impl MutagenTransformInfo {
     pub fn with_default_mutagen_file(&mut self) {
         // open file only once
         if self.mutagen_file.is_none() {
-            let mutagen_filepath = get_mutations_file().unwrap();
+            let mutagen_filepath = comm::get_mutations_file().unwrap();
             let mutagen_dir = mutagen_filepath.parent().unwrap();
             if !mutagen_dir.exists() {
                 create_dir_all(&mutagen_dir).unwrap();
@@ -57,10 +57,7 @@ impl MutagenTransformInfo {
 
         // write the mutation if file was configured
         if let Some(mutagen_file) = &mut self.mutagen_file {
-            let mut w = BufWriter::new(mutagen_file);
-            serde_json::to_writer(&mut w, &mutation).expect("unable to write to mutagen file");
-            // write newline
-            writeln!(&mut w).expect("unable to write to mutagen file");
+            comm::append_item(mutagen_file, &mutation).expect("unable to write to mutagen file");
         }
 
         // add mutation to list
