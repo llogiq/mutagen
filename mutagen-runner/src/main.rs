@@ -1,7 +1,6 @@
 use failure::{bail, Fallible};
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
-use std::io::prelude::*;
 use std::io::BufWriter;
 use std::path::PathBuf;
 use std::process;
@@ -10,7 +9,7 @@ use std::str;
 
 use cargo_mutagen::*;
 use mutagen_core::comm;
-use mutagen_core::comm::{BakedMutation, CoverageHit, MutantStatus, MutagenReport};
+use mutagen_core::comm::{BakedMutation, CoverageHit, MutagenReport, MutantStatus};
 
 fn main() {
     if let Err(err) = run() {
@@ -52,10 +51,10 @@ fn run_mutations(
     coverage: &HashSet<u32>,
 ) -> Fallible<()> {
     let mut mutagen_report = MutagenReport::new();
+    let mut progress = Progress::new(mutations.len() as u32);
 
     for m in mutations {
-        print!("{} ... ", m.log_string());
-        std::io::stdout().flush()?;
+        progress.start_mutation(&m)?;
 
         let mutant_covered = coverage.contains(&m.mutator_id());
         let mutant_status = if mutant_covered {
@@ -74,8 +73,9 @@ fn run_mutations(
 
         mutagen_report.add_mutation_result(m, mutant_status);
 
-        println!("{}", mutant_status);
+        progress.finish_mutation(mutant_status)?;
     }
+    progress.finish()?;
 
     mutagen_report.summary().print();
 
@@ -119,7 +119,6 @@ fn read_mutations() -> Fallible<Vec<BakedMutation>> {
         )
     }
 
-    println!("mutations-file: {}", mutations_file.display());
     let mutations = comm::read_items::<BakedMutation, _>(mutations_file)?;
 
     // write the collected mutations
@@ -140,7 +139,6 @@ fn read_coverage() -> Fallible<HashSet<u32>> {
         bail!("file `target/mutagen/coverage` is not found")
     }
 
-    println!("coverage-file: {}", coverage_file.display());
     let coverage_hits = comm::read_items::<CoverageHit, _>(coverage_file)?;
     Ok(coverage_hits.iter().map(|c| c.mutator_id).collect())
 }
