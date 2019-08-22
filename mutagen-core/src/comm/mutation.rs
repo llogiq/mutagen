@@ -4,9 +4,9 @@ use serde::{Deserialize, Serialize};
 /// description of a single mutation baked into the code with a given id
 #[derive(Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct BakedMutation {
-    id: u32,
+    id: usize,
     // id of the mutator that generates this mutation
-    mutator_id: u32,
+    mutator_id: usize,
     mutation: Mutation,
 }
 
@@ -55,7 +55,7 @@ impl Mutation {
         Self::new(mutator, original_code, mutated_code, location)
     }
 
-    pub fn with_id(self, id: u32, mutator_id: u32) -> BakedMutation {
+    pub fn with_id(self, id: usize, mutator_id: usize) -> BakedMutation {
         BakedMutation {
             id,
             mutator_id,
@@ -65,11 +65,11 @@ impl Mutation {
 }
 
 impl BakedMutation {
-    pub fn id(&self) -> u32 {
+    pub fn id(&self) -> usize {
         self.id
     }
 
-    pub fn mutator_id(&self) -> u32 {
+    pub fn mutator_id(&self) -> usize {
         self.mutator_id
     }
 

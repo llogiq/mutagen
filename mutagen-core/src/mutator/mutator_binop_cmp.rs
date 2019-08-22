@@ -17,7 +17,7 @@ pub struct MutatorBinopCmp {}
 
 impl MutatorBinopCmp {
     pub fn run<L: PartialOrd<R>, R>(
-        mutator_id: u32,
+        mutator_id: usize,
         left: L,
         right: R,
         original_op: BinopCmp,

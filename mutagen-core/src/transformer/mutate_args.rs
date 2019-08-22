@@ -26,7 +26,7 @@ pub enum Conf {
 
 #[derive(PartialEq, Eq, Debug, Default)]
 pub struct LocalConf {
-    pub expected_mutations: Option<u32>,
+    pub expected_mutations: Option<usize>,
 }
 
 #[derive(PartialEq, Eq, Debug)]
@@ -72,7 +72,7 @@ impl Conf {
             "local" => {
                 let expected_mutations = conf.args.find_named_arg("expected_mutations")?;
                 let expected_mutations = expected_mutations
-                    .map(|arg| arg.name.parse::<u32>())
+                    .map(|arg| arg.name.parse::<usize>())
                     .transpose()
                     .map_err(|_| ())?;
                 Ok(Conf::Local(LocalConf { expected_mutations }))

@@ -33,7 +33,7 @@ fn run() -> Fallible<()> {
     let test_bins = tests_executables
         .iter()
         .map(|e| TestBin::new(&e))
-        .map(|b| b.run_test(mutations.len() as u32))
+        .map(|b| b.run_test(mutations.len()))
         .collect::<Fallible<Vec<_>>>()?;
 
     let coverage = read_coverage()?;
@@ -48,10 +48,10 @@ fn run() -> Fallible<()> {
 fn run_mutations(
     test_bins: &[TestBinTimed],
     mutations: Vec<BakedMutation>,
-    coverage: &HashSet<u32>,
+    coverage: &HashSet<usize>,
 ) -> Fallible<()> {
     let mut mutagen_report = MutagenReport::new();
-    let mut progress = Progress::new(mutations.len() as u32);
+    let mut progress = Progress::new(mutations.len());
 
     for m in mutations {
         progress.start_mutation(&m)?;
@@ -133,7 +133,7 @@ fn read_mutations() -> Fallible<Vec<BakedMutation>> {
 }
 
 /// read all coverage-hits from the coverage-file
-fn read_coverage() -> Fallible<HashSet<u32>> {
+fn read_coverage() -> Fallible<HashSet<usize>> {
     let coverage_file = comm::get_coverage_file()?;
     if !coverage_file.exists() {
         bail!("file `target/mutagen/coverage` is not found")

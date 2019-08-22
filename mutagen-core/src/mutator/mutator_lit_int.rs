@@ -15,7 +15,7 @@ pub struct MutatorLitInt {}
 
 impl MutatorLitInt {
     pub fn run<T: IntMutable>(
-        mutator_id: u32,
+        mutator_id: usize,
         original_lit: T,
         runtime: impl Deref<Target = MutagenRuntimeConfig>,
     ) -> T {
@@ -155,7 +155,7 @@ mod tests {
 
     #[test]
     fn lit_u8_suffixed_active() {
-        let result: u8 = MutatorLitInt::run(1u32, 1u8, &MutagenRuntimeConfig::with_mutation_id(1));
+        let result: u8 = MutatorLitInt::run(1, 1u8, &MutagenRuntimeConfig::with_mutation_id(1));
         assert_eq!(result, 2);
     }
 

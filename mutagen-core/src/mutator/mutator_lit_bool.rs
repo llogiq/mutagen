@@ -14,7 +14,7 @@ pub struct MutatorLitBool {}
 
 impl MutatorLitBool {
     pub fn run(
-        mutator_id: u32,
+        mutator_id: usize,
         original_lit: bool,
         runtime: impl Deref<Target = MutagenRuntimeConfig>,
     ) -> bool {

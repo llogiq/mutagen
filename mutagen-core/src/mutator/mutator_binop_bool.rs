@@ -17,7 +17,7 @@ pub struct MutatorBinopBool {}
 
 impl MutatorBinopBool {
     pub fn run_left(
-        mutator_id: u32,
+        mutator_id: usize,
         original_op: BinopBool,
         left: bool,
         runtime: impl Deref<Target = MutagenRuntimeConfig>,

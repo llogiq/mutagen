@@ -41,7 +41,7 @@ lazy_static! {
 
 pub enum MutagenRuntimeConfig {
     Pass,
-    Mutation(u32),
+    Mutation(usize),
     Coverage(CoverageCounter),
 }
 
@@ -53,7 +53,7 @@ pub struct CoverageCounter {
 
 #[derive(Serialize, Deserialize)]
 pub struct CoverageHit {
-    pub mutator_id: u32,
+    pub mutator_id: usize,
 }
 
 impl MutagenRuntimeConfig {
@@ -91,13 +91,13 @@ impl MutagenRuntimeConfig {
         }
     }
 
-    pub fn covered(&self, mutation_id: u32) {
+    pub fn covered(&self, mutator_id: usize) {
         if let Self::Coverage(coverage) = &self {
-            coverage.covered(mutation_id)
+            coverage.covered(mutator_id)
         }
     }
 
-    pub fn mutation_id(&self) -> Option<u32> {
+    pub fn mutation_id(&self) -> Option<usize> {
         if let Self::Mutation(m_id) = self {
             Some(*m_id)
         } else {
@@ -105,22 +105,22 @@ impl MutagenRuntimeConfig {
         }
     }
 
-    pub fn is_mutation_active(&self, mutation_id: u32) -> bool {
+    pub fn is_mutation_active(&self, mutation_id: usize) -> bool {
         self.mutation_id() == Some(mutation_id)
     }
 
-    pub fn get_mutation<'a, T>(&self, mutator_id: u32, mutations: &'a [T]) -> Option<&'a T> {
+    pub fn get_mutation<'a, T>(&self, mutator_id: usize, mutations: &'a [T]) -> Option<&'a T> {
         let m_id = self.mutation_id()?;
         if m_id < mutator_id {
             return None;
         }
         let index = m_id - mutator_id;
-        mutations.get(index as usize)
+        mutations.get(index)
     }
 }
 
 impl CoverageCounter {
-    fn new(max_mutations: u32) -> Self {
+    fn new(max_mutations: usize) -> Self {
         let counter = (0..=max_mutations).map(|_| AtomicU64::new(0)).collect();
         let coverage_filepath = comm::get_coverage_file().unwrap();
         let coverage_file = File::create(&coverage_filepath)
@@ -132,9 +132,9 @@ impl CoverageCounter {
         }
     }
 
-    fn covered(&self, mutator_id: u32) {
+    fn covered(&self, mutator_id: usize) {
         let previous_cover_counter =
-            self.counter[mutator_id as usize].fetch_add(1, Ordering::Relaxed);
+            self.counter[mutator_id].fetch_add(1, Ordering::Relaxed);
         // report first coverage
         if previous_cover_counter == 0 {
             let coverage_hit = CoverageHit { mutator_id };
@@ -174,7 +174,7 @@ mod test_tools {
             Self::test_with_runtime(Self::without_mutation(), testcase)
         }
 
-        pub fn test_with_mutation_id<F: FnOnce() -> ()>(mutation_id: u32, testcase: F) {
+        pub fn test_with_mutation_id<F: FnOnce() -> ()>(mutation_id: usize, testcase: F) {
             Self::test_with_runtime(Self::with_mutation_id(mutation_id), testcase)
         }
 
@@ -182,7 +182,7 @@ mod test_tools {
             Self::Pass
         }
 
-        pub fn with_mutation_id(mutation_id: u32) -> Self {
+        pub fn with_mutation_id(mutation_id: usize) -> Self {
             assert!(mutation_id != 0);
             MutagenRuntimeConfig::Mutation(mutation_id)
         }

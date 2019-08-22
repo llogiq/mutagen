@@ -21,7 +21,7 @@ pub struct SharedTransformInfo(Arc<Mutex<MutagenTransformInfo>>);
 pub struct MutagenTransformInfo {
     mutations: Vec<BakedMutation>,
     mutagen_file: Option<File>,
-    expected_mutations: Option<u32>,
+    expected_mutations: Option<usize>,
 }
 
 impl Default for MutagenTransformInfo {
@@ -51,8 +51,8 @@ impl MutagenTransformInfo {
     }
 
     /// add a mutation and return the id used for it, also writes the mutation to the global file.
-    pub fn add_mutation(&mut self, mutation: Mutation, mutator_id: u32) -> u32 {
-        let mut_id = 1 + self.mutations.len() as u32;
+    pub fn add_mutation(&mut self, mutation: Mutation, mutator_id: usize) -> usize {
+        let mut_id = 1 + self.mutations.len();
         let mutation = mutation.with_id(mut_id, mutator_id);
 
         // write the mutation if file was configured
@@ -67,17 +67,17 @@ impl MutagenTransformInfo {
         mut_id
     }
 
-    pub fn get_num_mutations(&self) -> u32 {
-        self.mutations.len() as u32
+    pub fn get_num_mutations(&self) -> usize {
+        self.mutations.len()
     }
 
-    pub fn get_next_mutation_id(&self) -> u32 {
-        self.mutations.len() as u32 + 1
+    pub fn get_next_mutation_id(&self) -> usize {
+        self.mutations.len() + 1
     }
 
     pub fn check_mutations(&mut self) {
         if let Some(expected_mutations) = self.expected_mutations {
-            let actual_mutations = self.mutations.len() as u32;
+            let actual_mutations = self.mutations.len();
             if expected_mutations != actual_mutations {
                 panic!(
                     "expected {} mutations but inserted {}",
@@ -112,11 +112,11 @@ impl SharedTransformInfo {
         Self::new(transform_info)
     }
 
-    pub fn add_mutation(&self, mutation: Mutation) -> u32 {
+    pub fn add_mutation(&self, mutation: Mutation) -> usize {
         self.add_mutations(iter::once(mutation))
     }
 
-    pub fn add_mutations(&self, mutations: impl IntoIterator<Item = Mutation>) -> u32 {
+    pub fn add_mutations(&self, mutations: impl IntoIterator<Item = Mutation>) -> usize {
         let mut transform_info = self.lock_tranform_info();
 
         let mutator_id = transform_info.get_next_mutation_id();
@@ -132,7 +132,7 @@ impl SharedTransformInfo {
         Self(Arc::clone(&self.0))
     }
 
-    pub fn get_num_mutations(&self) -> u32 {
+    pub fn get_num_mutations(&self) -> usize {
         self.lock_tranform_info().get_num_mutations()
     }
 

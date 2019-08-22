@@ -17,7 +17,7 @@ pub struct MutatorUnopNot {}
 
 impl MutatorUnopNot {
     pub fn run<T: Not>(
-        mutator_id: u32,
+        mutator_id: usize,
         val: T,
         runtime: impl Deref<Target = MutagenRuntimeConfig>,
     ) -> <T as Not>::Output {

@@ -7,12 +7,12 @@ use mutagen_core::comm::{BakedMutation, MutantStatus};
 /// Print progress during mutation testing
 pub struct Progress {
     term: Term,
-    num_mutations: u32,
+    num_mutations: usize,
     current_log_str: Option<String>,
 }
 
 impl Progress {
-    pub fn new(num_mutations: u32) -> Self {
+    pub fn new(num_mutations: usize) -> Self {
         Self {
             term: Term::stdout(),
             num_mutations,
@@ -39,7 +39,7 @@ impl Progress {
             writeln!(&self.term)?;
             let progress_bar = format!(
                 "{:.*}>",
-                60 * m_id as usize / self.num_mutations as usize,
+                60 * m_id / self.num_mutations,
                 "============================================================",
             );
             writeln!(

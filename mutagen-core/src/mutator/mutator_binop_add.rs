@@ -17,7 +17,7 @@ pub struct MutatorBinopAdd {}
 
 impl MutatorBinopAdd {
     pub fn run<L: Add<R>, R>(
-        mutator_id: u32,
+        mutator_id: usize,
         left: L,
         right: R,
         runtime: impl Deref<Target = MutagenRuntimeConfig>,

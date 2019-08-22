@@ -17,7 +17,7 @@ pub struct MutatorBinopEq {}
 
 impl MutatorBinopEq {
     pub fn run<L: PartialEq<R>, R>(
-        mutator_id: u32,
+        mutator_id: usize,
         left: L,
         right: R,
         original_op: BinopEq,

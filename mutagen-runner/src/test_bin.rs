@@ -24,7 +24,7 @@ impl<'a> TestBin<'a> {
     }
 
     // run the test and record the time required.
-    pub fn run_test(self, num_mutations: u32) -> Fallible<TestBinTimed<'a>> {
+    pub fn run_test(self, num_mutations: usize) -> Fallible<TestBinTimed<'a>> {
         let test_start = Instant::now();
 
         // run test suite
