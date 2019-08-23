@@ -8,6 +8,7 @@ use syn::spanned::Spanned;
 use syn::{BinOp, Expr, ExprBinary};
 
 use crate::comm::Mutation;
+use crate::transformer::transform_context::TransformContext;
 use crate::transformer::transform_info::SharedTransformInfo;
 
 use crate::optimistic::AddToSub;
@@ -30,7 +31,11 @@ impl MutatorBinopAdd {
         }
     }
 
-    pub fn transform(e: Expr, transform_info: &SharedTransformInfo) -> Expr {
+    pub fn transform(
+        e: Expr,
+        transform_info: &SharedTransformInfo,
+        context: &TransformContext,
+    ) -> Expr {
         match e {
             Expr::Binary(ExprBinary {
                 left,
@@ -39,6 +44,7 @@ impl MutatorBinopAdd {
                 ..
             }) => {
                 let mutator_id = transform_info.add_mutation(Mutation::new_spanned(
+                    context.fn_name.clone(),
                     "binop_add".to_owned(),
                     "+".to_owned(),
                     "-".to_owned(),

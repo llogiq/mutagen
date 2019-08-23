@@ -133,8 +133,7 @@ impl CoverageCounter {
     }
 
     fn covered(&self, mutator_id: usize) {
-        let previous_cover_counter =
-            self.counter[mutator_id].fetch_add(1, Ordering::Relaxed);
+        let previous_cover_counter = self.counter[mutator_id].fetch_add(1, Ordering::Relaxed);
         // report first coverage
         if previous_cover_counter == 0 {
             let coverage_hit = CoverageHit { mutator_id };

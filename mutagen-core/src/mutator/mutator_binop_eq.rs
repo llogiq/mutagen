@@ -9,6 +9,7 @@ use syn::spanned::Spanned;
 use syn::{BinOp, Expr, ExprBinary};
 
 use crate::comm::Mutation;
+use crate::transformer::transform_context::TransformContext;
 use crate::transformer::transform_info::SharedTransformInfo;
 
 use crate::MutagenRuntimeConfig;
@@ -32,7 +33,11 @@ impl MutatorBinopEq {
         }
     }
 
-    pub fn transform(e: Expr, transform_info: &SharedTransformInfo) -> Expr {
+    pub fn transform(
+        e: Expr,
+        transform_info: &SharedTransformInfo,
+        context: &TransformContext,
+    ) -> Expr {
         match e {
             Expr::Binary(ExprBinary {
                 left,
@@ -56,7 +61,7 @@ impl MutatorBinopEq {
                 let mutator_id = transform_info.add_mutations(
                     MutationBinopEq::possible_mutations(op)
                         .iter()
-                        .map(|m| m.to_mutation(op, tt.span())),
+                        .map(|m| m.to_mutation(op, tt.span(), context)),
                 );
 
                 syn::parse2(quote_spanned! {op.span()=>
@@ -94,8 +99,9 @@ impl MutationBinopEq {
         self.op.eq(left, right)
     }
 
-    fn to_mutation(self, original_op: BinopEq, span: Span) -> Mutation {
+    fn to_mutation(self, original_op: BinopEq, span: Span, context: &TransformContext) -> Mutation {
         Mutation::new_spanned(
+            context.fn_name.clone(),
             "binop_eq".to_owned(),
             format!("{}", original_op),
             format!("{}", self.op),

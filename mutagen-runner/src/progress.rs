@@ -7,14 +7,22 @@ use mutagen_core::comm::{BakedMutation, MutantStatus};
 /// Print progress during mutation testing
 pub struct Progress {
     term: Term,
+    term_width: usize,
+    show_progress: bool,
     num_mutations: usize,
     current_log_str: Option<String>,
 }
 
 impl Progress {
     pub fn new(num_mutations: usize) -> Self {
+        let term = Term::stdout();
+        let term_width = term.size().1 as usize;
+        let show_progress = term.is_term() && term_width > 20;
+
         Self {
-            term: Term::stdout(),
+            term,
+            term_width,
+            show_progress,
             num_mutations,
             current_log_str: None,
         }
@@ -25,32 +33,18 @@ impl Progress {
     /// The information about the mutation is logged to the console.
     /// A call to `finish_mutation` should follow a call to this function
     pub fn start_mutation(&mut self, m: &BakedMutation) -> Fallible<()> {
-        let mutant_log_string = m.log_string();
-        let m_id = m.id();
+        let mutant_log_string = mutation_log_string(m);
 
-        if self.term.is_term() {
+        if self.show_progress {
             self.term.clear_line()?;
         }
 
         write!(&self.term, "{} ... ", &mutant_log_string)?;
 
         // write progress bar
-        if self.term.is_term() {
+        if self.show_progress {
             writeln!(&self.term)?;
-            let progress_bar = format!(
-                "{:.*}>",
-                60 * m_id / self.num_mutations,
-                "============================================================",
-            );
-            writeln!(
-                &self.term,
-                "{} [{:60}] {}/{}",
-                console::style(format!("{:>13}", "Test Mutants")).bold(),
-                progress_bar,
-                m_id,
-                self.num_mutations
-            )?;
-            self.term.move_cursor_up(1)?;
+            self.write_progress_bar(m)?;
 
             // save log-str for later
             self.current_log_str = Some(mutant_log_string);
@@ -63,14 +57,22 @@ impl Progress {
     ///
     /// The status is printed and progress bar is updated
     pub fn finish_mutation(&mut self, status: MutantStatus) -> Fallible<()> {
-        if self.term.is_term() {
+        if self.show_progress {
             let log_str = self
                 .current_log_str
                 .take()
                 .ok_or_else(|| format_err!("calling report_status without starting a mutation"))?;
 
-            self.term.move_cursor_up(1)?;
+            let term_with = self.term.size().1 as usize;
+            let log_str_len = log_str.len();
+            let log_str_lines = 1 + log_str_len / term_with;
+
+            // clear progress bar
             self.term.clear_line()?;
+            self.term.clear_last_lines(log_str_lines)?;
+
+            // TODO: handle long lines
+
             writeln!(&self.term, "{} ... {}", log_str, status)?;
         } else {
             writeln!(&self.term, "{}", status)?;
@@ -83,10 +85,79 @@ impl Progress {
     ///
     /// clears the progress-bar
     pub fn finish(self) -> Fallible<()> {
-        if self.term.is_term() {
+        if self.show_progress {
             self.term.clear_line()?;
             writeln!(&self.term)?;
         }
         Ok(())
     }
+
+    // TODO: document thoughts behind this progress bar
+    fn write_progress_bar(&self, m: &BakedMutation) -> Fallible<()> {
+        let m_id = m.id();
+
+        let current_total_string = format!("{}/{}", m_id, self.num_mutations);
+        let action_name = console::style(format!("{:>12}", "Test Mutants")).bold();
+
+        let main_part_len = self.term_width.min(80);
+
+        // construct progress bar
+        let bar_width = main_part_len - 18 - current_total_string.len();
+        let mut bar_pos = bar_width * m_id / self.num_mutations;
+        if bar_pos == bar_width {
+            bar_pos -= 1;
+        }
+        let bar1 = "=".repeat(bar_pos);
+        let bar2 = " ".repeat(bar_width - bar_pos - 1);
+
+        // construct status details right to progress bar, if there is space for it
+        let fn_name = m
+            .fn_name()
+            .map(|f| format!("(fn {})", f))
+            .unwrap_or("".to_owned());
+        let mut action_details = format!(": {}{}", m.source_file().display(), fn_name);
+        let space_after_main_bar = self.term_width - main_part_len;
+        if space_after_main_bar < 10 {
+            action_details = "".to_owned();
+        } else if space_after_main_bar < action_details.len() {
+            action_details = format!("{:.*}...", space_after_main_bar - 3, action_details);
+        }
+
+        // TODO: status details for current report instead?
+
+        write!(
+            &self.term,
+            "{} [{}>{}] {}{}\r",
+            action_name, bar1, bar2, current_total_string, action_details
+        )?;
+
+        Ok(())
+    }
+}
+
+/// Generate a string used for logging
+fn mutation_log_string(m: &BakedMutation) -> String {
+    let mutation_description = if m.mutated_code().is_empty() {
+        format!("remove `{}`", m.original_code())
+    } else if m.original_code().is_empty() {
+        format!("insert `{}`", m.mutated_code())
+    } else {
+        format!(
+            "replace `{}` with `{}`",
+            m.original_code(),
+            m.mutated_code(),
+        )
+    };
+
+    format!(
+        "{}: {}, {}, at {}@{}{}",
+        m.id(),
+        m.mutator_name(),
+        mutation_description,
+        m.source_file().display(),
+        m.location_in_file(),
+        m.fn_name()
+            .map(|f| format!("(fn {})", f))
+            .unwrap_or("".to_owned()),
+    )
 }

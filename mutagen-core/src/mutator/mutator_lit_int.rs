@@ -7,6 +7,7 @@ use quote::quote_spanned;
 use syn::{Expr, ExprLit, Lit};
 
 use crate::comm::Mutation;
+use crate::transformer::transform_context::TransformContext;
 use crate::transformer::transform_info::SharedTransformInfo;
 
 use crate::MutagenRuntimeConfig;
@@ -28,7 +29,11 @@ impl MutatorLitInt {
         }
     }
 
-    pub fn transform(e: Expr, transform_info: &SharedTransformInfo) -> Expr {
+    pub fn transform(
+        e: Expr,
+        transform_info: &SharedTransformInfo,
+        context: &TransformContext,
+    ) -> Expr {
         match e {
             Expr::Lit(ExprLit {
                 lit: Lit::Int(lit),
@@ -46,7 +51,7 @@ impl MutatorLitInt {
                 let mutator_id = transform_info.add_mutations(
                     MutationLitInt::possible_mutations(lit_val)
                         .into_iter()
-                        .map(|m| m.to_mutation(lit_val, lit.span())),
+                        .map(|m| m.to_mutation(lit_val, lit.span(), context)),
                 );
                 syn::parse2(quote_spanned! {lit.span()=>
                     ::mutagen::mutator::MutatorLitInt::run(
@@ -87,8 +92,9 @@ impl MutationLitInt {
         }
     }
 
-    fn to_mutation(self, val: u64, span: Span) -> Mutation {
+    fn to_mutation(self, val: u64, span: Span, context: &TransformContext) -> Mutation {
         Mutation::new_spanned(
+            context.fn_name.clone(),
             "lit_int".to_owned(),
             format!("{}", val),
             format!("{}", self.mutate::<u64>(val)),

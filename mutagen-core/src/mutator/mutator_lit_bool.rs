@@ -6,6 +6,7 @@ use quote::quote_spanned;
 use syn::{Expr, ExprLit, Lit, LitBool};
 
 use crate::comm::Mutation;
+use crate::transformer::transform_context::TransformContext;
 use crate::transformer::transform_info::SharedTransformInfo;
 
 use crate::MutagenRuntimeConfig;
@@ -26,13 +27,18 @@ impl MutatorLitBool {
         }
     }
 
-    pub fn transform(e: Expr, transform_info: &SharedTransformInfo) -> Expr {
+    pub fn transform(
+        e: Expr,
+        transform_info: &SharedTransformInfo,
+        context: &TransformContext,
+    ) -> Expr {
         match e {
             Expr::Lit(ExprLit {
                 lit: Lit::Bool(LitBool { value, span }),
                 ..
             }) => {
                 let mutator_id = transform_info.add_mutation(Mutation::new_spanned(
+                    context.fn_name.clone(),
                     "lit_bool".to_owned(),
                     format!("{:?}", value),
                     format!("{:?}", !value),

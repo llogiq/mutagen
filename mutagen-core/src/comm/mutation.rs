@@ -1,3 +1,6 @@
+use std::ops::Deref;
+use std::path::{Path, PathBuf};
+
 use proc_macro2::Span;
 use serde::{Deserialize, Serialize};
 
@@ -13,28 +16,35 @@ pub struct BakedMutation {
 /// Mutation in source code
 #[derive(Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Mutation {
+    fn_name: Option<String>,
     mutator: String, // mutator is part of code that is changed
     original_code: String,
     mutated_code: String,
-    location: String,
+    source_file: PathBuf,
+    location_in_file: String,
 }
 
 impl Mutation {
     pub fn new(
+        fn_name: Option<String>,
         mutator: String,
         original_code: String,
         mutated_code: String,
-        location: String,
+        source_file: PathBuf,
+        location_in_file: String,
     ) -> Self {
         Self {
+            fn_name,
             mutator,
             original_code,
             mutated_code,
-            location,
+            source_file,
+            location_in_file,
         }
     }
 
     pub fn new_spanned(
+        fn_name: Option<String>,
         mutator: String,
         original_code: String,
         mutated_code: String,
@@ -43,16 +53,19 @@ impl Mutation {
         let start = span.start();
         let end = span.end();
         let source_file = span.unwrap().source_file().path();
-        let location = format!(
-            "{}@{}:{}-{}:{}",
-            source_file.display(),
-            start.line,
-            start.column,
-            end.line,
-            end.column
+        let location_in_file = format!(
+            "{}:{}-{}:{}",
+            start.line, start.column, end.line, end.column
         );
 
-        Self::new(mutator, original_code, mutated_code, location)
+        Self::new(
+            fn_name,
+            mutator,
+            original_code,
+            mutated_code,
+            source_file,
+            location_in_file,
+        )
     }
 
     pub fn with_id(self, id: usize, mutator_id: usize) -> BakedMutation {
@@ -73,22 +86,28 @@ impl BakedMutation {
         self.mutator_id
     }
 
-    /// Generate a string used for logging
-    pub fn log_string(&self) -> String {
-        let mutation_description = if self.mutation.mutated_code.is_empty() {
-            format!("remove `{}`", &self.mutation.original_code)
-        } else if self.mutation.original_code.is_empty() {
-            format!("insert `{}`", &self.mutation.mutated_code)
-        } else {
-            format!(
-                "replace `{}` with `{}`",
-                &self.mutation.original_code, &self.mutation.mutated_code,
-            )
-        };
-        format!(
-            "{}: {}, {}, {}",
-            &self.id, &self.mutation.mutator, mutation_description, &self.mutation.location
-        )
+    pub fn mutator_name(&self) -> &str {
+        self.mutation.mutator.deref()
+    }
+
+    pub fn fn_name(&self) -> Option<&str> {
+        // TODO: use Option::deref instead
+        self.mutation.fn_name.as_ref().map(String::deref)
+    }
+
+    pub fn original_code(&self) -> &str {
+        self.mutation.original_code.deref()
+    }
+
+    pub fn mutated_code(&self) -> &str {
+        self.mutation.mutated_code.deref()
+    }
+
+    pub fn source_file(&self) -> &Path {
+        self.mutation.source_file.deref()
+    }
+    pub fn location_in_file(&self) -> &str {
+        self.mutation.location_in_file.deref()
     }
 }
 

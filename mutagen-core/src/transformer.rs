@@ -5,10 +5,11 @@ use syn::{parse2, Expr, ItemFn};
 
 mod arg_ast;
 mod mutate_args;
+pub mod transform_context;
 pub mod transform_info;
 
 use crate::mutator::*;
-
+use transform_context::TransformContext;
 use transform_info::SharedTransformInfo;
 
 pub fn do_transform_item_fn(args: TokenStream, input: TokenStream) -> TokenStream {
@@ -25,23 +26,35 @@ pub enum MutagenTransformer {
 
 pub struct MutagenTransformerBundle {
     transform_info: SharedTransformInfo,
+    transform_context: TransformContext,
     expr_transformers: Vec<Box<MutagenExprTransformer>>,
 }
 
 /// function-type that describes transformers.
 ///
 /// the transformer should not inspect the expression recursively since recursion is performed by the `MutagenTransformerBundle`
-type MutagenExprTransformer = dyn FnMut(Expr, &SharedTransformInfo) -> Expr;
+// type MutagenExprTransformer = dyn FnMut(Expr, &SharedTransformInfo, &TransformContext) -> Expr;
+type MutagenExprTransformer = dyn FnMut(Expr, &SharedTransformInfo, &TransformContext) -> Expr;
 
 impl Fold for MutagenTransformerBundle {
     fn fold_expr(&mut self, e: Expr) -> Expr {
         // transform content of the expression first
-        let mut result = self.fold_expr_default(e);
+        let mut result = syn::fold::fold_expr(self, e);
 
         // call all transformers on this expression
         for transformer in &mut self.expr_transformers {
-            result = transformer(result, &self.transform_info);
+            result = transformer(result, &self.transform_info, &self.transform_context);
         }
+        result
+    }
+
+    fn fold_item_fn(&mut self, i: ItemFn) -> ItemFn {
+        let old_fn_name = self
+            .transform_context
+            .fn_name
+            .replace(i.sig.ident.to_string());
+        let result = syn::fold::fold_item_fn(self, i);
+        self.transform_context.fn_name = old_fn_name;
         result
     }
 }
@@ -125,8 +138,11 @@ impl MutagenTransformerBundle {
             }
         }
 
+        let transform_context = TransformContext::default();
+
         Self {
             expr_transformers,
+            transform_context,
             transform_info,
         }
     }
@@ -143,52 +159,4 @@ lazy_static! {
             .map(|(i, s)| (s, i))
             .collect()
     };
-}
-
-// default fold of expr
-impl MutagenTransformerBundle {
-    fn fold_expr_default(&mut self, e: Expr) -> Expr {
-        match e {
-            Expr::Array(e0) => Expr::Array(self.fold_expr_array(e0)),
-            Expr::Assign(e0) => Expr::Assign(self.fold_expr_assign(e0)),
-            Expr::AssignOp(e0) => Expr::AssignOp(self.fold_expr_assign_op(e0)),
-            Expr::Async(e0) => Expr::Async(self.fold_expr_async(e0)),
-            Expr::Await(e0) => Expr::Await(self.fold_expr_await(e0)),
-            Expr::Binary(e0) => Expr::Binary(self.fold_expr_binary(e0)),
-            Expr::Block(e0) => Expr::Block(self.fold_expr_block(e0)),
-            Expr::Box(e0) => Expr::Box(self.fold_expr_box(e0)),
-            Expr::Break(e0) => Expr::Break(self.fold_expr_break(e0)),
-            Expr::Call(e0) => Expr::Call(self.fold_expr_call(e0)),
-            Expr::Cast(e0) => Expr::Cast(self.fold_expr_cast(e0)),
-            Expr::Closure(e0) => Expr::Closure(self.fold_expr_closure(e0)),
-            Expr::Continue(e0) => Expr::Continue(self.fold_expr_continue(e0)),
-            Expr::Field(e0) => Expr::Field(self.fold_expr_field(e0)),
-            Expr::ForLoop(e0) => Expr::ForLoop(self.fold_expr_for_loop(e0)),
-            Expr::Group(e0) => Expr::Group(self.fold_expr_group(e0)),
-            Expr::If(e0) => Expr::If(self.fold_expr_if(e0)),
-            Expr::Index(e0) => Expr::Index(self.fold_expr_index(e0)),
-            Expr::Let(e0) => Expr::Let(self.fold_expr_let(e0)),
-            Expr::Lit(e0) => Expr::Lit(self.fold_expr_lit(e0)),
-            Expr::Loop(e0) => Expr::Loop(self.fold_expr_loop(e0)),
-            Expr::Macro(e0) => Expr::Macro(self.fold_expr_macro(e0)),
-            Expr::Match(e0) => Expr::Match(self.fold_expr_match(e0)),
-            Expr::MethodCall(e0) => Expr::MethodCall(self.fold_expr_method_call(e0)),
-            Expr::Paren(e0) => Expr::Paren(self.fold_expr_paren(e0)),
-            Expr::Path(e0) => Expr::Path(self.fold_expr_path(e0)),
-            Expr::Range(e0) => Expr::Range(self.fold_expr_range(e0)),
-            Expr::Reference(e0) => Expr::Reference(self.fold_expr_reference(e0)),
-            Expr::Repeat(e0) => Expr::Repeat(self.fold_expr_repeat(e0)),
-            Expr::Return(e0) => Expr::Return(self.fold_expr_return(e0)),
-            Expr::Struct(e0) => Expr::Struct(self.fold_expr_struct(e0)),
-            Expr::Try(e0) => Expr::Try(self.fold_expr_try(e0)),
-            Expr::TryBlock(e0) => Expr::TryBlock(self.fold_expr_try_block(e0)),
-            Expr::Tuple(e0) => Expr::Tuple(self.fold_expr_tuple(e0)),
-            Expr::Type(e0) => Expr::Type(self.fold_expr_type(e0)),
-            Expr::Unary(e0) => Expr::Unary(self.fold_expr_unary(e0)),
-            Expr::Unsafe(e0) => Expr::Unsafe(self.fold_expr_unsafe(e0)),
-            Expr::While(e0) => Expr::While(self.fold_expr_while(e0)),
-            Expr::Yield(e0) => Expr::Yield(self.fold_expr_yield(e0)),
-            _ => e,
-        }
-    }
 }
