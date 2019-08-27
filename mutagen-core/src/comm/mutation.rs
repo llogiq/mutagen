@@ -75,6 +75,20 @@ impl Mutation {
             mutation: self,
         }
     }
+
+    /// construct a string representation of the mutation
+    pub fn mutation_description(&self) -> String {
+        if self.mutated_code.is_empty() {
+            format!("remove `{}`", &self.original_code)
+        } else if self.original_code.is_empty() {
+            format!("insert `{}`", &self.mutated_code)
+        } else {
+            format!(
+                "replace `{}` with `{}`",
+                &self.original_code, &self.mutated_code,
+            )
+        }
+    }
 }
 
 impl BakedMutation {
@@ -108,6 +122,9 @@ impl BakedMutation {
     }
     pub fn location_in_file(&self) -> &str {
         self.mutation.location_in_file.deref()
+    }
+    pub fn mutation_description(&self) -> String {
+        self.mutation.mutation_description()
     }
 }
 

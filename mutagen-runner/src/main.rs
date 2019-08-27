@@ -77,6 +77,8 @@ fn run_mutations(
     }
     progress.finish()?;
 
+    // final report
+    mutagen_report.print_survived();
     mutagen_report.summary().print();
 
     Ok(())

@@ -25,9 +25,43 @@ impl MutagenReport {
     }
 
     pub fn add_mutation_result(&mut self, mutation: BakedMutation, status: MutantStatus) {
-        assert!(!self.mutant_results.contains_key(&mutation)); // TODO: use this assert?
+        assert!(!self.mutant_results.contains_key(&mutation));
+        // TODO: instead use: .expect_none("mutation already added");
         self.mutant_results.insert(mutation, status);
         self.summary.add_mutation_result(status);
+    }
+
+    pub fn print_survived(&self) {
+        if self.summary.survived > 0 {
+            println!("SURVIVED");
+            let survived = group(
+                self.mutant_results
+                    .iter()
+                    .filter(|(_, s)| s.survived())
+                    .map(|(m, s)| (m.source_file(), (m, *s))),
+            );
+
+            for (file, mutations) in survived {
+                println!("    {}", file.display());
+                for (m, s) in mutations {
+                    println!(
+                        "        {}: {} at {}{}{}",
+                        m.id(),
+
+                        m.mutation_description(),
+                        m.location_in_file(),
+                        m.fn_name()
+                            .map(|f| format!("(fn {})", f))
+                            .unwrap_or("".to_owned()),
+                        if s == MutantStatus::NotCovered {
+                            format!(" {}", MutantStatus::NotCovered)
+                        } else {
+                            "".to_owned()
+                        },
+                    );
+                }
+            }
+        }
     }
 
     pub fn summary(&self) -> ReportSummary {
@@ -68,8 +102,15 @@ impl ReportSummary {
     }
 }
 
+fn group<K: Eq + std::hash::Hash, V, I: Iterator<Item = (K, V)>>(iter: I) -> HashMap<K, Vec<V>> {
+    iter.fold(HashMap::new(), |mut map, (k, v)| {
+        map.entry(k).or_insert_with(|| Vec::new()).push(v);
+        map
+    })
+}
+
 /// Result from a test run
-#[derive(PartialEq, Eq, Copy, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone, Serialize, Deserialize)]
 pub enum MutantStatus {
     /// The test suite did not cover the mutator
     NotCovered,
@@ -79,6 +120,12 @@ pub enum MutantStatus {
     Killed(Option<i32>),
     /// the test timed out
     Timeout,
+}
+
+impl MutantStatus {
+    fn survived(self) -> bool {
+        self == Self::NotCovered || self == Self::Survived
+    }
 }
 
 impl fmt::Display for MutantStatus {

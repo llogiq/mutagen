@@ -1,3 +1,11 @@
+//! Custom implementation of printing progress of the cargo-mutagen runner.
+//!
+//! This module contains a progress bar similar to the one cargo uses.
+//! If the output is not a terminal or the terminal is too small, no progress bar is shown.
+//! The progress bar tries to be adaptive as possible and only uses a single line in every case.
+//!
+//! The main challenges is to be able to continue writing to the line above the progress bar.
+
 use console::Term;
 use failure::{format_err, Fallible};
 use std::io::Write;
@@ -71,8 +79,6 @@ impl Progress {
             self.term.clear_line()?;
             self.term.clear_last_lines(log_str_lines)?;
 
-            // TODO: handle long lines
-
             writeln!(&self.term, "{} ... {}", log_str, status)?;
         } else {
             writeln!(&self.term, "{}", status)?;
@@ -92,7 +98,6 @@ impl Progress {
         Ok(())
     }
 
-    // TODO: document thoughts behind this progress bar
     fn write_progress_bar(&self, m: &BakedMutation) -> Fallible<()> {
         let m_id = m.id();
 
@@ -123,8 +128,6 @@ impl Progress {
             action_details = format!("{:.*}...", space_after_main_bar - 3, action_details);
         }
 
-        // TODO: status details for current report instead?
-
         write!(
             &self.term,
             "{} [{}>{}] {}{}\r",
@@ -137,23 +140,11 @@ impl Progress {
 
 /// Generate a string used for logging
 fn mutation_log_string(m: &BakedMutation) -> String {
-    let mutation_description = if m.mutated_code().is_empty() {
-        format!("remove `{}`", m.original_code())
-    } else if m.original_code().is_empty() {
-        format!("insert `{}`", m.mutated_code())
-    } else {
-        format!(
-            "replace `{}` with `{}`",
-            m.original_code(),
-            m.mutated_code(),
-        )
-    };
-
     format!(
         "{}: {}, {}, at {}@{}{}",
         m.id(),
         m.mutator_name(),
-        mutation_description,
+        m.mutation_description(),
         m.source_file().display(),
         m.location_in_file(),
         m.fn_name()
