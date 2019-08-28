@@ -6,7 +6,7 @@ mod tests {
         use ::mutagen::mutate;
         use ::mutagen::MutagenRuntimeConfig;
 
-        // simple test that sums 2 u32 values. Unfortunately, the tag `u32` is necessary
+        // simple function that sums 2 u32 values. Unfortunately, the tag `u32` is necessary
         #[mutate(conf = local(expected_mutations = 1), mutators = only(binop_add))]
         fn sum_u32() -> u32 {
             5u32 + 1

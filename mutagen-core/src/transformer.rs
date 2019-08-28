@@ -1,7 +1,7 @@
 use proc_macro2::TokenStream;
 use quote::ToTokens;
 use syn::fold::Fold;
-use syn::{parse2, Expr, ItemFn};
+use syn::{parse2, Expr, ItemFn, Stmt};
 
 mod arg_ast;
 mod mutate_args;
@@ -22,19 +22,25 @@ pub fn do_transform_item_fn(args: TokenStream, input: TokenStream) -> TokenStrea
 
 pub enum MutagenTransformer {
     Expr(Box<MutagenExprTransformer>),
+    Stmt(Box<MutagenStmtTransformer>),
 }
 
 pub struct MutagenTransformerBundle {
     transform_info: SharedTransformInfo,
     transform_context: TransformContext,
     expr_transformers: Vec<Box<MutagenExprTransformer>>,
+    stmt_transformers: Vec<Box<MutagenStmtTransformer>>,
 }
 
-/// function-type that describes transformers.
+/// function-type that describes expression-transformers.
 ///
-/// the transformer should not inspect the expression recursively since recursion is performed by the `MutagenTransformerBundle`
-// type MutagenExprTransformer = dyn FnMut(Expr, &SharedTransformInfo, &TransformContext) -> Expr;
+// the transformer should not inspect the expression recursively since recursion is performed by the `MutagenTransformerBundle`
 type MutagenExprTransformer = dyn FnMut(Expr, &SharedTransformInfo, &TransformContext) -> Expr;
+
+/// function-type that describes expression-transformers.
+///
+// the transformer should not inspect the expression recursively since recursion is performed by the `MutagenTransformerBundle`
+type MutagenStmtTransformer = dyn FnMut(Stmt, &SharedTransformInfo, &TransformContext) -> Stmt;
 
 impl Fold for MutagenTransformerBundle {
     fn fold_expr(&mut self, e: Expr) -> Expr {
@@ -43,6 +49,17 @@ impl Fold for MutagenTransformerBundle {
 
         // call all transformers on this expression
         for transformer in &mut self.expr_transformers {
+            result = transformer(result, &self.transform_info, &self.transform_context);
+        }
+        result
+    }
+
+    fn fold_stmt(&mut self, s: Stmt) -> Stmt {
+        // transform content of the statement first
+        let mut result = syn::fold::fold_stmt(self, s);
+
+        // call all transformers on this statement
+        for transformer in &mut self.stmt_transformers {
             result = transformer(result, &self.transform_info, &self.transform_context);
         }
         result
@@ -78,6 +95,9 @@ impl MutagenTransformerBundle {
             "binop_eq" => MutagenTransformer::Expr(Box::new(MutatorBinopEq::transform)),
             "binop_cmp" => MutagenTransformer::Expr(Box::new(MutatorBinopCmp::transform)),
             "binop_bool" => MutagenTransformer::Expr(Box::new(MutatorBinopBool::transform)),
+            "stmt_call" => {
+                MutagenTransformer::Stmt(Box::new(MutatorStmtCall::transform))
+            }
             _ => panic!("unknown transformer {}", transformer_name),
         }
     }
@@ -92,6 +112,7 @@ impl MutagenTransformerBundle {
             "binop_eq",
             "binop_cmp",
             "binop_bool",
+            "stmt_call",
         ]
         .iter()
         .copied()
@@ -131,19 +152,22 @@ impl MutagenTransformerBundle {
             }
         };
         let mut expr_transformers = Vec::new();
+        let mut stmt_transformers = Vec::new();
         for t in &transformers {
             let t = Self::mk_transformer(t, &[]);
             match t {
                 MutagenTransformer::Expr(t) => expr_transformers.push(t),
+                MutagenTransformer::Stmt(t) => stmt_transformers.push(t),
             }
         }
 
         let transform_context = TransformContext::default();
 
         Self {
-            expr_transformers,
             transform_context,
             transform_info,
+            expr_transformers,
+            stmt_transformers,
         }
     }
 }

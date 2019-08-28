@@ -6,7 +6,7 @@ mod tests {
         use ::mutagen::mutate;
         use ::mutagen::MutagenRuntimeConfig;
 
-        // simple test that sums 2 u32 values. Unfortunately, the tag `u32` is necessary
+        // simple function that negates the input
         #[mutate(conf = local(expected_mutations = 1), mutators = only(unop_not))]
         fn boolnot(x: bool) -> bool {
             !x
@@ -19,7 +19,7 @@ mod tests {
             })
         }
         #[test]
-        fn boolnot_false_active() {
+        fn boolnot_active() {
             MutagenRuntimeConfig::test_with_mutation_id(1, || {
                 assert_eq!(boolnot(false), false);
                 assert_eq!(boolnot(true), true);
