@@ -1,7 +1,7 @@
 use proc_macro2::TokenStream;
 use quote::ToTokens;
 use syn::fold::Fold;
-use syn::{parse2, Expr, ItemFn, Stmt};
+use syn::{parse2, Expr, Item, ItemFn, Stmt};
 
 mod arg_ast;
 mod mutate_args;
@@ -12,12 +12,12 @@ use crate::mutator::*;
 use transform_context::TransformContext;
 use transform_info::SharedTransformInfo;
 
-pub fn do_transform_item_fn(args: TokenStream, input: TokenStream) -> TokenStream {
-    let input = match parse2::<ItemFn>(input) {
+pub fn do_transform_item(args: TokenStream, input: TokenStream) -> TokenStream {
+    let input = match parse2::<Item>(input) {
         Ok(ast) => ast,
         Err(e) => return TokenStream::from(e.to_compile_error()),
     };
-    MutagenTransformerBundle::setup_from_attr(args.into()).mutagen_process_item_fn(input)
+    MutagenTransformerBundle::setup_from_attr(args.into()).mutagen_process_item(input)
 }
 
 pub enum MutagenTransformer {
@@ -84,8 +84,8 @@ impl Fold for MutagenTransformerBundle {
 }
 
 impl MutagenTransformerBundle {
-    pub fn mutagen_process_item_fn(&mut self, target: ItemFn) -> TokenStream {
-        let stream = self.fold_item_fn(target).into_token_stream();
+    pub fn mutagen_process_item(&mut self, target: Item) -> TokenStream {
+        let stream = self.fold_item(target).into_token_stream();
         self.transform_info.check_mutations();
         stream
     }
@@ -102,9 +102,7 @@ impl MutagenTransformerBundle {
             "binop_eq" => MutagenTransformer::Expr(Box::new(MutatorBinopEq::transform)),
             "binop_cmp" => MutagenTransformer::Expr(Box::new(MutatorBinopCmp::transform)),
             "binop_bool" => MutagenTransformer::Expr(Box::new(MutatorBinopBool::transform)),
-            "stmt_call" => {
-                MutagenTransformer::Stmt(Box::new(MutatorStmtCall::transform))
-            }
+            "stmt_call" => MutagenTransformer::Stmt(Box::new(MutatorStmtCall::transform)),
             _ => panic!("unknown transformer {}", transformer_name),
         }
     }
