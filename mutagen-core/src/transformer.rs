@@ -55,6 +55,9 @@ impl Fold for MutagenTransformerBundle {
     }
 
     fn fold_stmt(&mut self, s: Stmt) -> Stmt {
+        // save the original stmt into the context
+        let old_stmt = self.transform_context.original_stmt.replace(s.clone());
+
         // transform content of the statement first
         let mut result = syn::fold::fold_stmt(self, s);
 
@@ -62,9 +65,13 @@ impl Fold for MutagenTransformerBundle {
         for transformer in &mut self.stmt_transformers {
             result = transformer(result, &self.transform_info, &self.transform_context);
         }
+
+        // reset original_stmt to original state
+        self.transform_context.original_stmt = old_stmt;
         result
     }
 
+    // TODO: comment
     fn fold_item_fn(&mut self, i: ItemFn) -> ItemFn {
         let old_fn_name = self
             .transform_context

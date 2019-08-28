@@ -39,7 +39,14 @@ impl MutatorStmtCall {
         let mutator_id = transform_info.add_mutation(Mutation::new_spanned(
             context.fn_name.clone(),
             "stmt_methodcall".to_owned(),
-            format!("{}", call.to_token_stream().to_string().replace("\n", " ")),
+            format!(
+                "{}",
+                context
+                    .original_stmt
+                    .to_token_stream()
+                    .to_string()
+                    .replace("\n", " ")
+            ),
             "".to_owned(),
             call.span(),
         ));
@@ -64,14 +71,12 @@ mod tests {
 
     #[test]
     fn stmt_inactive() {
-        let result =
-            MutatorStmtCall::should_run(1, &MutagenRuntimeConfig::without_mutation());
+        let result = MutatorStmtCall::should_run(1, &MutagenRuntimeConfig::without_mutation());
         assert_eq!(result, true);
     }
     #[test]
     fn stmt_active() {
-        let result =
-            MutatorStmtCall::should_run(1, &MutagenRuntimeConfig::with_mutation_id(1));
+        let result = MutatorStmtCall::should_run(1, &MutagenRuntimeConfig::with_mutation_id(1));
         assert_eq!(result, false);
     }
 }
