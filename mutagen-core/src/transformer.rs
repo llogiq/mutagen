@@ -1,7 +1,7 @@
 use proc_macro2::TokenStream;
 use quote::ToTokens;
 use syn::fold::Fold;
-use syn::{parse2, Expr, Item, ItemFn, Stmt};
+use syn::{parse2, Expr, ExprRepeat, ForeignItemFn, Item, ItemConst, ItemFn, Stmt, Type};
 
 mod arg_ast;
 mod mutate_args;
@@ -71,15 +71,76 @@ impl Fold for MutagenTransformerBundle {
         result
     }
 
-    // TODO: comment
     fn fold_item_fn(&mut self, i: ItemFn) -> ItemFn {
+        // do not mutate const functions
+        if i.sig.constness.is_some() {
+            return i;
+        }
+        // insert the new functionname into context
         let old_fn_name = self
             .transform_context
             .fn_name
             .replace(i.sig.ident.to_string());
+
+        // do transformations
         let result = syn::fold::fold_item_fn(self, i);
+
+        // restore old context
         self.transform_context.fn_name = old_fn_name;
+
         result
+    }
+
+    fn fold_expr_repeat(&mut self, e: ExprRepeat) -> ExprRepeat {
+        let ExprRepeat {
+            attrs,
+            bracket_token,
+            expr,
+            semi_token,
+            len,
+        } = e;
+
+        // mutate expr only, `len` is constant and should not be mutated
+        let expr = Box::new(syn::fold::fold_expr(self, *expr));
+
+        ExprRepeat {
+            attrs,
+            bracket_token,
+            expr,
+            semi_token,
+            len,
+        }
+    }
+
+    fn fold_foreign_item_fn(&mut self, i: ForeignItemFn) -> ForeignItemFn {
+        // do not mutate const functions
+        if i.sig.constness.is_some() {
+            return i;
+        }
+
+        // insert the new functionname into context
+        let old_fn_name = self
+            .transform_context
+            .fn_name
+            .replace(i.sig.ident.to_string());
+
+        // do transformations
+        let result = syn::fold::fold_foreign_item_fn(self, i);
+
+        // restore old context
+        self.transform_context.fn_name = old_fn_name;
+
+        result
+    }
+
+    fn fold_item_const(&mut self, i: ItemConst) -> ItemConst {
+        // do not mutate const-items
+        i
+    }
+
+    fn fold_type(&mut self, t: Type) -> Type {
+        // do not mutate type
+        t
     }
 }
 

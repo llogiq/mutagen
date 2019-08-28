@@ -34,36 +34,36 @@ impl MutatorLitInt {
         transform_info: &SharedTransformInfo,
         context: &TransformContext,
     ) -> Expr {
-        match e {
+        let (lit, attrs) = match e {
             Expr::Lit(ExprLit {
                 lit: Lit::Int(lit),
                 attrs,
-            }) => {
-                let lit_val = match lit.base10_parse::<u64>() {
-                    Ok(v) => v,
-                    Err(_) => {
-                        return Expr::Lit(ExprLit {
-                            lit: Lit::Int(lit),
-                            attrs,
-                        })
-                    }
-                };
-                let mutator_id = transform_info.add_mutations(
-                    MutationLitInt::possible_mutations(lit_val)
-                        .into_iter()
-                        .map(|m| m.to_mutation(lit_val, lit.span(), context)),
-                );
-                syn::parse2(quote_spanned! {lit.span()=>
-                    ::mutagen::mutator::MutatorLitInt::run(
-                            #mutator_id,
-                            #lit,
-                            ::mutagen::MutagenRuntimeConfig::get_default()
-                        )
+            }) => (lit, attrs),
+            _ => return e
+        };
+        let lit_val = match lit.base10_parse::<u64>() {
+            Ok(v) => v,
+            Err(_) => {
+                return Expr::Lit(ExprLit {
+                    lit: Lit::Int(lit),
+                    attrs,
                 })
-                .expect("transformed code invalid")
             }
-            _ => e,
-        }
+        };
+
+        let mutator_id = transform_info.add_mutations(
+            MutationLitInt::possible_mutations(lit_val)
+                .into_iter()
+                .map(|m| m.to_mutation(lit_val, lit.span(), context)),
+        );
+        syn::parse2(quote_spanned! {lit.span()=>
+            ::mutagen::mutator::MutatorLitInt::run(
+                    #mutator_id,
+                    #lit,
+                    ::mutagen::MutagenRuntimeConfig::get_default()
+                )
+        })
+        .expect("transformed code invalid")
     }
 }
 

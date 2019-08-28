@@ -83,7 +83,7 @@ mod tests {
         use ::mutagen::mutate;
         use ::mutagen::MutagenRuntimeConfig;
 
-        #[mutate(conf = local, mutators = only(lit_int))]
+        #[mutate(conf = local(expected_mutations = 2), mutators = only(lit_int))]
         fn lit_u8_overflown_literal() -> u8 {
             255
         }
@@ -106,6 +106,63 @@ mod tests {
             MutagenRuntimeConfig::test_with_mutation_id(2, || {
                 assert_eq!(lit_u8_overflown_literal(), 254);
             })
+        }
+    }
+
+    mod const_not_mutated {
+
+        use ::mutagen::mutate;
+
+        #[mutate(conf = local(expected_mutations = 0), mutators = only(lit_int))]
+        const X: i32 = 5;
+
+        #[test]
+        fn x_is_5() {
+            assert_eq!(X, 5)
+        }
+    }
+    mod const_fn_not_mutated {
+
+        use ::mutagen::mutate;
+
+        #[mutate(conf = local(expected_mutations = 0), mutators = only(lit_int))]
+        const fn x() -> i32 {
+            5
+        }
+
+        #[test]
+        fn x_is_5() {
+            assert_eq!(x(), 5)
+        }
+    }
+
+    mod array_expr_size_not_mutated {
+
+        use ::mutagen::mutate;
+
+        #[mutate(conf = local(expected_mutations = 0), mutators = only(lit_int))]
+        fn x() -> Vec<()> {
+            [(); 5].to_vec()
+        }
+
+        #[test]
+        fn x_is_5() {
+            assert_eq!(x().len(), 5)
+        }
+    }
+
+    mod array_returntype_size_not_mutated {
+
+        use ::mutagen::mutate;
+
+        #[mutate(conf = local(expected_mutations = 0), mutators = only(lit_int))]
+        fn x() -> Option<[();5]> {
+            None
+        }
+
+        #[test]
+        fn x_is_5() {
+            assert_eq!(x(), None)
         }
     }
 }
