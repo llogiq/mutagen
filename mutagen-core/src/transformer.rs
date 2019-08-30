@@ -1,9 +1,6 @@
 use proc_macro2::TokenStream;
 use quote::ToTokens;
 use syn::fold::Fold;
-use syn::{
-    parse2, Expr, ExprRepeat, ForeignItemFn, ImplItemMethod, Item, ItemConst, ItemFn, Stmt, Type,
-};
 
 mod arg_ast;
 mod mutate_args;
@@ -15,7 +12,7 @@ use transform_context::TransformContext;
 use transform_info::SharedTransformInfo;
 
 pub fn do_transform_item(args: TokenStream, input: TokenStream) -> TokenStream {
-    let input = match parse2::<Item>(input) {
+    let input = match syn::parse2::<syn::Item>(input) {
         Ok(ast) => ast,
         Err(e) => return TokenStream::from(e.to_compile_error()),
     };
@@ -37,15 +34,15 @@ pub struct MutagenTransformerBundle {
 /// function-type that describes expression-transformers.
 ///
 // the transformer should not inspect the expression recursively since recursion is performed by the `MutagenTransformerBundle`
-type MutagenExprTransformer = dyn FnMut(Expr, &SharedTransformInfo, &TransformContext) -> Expr;
+type MutagenExprTransformer = dyn FnMut(syn::Expr, &SharedTransformInfo, &TransformContext) -> syn::Expr;
 
 /// function-type that describes expression-transformers.
 ///
 // the transformer should not inspect the expression recursively since recursion is performed by the `MutagenTransformerBundle`
-type MutagenStmtTransformer = dyn FnMut(Stmt, &SharedTransformInfo, &TransformContext) -> Stmt;
+type MutagenStmtTransformer = dyn FnMut(syn::Stmt, &SharedTransformInfo, &TransformContext) -> syn::Stmt;
 
 impl Fold for MutagenTransformerBundle {
-    fn fold_expr(&mut self, e: Expr) -> Expr {
+    fn fold_expr(&mut self, e: syn::Expr) -> syn::Expr {
         // transform content of the expression first
         let mut result = syn::fold::fold_expr(self, e);
 
@@ -56,7 +53,7 @@ impl Fold for MutagenTransformerBundle {
         result
     }
 
-    fn fold_stmt(&mut self, s: Stmt) -> Stmt {
+    fn fold_stmt(&mut self, s: syn::Stmt) -> syn::Stmt {
         // save the original stmt into the context
         let old_stmt = self.transform_context.original_stmt.replace(s.clone());
 
@@ -73,7 +70,7 @@ impl Fold for MutagenTransformerBundle {
         result
     }
 
-    fn fold_item_fn(&mut self, i: ItemFn) -> ItemFn {
+    fn fold_item_fn(&mut self, i: syn::ItemFn) -> syn::ItemFn {
         // do not mutate const functions
         if i.sig.constness.is_some() {
             return i;
@@ -93,7 +90,7 @@ impl Fold for MutagenTransformerBundle {
         result
     }
 
-    fn fold_impl_item_method(&mut self, i: ImplItemMethod) -> ImplItemMethod {
+    fn fold_impl_item_method(&mut self, i: syn::ImplItemMethod) -> syn::ImplItemMethod {
         // do not mutate const functions
         if i.sig.constness.is_some() {
             return i;
@@ -113,8 +110,8 @@ impl Fold for MutagenTransformerBundle {
         result
     }
 
-    fn fold_expr_repeat(&mut self, e: ExprRepeat) -> ExprRepeat {
-        let ExprRepeat {
+    fn fold_expr_repeat(&mut self, e: syn::ExprRepeat) -> syn::ExprRepeat {
+        let syn::ExprRepeat {
             attrs,
             bracket_token,
             expr,
@@ -125,7 +122,7 @@ impl Fold for MutagenTransformerBundle {
         // mutate expr only, `len` is constant and should not be mutated
         let expr = Box::new(syn::fold::fold_expr(self, *expr));
 
-        ExprRepeat {
+        syn::ExprRepeat {
             attrs,
             bracket_token,
             expr,
@@ -134,7 +131,7 @@ impl Fold for MutagenTransformerBundle {
         }
     }
 
-    fn fold_foreign_item_fn(&mut self, i: ForeignItemFn) -> ForeignItemFn {
+    fn fold_foreign_item_fn(&mut self, i: syn::ForeignItemFn) -> syn::ForeignItemFn {
         // do not mutate const functions
         if i.sig.constness.is_some() {
             return i;
@@ -155,19 +152,19 @@ impl Fold for MutagenTransformerBundle {
         result
     }
 
-    fn fold_item_const(&mut self, i: ItemConst) -> ItemConst {
+    fn fold_item_const(&mut self, i: syn::ItemConst) -> syn::ItemConst {
         // do not mutate const-items
         i
     }
 
-    fn fold_type(&mut self, t: Type) -> Type {
-        // do not mutate type
+    fn fold_type(&mut self, t: syn::Type) -> syn::Type {
+        // do not mutate types
         t
     }
 }
 
 impl MutagenTransformerBundle {
-    pub fn mutagen_process_item(&mut self, target: Item) -> TokenStream {
+    pub fn mutagen_process_item(&mut self, target: syn::Item) -> TokenStream {
         let stream = self.fold_item(target).into_token_stream();
         self.transform_info.check_mutations();
         stream
