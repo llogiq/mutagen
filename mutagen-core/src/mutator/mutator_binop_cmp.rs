@@ -4,7 +4,7 @@ use std::ops::Deref;
 
 use proc_macro2::{Span, TokenStream};
 use quote::quote_spanned;
-use quote::{quote, ToTokens};
+use quote::ToTokens;
 use syn::spanned::Spanned;
 use syn::{BinOp, Expr, ExprBinary};
 
@@ -45,11 +45,23 @@ impl MutatorBinopCmp {
                 op,
                 attrs,
             }) => {
-                let (op, tt) = match op {
-                    BinOp::Lt(t) => (BinopCmp::Lt, t.into_token_stream()),
-                    BinOp::Le(t) => (BinopCmp::Le, t.into_token_stream()),
-                    BinOp::Ge(t) => (BinopCmp::Ge, t.into_token_stream()),
-                    BinOp::Gt(t) => (BinopCmp::Gt, t.into_token_stream()),
+                let op = match op {
+                    BinOp::Lt(t) => BinopCmpSpanned {
+                        op: BinopCmp::Lt,
+                        span: t.span(),
+                    },
+                    BinOp::Le(t) => BinopCmpSpanned {
+                        op: BinopCmp::Le,
+                        span: t.span(),
+                    },
+                    BinOp::Ge(t) => BinopCmpSpanned {
+                        op: BinopCmp::Ge,
+                        span: t.span(),
+                    },
+                    BinOp::Gt(t) => BinopCmpSpanned {
+                        op: BinopCmp::Gt,
+                        span: t.span(),
+                    },
                     _ => {
                         return Expr::Binary(ExprBinary {
                             left,
@@ -61,9 +73,9 @@ impl MutatorBinopCmp {
                 };
 
                 let mutator_id = transform_info.add_mutations(
-                    MutationBinopCmp::possible_mutations(op)
+                    MutationBinopCmp::possible_mutations(op.op)
                         .iter()
-                        .map(|m| m.to_mutation(op, tt.span(), context)),
+                        .map(|m| m.to_mutation(op, context)),
                 );
 
                 syn::parse2(quote_spanned! {op.span()=>
@@ -101,20 +113,21 @@ impl MutationBinopCmp {
         self.op.cmp(left, right)
     }
 
-    fn to_mutation(
-        self,
-        original_op: BinopCmp,
-        span: Span,
-        context: &TransformContext,
-    ) -> Mutation {
+    fn to_mutation(self, original_op: BinopCmpSpanned, context: &TransformContext) -> Mutation {
         Mutation::new_spanned(
             context.fn_name.clone(),
             "binop_cmp".to_owned(),
             format!("{}", original_op),
             format!("{}", self.op),
-            span,
+            original_op.span,
         )
     }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct BinopCmpSpanned {
+    op: BinopCmp,
+    span: Span,
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
@@ -136,14 +149,15 @@ impl BinopCmp {
     }
 }
 
-impl ToTokens for BinopCmp {
+impl ToTokens for BinopCmpSpanned {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        tokens.extend(quote!(::mutagen::mutator::mutator_binop_cmp::BinopCmp::));
-        tokens.extend(match self {
-            BinopCmp::Lt => quote!(Lt),
-            BinopCmp::Le => quote!(Le),
-            BinopCmp::Ge => quote!(Ge),
-            BinopCmp::Gt => quote!(Gt),
+        tokens.extend(quote_spanned!(self.span=>
+            ::mutagen::mutator::mutator_binop_cmp::BinopCmp::));
+        tokens.extend(match self.op {
+            BinopCmp::Lt => quote_spanned!(self.span=> Lt),
+            BinopCmp::Le => quote_spanned!(self.span=> Le),
+            BinopCmp::Ge => quote_spanned!(self.span=> Ge),
+            BinopCmp::Gt => quote_spanned!(self.span=> Gt),
         })
     }
 }
@@ -158,6 +172,12 @@ impl fmt::Display for BinopCmp {
             BinopCmp::Ge => write!(f, ">="),
             BinopCmp::Gt => write!(f, ">"),
         }
+    }
+}
+
+impl fmt::Display for BinopCmpSpanned {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", &self.op)
     }
 }
 

@@ -4,7 +4,7 @@ use std::ops::Deref;
 
 use proc_macro2::{Span, TokenStream};
 use quote::quote_spanned;
-use quote::{quote, ToTokens};
+use quote::ToTokens;
 use syn::spanned::Spanned;
 use syn::{BinOp, Expr, ExprBinary};
 
@@ -139,7 +139,8 @@ impl BinopEq {
 impl ToTokens for BinopEqSpanned {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         // TODO: quote_spanned here
-        tokens.extend(quote!(::mutagen::mutator::mutator_binop_eq::BinopEq::));
+        tokens.extend(quote_spanned!(self.span=>
+            ::mutagen::mutator::mutator_binop_eq::BinopEq::));
         tokens.extend(match self.op {
             BinopEq::Eq => quote_spanned!(self.span=> Eq),
             BinopEq::Ne => quote_spanned!(self.span=> Ne),
