@@ -50,9 +50,7 @@ impl MutagenReport {
 
                         m.mutation_description(),
                         m.location_in_file(),
-                        m.fn_name()
-                            .map(|f| format!("(fn {})", f))
-                            .unwrap_or("".to_owned()),
+                        m.context_description_in_brackets(),
                         if s == MutantStatus::NotCovered {
                             format!(" {}", MutantStatus::NotCovered)
                         } else {

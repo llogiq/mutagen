@@ -10,7 +10,7 @@ use syn::spanned::Spanned;
 use syn::{Expr, ExprUnary, UnOp};
 
 use crate::comm::Mutation;
-use crate::transformer::transform_context::TransformContext;
+use crate::transformer::TransformContext;
 use crate::transformer::transform_info::SharedTransformInfo;
 
 use crate::optimistic::NotToNone;
@@ -43,7 +43,7 @@ impl MutatorUnopNot {
         };
 
         let mutator_id = transform_info.add_mutation(Mutation::new_spanned(
-            context.fn_name.clone(),
+            &context,
             "unop_not".to_owned(),
             "!".to_owned(),
             "".to_owned(),

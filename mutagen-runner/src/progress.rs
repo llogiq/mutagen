@@ -116,10 +116,7 @@ impl Progress {
         let bar2 = " ".repeat(bar_width - bar_pos - 1);
 
         // construct status details right to progress bar, if there is space for it
-        let fn_name = m
-            .fn_name()
-            .map(|f| format!("(fn {})", f))
-            .unwrap_or("".to_owned());
+        let fn_name = m.context_description_in_brackets();
         let mut action_details = format!(": {}{}", m.source_file().display(), fn_name);
         let space_after_main_bar = self.term_width - main_part_len;
         if space_after_main_bar < 10 {
@@ -147,8 +144,6 @@ fn mutation_log_string(m: &BakedMutation) -> String {
         m.mutation_description(),
         m.source_file().display(),
         m.location_in_file(),
-        m.fn_name()
-            .map(|f| format!("(fn {})", f))
-            .unwrap_or("".to_owned()),
+        m.context_description_in_brackets(),
     )
 }

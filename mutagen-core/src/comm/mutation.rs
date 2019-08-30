@@ -4,6 +4,8 @@ use std::path::{Path, PathBuf};
 use proc_macro2::Span;
 use serde::{Deserialize, Serialize};
 
+use crate::transformer::TransformContext;
+
 /// description of a single mutation baked into the code with a given id
 #[derive(Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct BakedMutation {
@@ -16,6 +18,7 @@ pub struct BakedMutation {
 /// Mutation in source code
 #[derive(Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Mutation {
+    impl_name: Option<String>,
     fn_name: Option<String>,
     mutator: String, // mutator is part of code that is changed
     original_code: String,
@@ -25,31 +28,15 @@ pub struct Mutation {
 }
 
 impl Mutation {
-    pub fn new(
-        fn_name: Option<String>,
-        mutator: String,
-        original_code: String,
-        mutated_code: String,
-        source_file: PathBuf,
-        location_in_file: String,
-    ) -> Self {
-        Self {
-            fn_name,
-            mutator,
-            original_code,
-            mutated_code,
-            source_file,
-            location_in_file,
-        }
-    }
-
     pub fn new_spanned(
-        fn_name: Option<String>,
+        context: &TransformContext,
         mutator: String,
         original_code: String,
         mutated_code: String,
         span: Span,
     ) -> Self {
+        let impl_name = context.impl_name.clone();
+        let fn_name = context.fn_name.clone();
         let start = span.start();
         let end = span.end();
         let source_file = span.unwrap().source_file().path();
@@ -58,14 +45,15 @@ impl Mutation {
             start.line, start.column, end.line, end.column
         );
 
-        Self::new(
+        Self {
+            impl_name,
             fn_name,
             mutator,
             original_code,
             mutated_code,
             source_file,
             location_in_file,
-        )
+        }
     }
 
     pub fn with_id(self, id: usize, mutator_id: usize) -> BakedMutation {
@@ -87,6 +75,15 @@ impl Mutation {
                 "replace `{}` with `{}`",
                 &self.original_code, &self.mutated_code,
             )
+        }
+    }
+
+    pub fn context_description_in_brackets(&self) -> String {
+        match (&self.fn_name, &self.impl_name) {
+            (None, None) => format!(""),
+            (Some(fn_name), None) => format!("(fn {})", fn_name),
+            (None, Some(impl_name)) => format!("(impl {})", impl_name),
+            (Some(fn_name), Some(impl_name)) => format!("(fn {}::{})", impl_name, fn_name),
         }
     }
 }
@@ -125,6 +122,9 @@ impl BakedMutation {
     }
     pub fn mutation_description(&self) -> String {
         self.mutation.mutation_description()
+    }
+    pub fn context_description_in_brackets(&self) -> String {
+        self.mutation.context_description_in_brackets()
     }
 }
 

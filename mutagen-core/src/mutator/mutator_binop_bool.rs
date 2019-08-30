@@ -9,7 +9,7 @@ use syn::spanned::Spanned;
 use syn::{BinOp, Expr, ExprBinary};
 
 use crate::comm::Mutation;
-use crate::transformer::transform_context::TransformContext;
+use crate::transformer::TransformContext;
 use crate::transformer::transform_info::SharedTransformInfo;
 
 use crate::MutagenRuntimeConfig;
@@ -85,7 +85,7 @@ impl MutationBinopBool {
 
     fn to_mutation(self, original_op: &ExprBinopBool, context: &TransformContext) -> Mutation {
         Mutation::new_spanned(
-            context.fn_name.clone(),
+            &context,
             "binop_bool".to_owned(),
             format!("{}", original_op),
             format!("{}", self.op),

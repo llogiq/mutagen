@@ -6,9 +6,9 @@ mod arg_ast;
 mod mutate_args;
 pub mod transform_context;
 pub mod transform_info;
+pub use transform_context::TransformContext;
 
 use crate::mutator::*;
-use transform_context::TransformContext;
 use transform_info::SharedTransformInfo;
 
 pub fn do_transform_item(args: TokenStream, input: TokenStream) -> TokenStream {
@@ -106,6 +106,22 @@ impl Fold for MutagenTransformerBundle {
 
         // restore old context
         self.transform_context.fn_name = old_fn_name;
+
+        result
+    }
+
+    fn fold_item_impl(&mut self, i: syn::ItemImpl) -> syn::ItemImpl {
+        // insert the new item name into context
+        let old_fn_name = self
+            .transform_context
+            .impl_name
+            .replace(i.self_ty.to_token_stream().to_string());
+
+        // do transformations
+        let result = syn::fold::fold_item_impl(self, i);
+
+        // restore old context
+        self.transform_context.impl_name = old_fn_name;
 
         result
     }

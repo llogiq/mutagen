@@ -8,7 +8,7 @@ use quote::quote_spanned;
 use syn::{Expr, ExprLit, Lit, LitInt};
 
 use crate::comm::Mutation;
-use crate::transformer::transform_context::TransformContext;
+use crate::transformer::TransformContext;
 use crate::transformer::transform_info::SharedTransformInfo;
 
 use crate::MutagenRuntimeConfig;
@@ -85,7 +85,7 @@ impl MutationLitInt {
 
     fn to_mutation(self, original_lit: &ExprLitInt, context: &TransformContext) -> Mutation {
         Mutation::new_spanned(
-            context.fn_name.clone(),
+            &context,
             "lit_int".to_owned(),
             format!("{}", original_lit.value),
             format!("{}", self.mutate::<u64>(original_lit.value)),
