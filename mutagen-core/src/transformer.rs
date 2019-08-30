@@ -34,12 +34,14 @@ pub struct MutagenTransformerBundle {
 /// function-type that describes expression-transformers.
 ///
 // the transformer should not inspect the expression recursively since recursion is performed by the `MutagenTransformerBundle`
-type MutagenExprTransformer = dyn FnMut(syn::Expr, &SharedTransformInfo, &TransformContext) -> syn::Expr;
+type MutagenExprTransformer =
+    dyn FnMut(syn::Expr, &SharedTransformInfo, &TransformContext) -> syn::Expr;
 
 /// function-type that describes expression-transformers.
 ///
 // the transformer should not inspect the expression recursively since recursion is performed by the `MutagenTransformerBundle`
-type MutagenStmtTransformer = dyn FnMut(syn::Stmt, &SharedTransformInfo, &TransformContext) -> syn::Stmt;
+type MutagenStmtTransformer =
+    dyn FnMut(syn::Stmt, &SharedTransformInfo, &TransformContext) -> syn::Stmt;
 
 impl Fold for MutagenTransformerBundle {
     fn fold_expr(&mut self, e: syn::Expr) -> syn::Expr {

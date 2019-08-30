@@ -10,8 +10,8 @@ use syn::spanned::Spanned;
 use syn::{Expr, ExprUnary, UnOp};
 
 use crate::comm::Mutation;
-use crate::transformer::TransformContext;
 use crate::transformer::transform_info::SharedTransformInfo;
+use crate::transformer::TransformContext;
 
 use crate::optimistic::NotToNone;
 use crate::MutagenRuntimeConfig;

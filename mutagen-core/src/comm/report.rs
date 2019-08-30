@@ -47,7 +47,6 @@ impl MutagenReport {
                     println!(
                         "        {}: {} at {}{}{}",
                         m.id(),
-
                         m.mutation_description(),
                         m.location_in_file(),
                         m.context_description_in_brackets(),

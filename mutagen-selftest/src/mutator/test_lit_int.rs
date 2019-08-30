@@ -156,7 +156,7 @@ mod tests {
         use ::mutagen::mutate;
 
         #[mutate(conf = local(expected_mutations = 0), mutators = only(lit_int))]
-        fn x() -> Option<[();5]> {
+        fn x() -> Option<[(); 5]> {
             None
         }
 
@@ -172,7 +172,7 @@ mod tests {
 
         #[mutate(conf = local(expected_mutations = 0), mutators = only(lit_int))]
         fn x() -> &'static str {
-            ((),"").1
+            ((), "").1
         }
 
         #[test]

@@ -1,8 +1,8 @@
 use failure::{bail, Fallible};
+use std::io::Write;
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
-use std::io::Write;
 
 use wait_timeout::ChildExt;
 

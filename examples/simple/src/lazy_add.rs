@@ -23,7 +23,7 @@ impl LazyAdd {
     pub fn eval(self) -> u8 {
         match self {
             Self::Val(v) => v,
-            Self::Lazy(l, r) => l.eval() + r.eval()
+            Self::Lazy(l, r) => l.eval() + r.eval(),
         }
     }
 
@@ -41,5 +41,4 @@ mod tests {
     fn add_one_to_zero() {
         assert_eq!(LazyAdd::from(0).add_one().eval(), 1);
     }
-
 }

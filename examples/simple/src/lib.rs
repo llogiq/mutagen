@@ -1,8 +1,8 @@
 #![allow(unused)]
 
-mod simple_add;
-mod lazy_add;
 mod bubblesort;
 mod ggt;
+mod lazy_add;
 mod not_covered;
 mod primetest;
+mod simple_add;

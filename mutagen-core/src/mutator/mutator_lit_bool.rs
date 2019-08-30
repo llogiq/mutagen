@@ -8,8 +8,8 @@ use quote::quote_spanned;
 use syn::{Expr, ExprLit, Lit, LitBool};
 
 use crate::comm::Mutation;
-use crate::transformer::TransformContext;
 use crate::transformer::transform_info::SharedTransformInfo;
+use crate::transformer::TransformContext;
 
 use crate::MutagenRuntimeConfig;
 

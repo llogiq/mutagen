@@ -11,8 +11,8 @@ use syn::spanned::Spanned;
 use syn::{BinOp, Expr, ExprBinary};
 
 use crate::comm::Mutation;
-use crate::transformer::TransformContext;
 use crate::transformer::transform_info::SharedTransformInfo;
+use crate::transformer::TransformContext;
 
 use crate::optimistic::AddToSub;
 use crate::MutagenRuntimeConfig;
