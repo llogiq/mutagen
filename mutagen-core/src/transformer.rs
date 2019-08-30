@@ -1,7 +1,9 @@
 use proc_macro2::TokenStream;
 use quote::ToTokens;
 use syn::fold::Fold;
-use syn::{parse2, Expr, ExprRepeat, ForeignItemFn, Item, ItemConst, ItemFn, Stmt, Type};
+use syn::{
+    parse2, Expr, ExprRepeat, ForeignItemFn, ImplItemMethod, Item, ItemConst, ItemFn, Stmt, Type,
+};
 
 mod arg_ast;
 mod mutate_args;
@@ -84,6 +86,26 @@ impl Fold for MutagenTransformerBundle {
 
         // do transformations
         let result = syn::fold::fold_item_fn(self, i);
+
+        // restore old context
+        self.transform_context.fn_name = old_fn_name;
+
+        result
+    }
+
+    fn fold_impl_item_method(&mut self, i: ImplItemMethod) -> ImplItemMethod {
+        // do not mutate const functions
+        if i.sig.constness.is_some() {
+            return i;
+        }
+        // insert the new functionname into context
+        let old_fn_name = self
+            .transform_context
+            .fn_name
+            .replace(i.sig.ident.to_string());
+
+        // do transformations
+        let result = syn::fold::fold_impl_item_method(self, i);
 
         // restore old context
         self.transform_context.fn_name = old_fn_name;
