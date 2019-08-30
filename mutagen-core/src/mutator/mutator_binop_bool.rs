@@ -1,10 +1,10 @@
 //! Mutator for binary operations `&&` and `&&`.
 
+use std::convert::TryFrom;
 use std::ops::Deref;
 
 use proc_macro2::{Span, TokenStream};
 use quote::quote_spanned;
-use quote::ToTokens;
 use syn::spanned::Spanned;
 use syn::{BinOp, Expr, ExprBinary};
 
@@ -37,54 +37,34 @@ impl MutatorBinopBool {
         transform_info: &SharedTransformInfo,
         context: &TransformContext,
     ) -> Expr {
-        match e {
-            Expr::Binary(ExprBinary {
-                left,
-                right,
-                op,
-                attrs,
-            }) => {
-                let op = match op {
-                    BinOp::And(t) => BinopBoolSpanned {
-                        op: BinopBool::And,
-                        span: t.span(),
-                    },
-                    BinOp::Or(t) => BinopBoolSpanned {
-                        op: BinopBool::Or,
-                        span: t.span(),
-                    },
-                    _ => {
-                        return Expr::Binary(ExprBinary {
-                            left,
-                            right,
-                            op,
-                            attrs,
-                        })
-                    }
-                };
+        let e = match ExprBinopBool::try_from(e) {
+            Ok(e) => e,
+            Err(e) => return e,
+        };
 
-                let mutator_id = transform_info.add_mutations(
-                    MutationBinopBool::possible_mutations(op.op)
-                        .iter()
-                        .map(|m| m.to_mutation(op, context)),
-                );
+        let mutator_id = transform_info.add_mutations(
+            MutationBinopBool::possible_mutations(e.op)
+                .iter()
+                .map(|m| m.to_mutation(&e, context)),
+        );
 
-                syn::parse2(quote_spanned! {op.span()=>
-                    if let Some(x) = ::mutagen::mutator::MutatorBinopBool::run_left(
-                            #mutator_id,
-                            #op,
-                            #left,
-                            ::mutagen::MutagenRuntimeConfig::get_default()
-                        ) {
-                        x
-                    } else {
-                        #right
-                    }
-                })
-                .expect("transformed code invalid")
+        let left = &e.left;
+        let right = &e.right;
+        let op = e.op_tokens();
+
+        syn::parse2(quote_spanned! {e.span=>
+            if let Some(x) = ::mutagen::mutator::MutatorBinopBool::run_left(
+                    #mutator_id,
+                    #op,
+                    #left,
+                    ::mutagen::MutagenRuntimeConfig::get_default()
+                ) {
+                x
+            } else {
+                #right
             }
-            _ => e,
-        }
+        })
+        .expect("transformed code invalid")
     }
 }
 
@@ -103,11 +83,7 @@ impl MutationBinopBool {
             .collect()
     }
 
-    fn to_mutation(
-        self,
-        original_op: BinopBoolSpanned,
-        context: &TransformContext,
-    ) -> Mutation {
+    fn to_mutation(self, original_op: &ExprBinopBool, context: &TransformContext) -> Mutation {
         Mutation::new_spanned(
             context.fn_name.clone(),
             "binop_bool".to_owned(),
@@ -118,10 +94,46 @@ impl MutationBinopBool {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
-pub struct BinopBoolSpanned {
+#[derive(Clone, Debug)]
+struct ExprBinopBool {
     op: BinopBool,
+    left: Expr,
+    right: Expr,
     span: Span,
+}
+
+impl TryFrom<Expr> for ExprBinopBool {
+    type Error = Expr;
+    fn try_from(expr: Expr) -> Result<Self, Expr> {
+        match expr {
+            Expr::Binary(ExprBinary {
+                left,
+                right,
+                op,
+                attrs,
+            }) => match op {
+                BinOp::And(t) => Ok(ExprBinopBool {
+                    op: BinopBool::And,
+                    left: *left,
+                    right: *right,
+                    span: t.span(),
+                }),
+                BinOp::Or(t) => Ok(ExprBinopBool {
+                    op: BinopBool::Or,
+                    left: *left,
+                    right: *right,
+                    span: t.span(),
+                }),
+                _ => Err(Expr::Binary(ExprBinary {
+                    left,
+                    right,
+                    op,
+                    attrs,
+                })),
+            },
+            _ => Err(expr),
+        }
+    }
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
@@ -140,14 +152,16 @@ impl BinopBool {
     }
 }
 
-impl ToTokens for BinopBoolSpanned {
-    fn to_tokens(&self, tokens: &mut TokenStream) {
+impl ExprBinopBool {
+    fn op_tokens(&self) -> TokenStream {
+        let mut tokens = TokenStream::new();
         tokens.extend(quote_spanned!(self.span=>
             ::mutagen::mutator::mutator_binop_bool::BinopBool::));
         tokens.extend(match self.op {
             BinopBool::And => quote_spanned!(self.span=> And),
             BinopBool::Or => quote_spanned!(self.span=> Or),
-        })
+        });
+        tokens
     }
 }
 
@@ -162,7 +176,7 @@ impl fmt::Display for BinopBool {
     }
 }
 
-impl fmt::Display for BinopBoolSpanned {
+impl fmt::Display for ExprBinopBool {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.op)
     }

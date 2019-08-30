@@ -1,8 +1,10 @@
 //! Mutator for binary operation `+`.
 
+use std::convert::TryFrom;
 use std::ops::Deref;
 use std::ops::Not;
 
+use proc_macro2::Span;
 use quote::quote_spanned;
 use syn::spanned::Spanned;
 use syn::{Expr, ExprUnary, UnOp};
@@ -35,29 +37,51 @@ impl MutatorUnopNot {
         transform_info: &SharedTransformInfo,
         context: &TransformContext,
     ) -> Expr {
-        match e {
+        let e = match ExprUnopNot::try_from(e) {
+            Ok(e) => e,
+            Err(e) => return e,
+        };
+
+        let mutator_id = transform_info.add_mutation(Mutation::new_spanned(
+            context.fn_name.clone(),
+            "unop_not".to_owned(),
+            "!".to_owned(),
+            "".to_owned(),
+            e.span,
+        ));
+
+        let expr = &e.expr;
+
+        syn::parse2(quote_spanned! {e.span=>
+            ::mutagen::mutator::MutatorUnopNot::run(
+                    #mutator_id,
+                    #expr,
+                    ::mutagen::MutagenRuntimeConfig::get_default()
+                )
+        })
+        .expect("transformed code invalid")
+    }
+}
+
+#[derive(Clone, Debug)]
+struct ExprUnopNot {
+    expr: Expr,
+    span: Span,
+}
+
+impl TryFrom<Expr> for ExprUnopNot {
+    type Error = Expr;
+    fn try_from(expr: Expr) -> Result<Self, Expr> {
+        match expr {
             Expr::Unary(ExprUnary {
                 expr,
-                op: UnOp::Not(op_not),
+                op: UnOp::Not(op),
                 ..
-            }) => {
-                let mutator_id = transform_info.add_mutation(Mutation::new_spanned(
-                    context.fn_name.clone(),
-                    "unop_not".to_owned(),
-                    "!".to_owned(),
-                    "".to_owned(),
-                    op_not.span(),
-                ));
-                syn::parse2(quote_spanned! {op_not.span()=>
-                    ::mutagen::mutator::MutatorUnopNot::run(
-                            #mutator_id,
-                            #expr,
-                            ::mutagen::MutagenRuntimeConfig::get_default()
-                        )
-                })
-                .expect("transformed code invalid")
-            }
-            _ => e,
+            }) => Ok(ExprUnopNot {
+                expr: *expr,
+                span: op.span(),
+            }),
+            e => Err(e),
         }
     }
 }

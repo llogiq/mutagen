@@ -1,7 +1,10 @@
 //! Mutator for binary operation `+`.
 
+use std::convert::TryFrom;
 use std::ops::Add;
 use std::ops::Deref;
+
+use proc_macro2::Span;
 
 use quote::quote_spanned;
 use syn::spanned::Spanned;
@@ -36,31 +39,64 @@ impl MutatorBinopAdd {
         transform_info: &SharedTransformInfo,
         context: &TransformContext,
     ) -> Expr {
-        match e {
+        let e = match ExprBinopAdd::try_from(e) {
+            Ok(e) => e,
+            Err(e) => return e,
+        };
+
+        let mutator_id = transform_info.add_mutation(Mutation::new_spanned(
+            context.fn_name.clone(),
+            "binop_add".to_owned(),
+            "+".to_owned(),
+            "-".to_owned(),
+            e.span,
+        ));
+
+        let left = &e.left;
+        let right = &e.right;
+
+        syn::parse2(quote_spanned! {e.span=>
+            ::mutagen::mutator::MutatorBinopAdd::run(
+                    #mutator_id,
+                    #left,
+                    #right,
+                    ::mutagen::MutagenRuntimeConfig::get_default()
+                )
+        })
+        .expect("transformed code invalid")
+    }
+}
+
+#[derive(Clone, Debug)]
+struct ExprBinopAdd {
+    left: Expr,
+    right: Expr,
+    span: Span,
+}
+
+impl TryFrom<Expr> for ExprBinopAdd {
+    type Error = Expr;
+    fn try_from(expr: Expr) -> Result<Self, Expr> {
+        match expr {
             Expr::Binary(ExprBinary {
                 left,
                 right,
-                op: BinOp::Add(op_add),
-                ..
-            }) => {
-                let mutator_id = transform_info.add_mutation(Mutation::new_spanned(
-                    context.fn_name.clone(),
-                    "binop_add".to_owned(),
-                    "+".to_owned(),
-                    "-".to_owned(),
-                    op_add.span(),
-                ));
-                syn::parse2(quote_spanned! {op_add.span()=>
-                    ::mutagen::mutator::MutatorBinopAdd::run(
-                            #mutator_id,
-                            #left,
-                            #right,
-                            ::mutagen::MutagenRuntimeConfig::get_default()
-                        )
-                })
-                .expect("transformed code invalid")
-            }
-            _ => e,
+                op,
+                attrs,
+            }) => match op {
+                BinOp::Add(t) => Ok(ExprBinopAdd {
+                    left: *left,
+                    right: *right,
+                    span: t.span(),
+                }),
+                _ => Err(Expr::Binary(ExprBinary {
+                    left,
+                    right,
+                    op,
+                    attrs,
+                })),
+            },
+            _ => Err(expr),
         }
     }
 }

@@ -1,7 +1,9 @@
 //! Mutator for boolean literals.
 
+use std::convert::TryFrom;
 use std::ops::Deref;
 
+use proc_macro2::Span;
 use quote::quote_spanned;
 use syn::{Expr, ExprLit, Lit, LitBool};
 
@@ -32,28 +34,46 @@ impl MutatorLitBool {
         transform_info: &SharedTransformInfo,
         context: &TransformContext,
     ) -> Expr {
-        match e {
+        let e = match ExprLitBool::try_from(e) {
+            Ok(e) => e,
+            Err(e) => return e,
+        };
+
+        let mutator_id = transform_info.add_mutation(Mutation::new_spanned(
+            context.fn_name.clone(),
+            "lit_bool".to_owned(),
+            format!("{:?}", e.value),
+            format!("{:?}", !e.value),
+            e.span,
+        ));
+
+        let value = e.value;
+        syn::parse2(quote_spanned! {e.span=>
+            ::mutagen::mutator::MutatorLitBool::run(
+                    #mutator_id,
+                    #value,
+                    ::mutagen::MutagenRuntimeConfig::get_default()
+                )
+        })
+        .expect("transformed code invalid")
+    }
+}
+
+#[derive(Clone, Debug)]
+struct ExprLitBool {
+    value: bool,
+    span: Span,
+}
+
+impl TryFrom<Expr> for ExprLitBool {
+    type Error = Expr;
+    fn try_from(expr: Expr) -> Result<Self, Expr> {
+        match expr {
             Expr::Lit(ExprLit {
                 lit: Lit::Bool(LitBool { value, span }),
                 ..
-            }) => {
-                let mutator_id = transform_info.add_mutation(Mutation::new_spanned(
-                    context.fn_name.clone(),
-                    "lit_bool".to_owned(),
-                    format!("{:?}", value),
-                    format!("{:?}", !value),
-                    span,
-                ));
-                syn::parse2(quote_spanned! {span=>
-                    ::mutagen::mutator::MutatorLitBool::run(
-                            #mutator_id,
-                            #value,
-                            ::mutagen::MutagenRuntimeConfig::get_default()
-                        )
-                })
-                .expect("transformed code invalid")
-            }
-            _ => e,
+            }) => Ok(ExprLitBool { value, span }),
+            _ => Err(expr),
         }
     }
 }

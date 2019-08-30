@@ -1,10 +1,10 @@
 //! Mutator for binary operations `==` and `!=`
 
+use std::convert::TryFrom;
 use std::ops::Deref;
 
 use proc_macro2::{Span, TokenStream};
 use quote::quote_spanned;
-use quote::ToTokens;
 use syn::spanned::Spanned;
 use syn::{BinOp, Expr, ExprBinary};
 
@@ -38,50 +38,31 @@ impl MutatorBinopEq {
         transform_info: &SharedTransformInfo,
         context: &TransformContext,
     ) -> Expr {
-        match e {
-            Expr::Binary(ExprBinary {
-                left,
-                right,
-                op,
-                attrs,
-            }) => {
-                let op = match op {
-                    BinOp::Eq(t) => BinopEqSpanned {
-                        op: BinopEq::Eq,
-                        span: t.into_token_stream().span(),
-                    },
-                    BinOp::Ne(t) => BinopEqSpanned {
-                        op: BinopEq::Ne,
-                        span: t.into_token_stream().span(),
-                    },
-                    _ => {
-                        return Expr::Binary(ExprBinary {
-                            left,
-                            right,
-                            op,
-                            attrs,
-                        })
-                    }
-                };
-                let mutator_id = transform_info.add_mutations(
-                    MutationBinopEq::possible_mutations(op.op)
-                        .iter()
-                        .map(|m| m.to_mutation(op, context)),
-                );
+        let e = match ExprBinopEq::try_from(e) {
+            Ok(e) => e,
+            Err(e) => return e,
+        };
 
-                syn::parse2(quote_spanned! {op.span=>
-                    ::mutagen::mutator::MutatorBinopEq::run(
-                            #mutator_id,
-                            &(#left),
-                            &(#right),
-                            #op,
-                            ::mutagen::MutagenRuntimeConfig::get_default()
-                        )
-                })
-                .expect("transformed code invalid")
-            }
-            _ => e,
-        }
+        let mutator_id = transform_info.add_mutations(
+            MutationBinopEq::possible_mutations(e.op)
+                .iter()
+                .map(|m| m.to_mutation(&e, context)),
+        );
+
+        let left = &e.left;
+        let right = &e.right;
+        let op = e.op_tokens();
+
+        syn::parse2(quote_spanned! {e.span=>
+            ::mutagen::mutator::MutatorBinopEq::run(
+                    #mutator_id,
+                    &(#left),
+                    &(#right),
+                    #op,
+                    ::mutagen::MutagenRuntimeConfig::get_default()
+                )
+        })
+        .expect("transformed code invalid")
     }
 }
 
@@ -104,21 +85,70 @@ impl MutationBinopEq {
         self.op.eq(left, right)
     }
 
-    fn to_mutation(self, original_op: BinopEqSpanned, context: &TransformContext) -> Mutation {
+    fn to_mutation(self, original_op: &ExprBinopEq, context: &TransformContext) -> Mutation {
         Mutation::new_spanned(
             context.fn_name.clone(),
             "binop_eq".to_owned(),
-            format!("{}", original_op),
+            format!("{}", original_op.op),
             format!("{}", self.op),
             original_op.span,
         )
     }
 }
 
-#[derive(Clone, Copy, Debug)]
-pub struct BinopEqSpanned {
+#[derive(Clone, Debug)]
+struct ExprBinopEq {
     op: BinopEq,
+    left: Expr,
+    right: Expr,
     span: Span,
+}
+
+impl TryFrom<Expr> for ExprBinopEq {
+    type Error = Expr;
+    fn try_from(expr: Expr) -> Result<Self, Expr> {
+        match expr {
+            Expr::Binary(ExprBinary {
+                left,
+                right,
+                op,
+                attrs,
+            }) => match op {
+                BinOp::Eq(t) => Ok(ExprBinopEq {
+                    op: BinopEq::Eq,
+                    left: *left,
+                    right: *right,
+                    span: t.span(),
+                }),
+                BinOp::Ne(t) => Ok(ExprBinopEq {
+                    op: BinopEq::Ne,
+                    left: *left,
+                    right: *right,
+                    span: t.span(),
+                }),
+                _ => Err(Expr::Binary(ExprBinary {
+                    left,
+                    right,
+                    op,
+                    attrs,
+                })),
+            },
+            _ => Err(expr),
+        }
+    }
+}
+
+impl ExprBinopEq {
+    fn op_tokens(&self) -> TokenStream {
+        let mut tokens = TokenStream::new();
+        tokens.extend(quote_spanned!(self.span=>
+                ::mutagen::mutator::mutator_binop_eq::BinopEq::));
+        tokens.extend(match self.op {
+            BinopEq::Eq => quote_spanned!(self.span=> Eq),
+            BinopEq::Ne => quote_spanned!(self.span=> Ne),
+        });
+        tokens
+    }
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
@@ -136,18 +166,6 @@ impl BinopEq {
     }
 }
 
-impl ToTokens for BinopEqSpanned {
-    fn to_tokens(&self, tokens: &mut TokenStream) {
-        // TODO: quote_spanned here
-        tokens.extend(quote_spanned!(self.span=>
-            ::mutagen::mutator::mutator_binop_eq::BinopEq::));
-        tokens.extend(match self.op {
-            BinopEq::Eq => quote_spanned!(self.span=> Eq),
-            BinopEq::Ne => quote_spanned!(self.span=> Ne),
-        })
-    }
-}
-
 use std::fmt;
 
 impl fmt::Display for BinopEq {
@@ -156,12 +174,6 @@ impl fmt::Display for BinopEq {
             BinopEq::Eq => write!(f, "=="),
             BinopEq::Ne => write!(f, "!="),
         }
-    }
-}
-
-impl fmt::Display for BinopEqSpanned {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", &self.op)
     }
 }
 

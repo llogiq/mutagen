@@ -1,10 +1,11 @@
 //! Mutator for int literals.
 
+use std::convert::TryFrom;
 use std::ops::Deref;
 
 use proc_macro2::Span;
 use quote::quote_spanned;
-use syn::{Expr, ExprLit, Lit};
+use syn::{Expr, ExprLit, Lit, LitInt};
 
 use crate::comm::Mutation;
 use crate::transformer::transform_context::TransformContext;
@@ -34,32 +35,22 @@ impl MutatorLitInt {
         transform_info: &SharedTransformInfo,
         context: &TransformContext,
     ) -> Expr {
-        let (lit, attrs) = match e {
-            Expr::Lit(ExprLit {
-                lit: Lit::Int(lit),
-                attrs,
-            }) => (lit, attrs),
-            _ => return e
-        };
-        let lit_val = match lit.base10_parse::<u64>() {
-            Ok(v) => v,
-            Err(_) => {
-                return Expr::Lit(ExprLit {
-                    lit: Lit::Int(lit),
-                    attrs,
-                })
-            }
+        let e = match ExprLitInt::try_from(e) {
+            Ok(e) => e,
+            Err(e) => return e,
         };
 
         let mutator_id = transform_info.add_mutations(
-            MutationLitInt::possible_mutations(lit_val)
+            MutationLitInt::possible_mutations(e.value)
                 .into_iter()
-                .map(|m| m.to_mutation(lit_val, lit.span(), context)),
+                .map(|m| m.to_mutation(&e, context)),
         );
-        syn::parse2(quote_spanned! {lit.span()=>
+
+        let original_lit = e.original_lit;
+        syn::parse2(quote_spanned! {e.span=>
             ::mutagen::mutator::MutatorLitInt::run(
                     #mutator_id,
-                    #lit,
+                    #original_lit,
                     ::mutagen::MutagenRuntimeConfig::get_default()
                 )
         })
@@ -92,14 +83,44 @@ impl MutationLitInt {
         }
     }
 
-    fn to_mutation(self, val: u64, span: Span, context: &TransformContext) -> Mutation {
+    fn to_mutation(self, original_lit: &ExprLitInt, context: &TransformContext) -> Mutation {
         Mutation::new_spanned(
             context.fn_name.clone(),
             "lit_int".to_owned(),
-            format!("{}", val),
-            format!("{}", self.mutate::<u64>(val)),
-            span,
+            format!("{}", original_lit.value),
+            format!("{}", self.mutate::<u64>(original_lit.value)),
+            original_lit.span,
         )
+    }
+}
+
+#[derive(Clone, Debug)]
+struct ExprLitInt {
+    value: u64,
+    original_lit: LitInt,
+    span: Span,
+}
+
+impl TryFrom<Expr> for ExprLitInt {
+    type Error = Expr;
+    fn try_from(expr: Expr) -> Result<Self, Expr> {
+        match expr {
+            Expr::Lit(ExprLit {
+                lit: Lit::Int(lit),
+                attrs,
+            }) => match lit.base10_parse::<u64>() {
+                Ok(v) => Ok(ExprLitInt {
+                    value: v,
+                    span: lit.span(),
+                    original_lit: lit,
+                }),
+                Err(_) => Err(Expr::Lit(ExprLit {
+                    lit: Lit::Int(lit),
+                    attrs,
+                })),
+            },
+            _ => return Err(expr),
+        }
     }
 }
 

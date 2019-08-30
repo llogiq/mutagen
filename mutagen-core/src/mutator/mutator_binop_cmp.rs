@@ -1,10 +1,10 @@
 //! Mutator for comparison operations `<`, `<=`, `=>`, `>`
 
+use std::convert::TryFrom;
 use std::ops::Deref;
 
 use proc_macro2::{Span, TokenStream};
 use quote::quote_spanned;
-use quote::ToTokens;
 use syn::spanned::Spanned;
 use syn::{BinOp, Expr, ExprBinary};
 
@@ -38,59 +38,31 @@ impl MutatorBinopCmp {
         transform_info: &SharedTransformInfo,
         context: &TransformContext,
     ) -> Expr {
-        match e {
-            Expr::Binary(ExprBinary {
-                left,
-                right,
-                op,
-                attrs,
-            }) => {
-                let op = match op {
-                    BinOp::Lt(t) => BinopCmpSpanned {
-                        op: BinopCmp::Lt,
-                        span: t.span(),
-                    },
-                    BinOp::Le(t) => BinopCmpSpanned {
-                        op: BinopCmp::Le,
-                        span: t.span(),
-                    },
-                    BinOp::Ge(t) => BinopCmpSpanned {
-                        op: BinopCmp::Ge,
-                        span: t.span(),
-                    },
-                    BinOp::Gt(t) => BinopCmpSpanned {
-                        op: BinopCmp::Gt,
-                        span: t.span(),
-                    },
-                    _ => {
-                        return Expr::Binary(ExprBinary {
-                            left,
-                            right,
-                            op,
-                            attrs,
-                        })
-                    }
-                };
+        let e = match ExprBinopCmp::try_from(e) {
+            Ok(e) => e,
+            Err(e) => return e,
+        };
 
-                let mutator_id = transform_info.add_mutations(
-                    MutationBinopCmp::possible_mutations(op.op)
-                        .iter()
-                        .map(|m| m.to_mutation(op, context)),
-                );
+        let mutator_id = transform_info.add_mutations(
+            MutationBinopCmp::possible_mutations(e.op)
+                .iter()
+                .map(|m| m.to_mutation(&e, context)),
+        );
 
-                syn::parse2(quote_spanned! {op.span()=>
-                    ::mutagen::mutator::MutatorBinopCmp::run(
-                            #mutator_id,
-                            #left,
-                            #right,
-                            #op,
-                            ::mutagen::MutagenRuntimeConfig::get_default()
-                        )
-                })
-                .expect("transformed code invalid")
-            }
-            _ => e,
-        }
+        let left = &e.left;
+        let right = &e.right;
+        let op = e.op_tokens();
+
+        syn::parse2(quote_spanned! {e.span=>
+            ::mutagen::mutator::MutatorBinopCmp::run(
+                    #mutator_id,
+                    #left,
+                    #right,
+                    #op,
+                    ::mutagen::MutagenRuntimeConfig::get_default()
+                )
+        })
+        .expect("transformed code invalid")
     }
 }
 
@@ -113,21 +85,84 @@ impl MutationBinopCmp {
         self.op.cmp(left, right)
     }
 
-    fn to_mutation(self, original_op: BinopCmpSpanned, context: &TransformContext) -> Mutation {
+    fn to_mutation(self, original_op: &ExprBinopCmp, context: &TransformContext) -> Mutation {
         Mutation::new_spanned(
             context.fn_name.clone(),
             "binop_cmp".to_owned(),
-            format!("{}", original_op),
+            format!("{}", original_op.op),
             format!("{}", self.op),
             original_op.span,
         )
     }
 }
 
-#[derive(Clone, Copy, Debug)]
-pub struct BinopCmpSpanned {
+#[derive(Clone, Debug)]
+struct ExprBinopCmp {
     op: BinopCmp,
+    left: Expr,
+    right: Expr,
     span: Span,
+}
+
+impl TryFrom<Expr> for ExprBinopCmp {
+    type Error = Expr;
+    fn try_from(expr: Expr) -> Result<Self, Expr> {
+        match expr {
+            Expr::Binary(ExprBinary {
+                left,
+                right,
+                op,
+                attrs,
+            }) => match op {
+                BinOp::Lt(t) => Ok(ExprBinopCmp {
+                    op: BinopCmp::Lt,
+                    left: *left,
+                    right: *right,
+                    span: t.span(),
+                }),
+                BinOp::Le(t) => Ok(ExprBinopCmp {
+                    op: BinopCmp::Le,
+                    left: *left,
+                    right: *right,
+                    span: t.span(),
+                }),
+                BinOp::Ge(t) => Ok(ExprBinopCmp {
+                    op: BinopCmp::Ge,
+                    left: *left,
+                    right: *right,
+                    span: t.span(),
+                }),
+                BinOp::Gt(t) => Ok(ExprBinopCmp {
+                    op: BinopCmp::Gt,
+                    left: *left,
+                    right: *right,
+                    span: t.span(),
+                }),
+                _ => Err(Expr::Binary(ExprBinary {
+                    left,
+                    right,
+                    op,
+                    attrs,
+                })),
+            },
+            _ => Err(expr),
+        }
+    }
+}
+
+impl ExprBinopCmp {
+    fn op_tokens(&self) -> TokenStream {
+        let mut tokens = TokenStream::new();
+        tokens.extend(quote_spanned!(self.span=>
+            ::mutagen::mutator::mutator_binop_cmp::BinopCmp::));
+        tokens.extend(match self.op {
+            BinopCmp::Lt => quote_spanned!(self.span=> Lt),
+            BinopCmp::Le => quote_spanned!(self.span=> Le),
+            BinopCmp::Ge => quote_spanned!(self.span=> Ge),
+            BinopCmp::Gt => quote_spanned!(self.span=> Gt),
+        });
+        tokens
+    }
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
@@ -149,19 +184,6 @@ impl BinopCmp {
     }
 }
 
-impl ToTokens for BinopCmpSpanned {
-    fn to_tokens(&self, tokens: &mut TokenStream) {
-        tokens.extend(quote_spanned!(self.span=>
-            ::mutagen::mutator::mutator_binop_cmp::BinopCmp::));
-        tokens.extend(match self.op {
-            BinopCmp::Lt => quote_spanned!(self.span=> Lt),
-            BinopCmp::Le => quote_spanned!(self.span=> Le),
-            BinopCmp::Ge => quote_spanned!(self.span=> Ge),
-            BinopCmp::Gt => quote_spanned!(self.span=> Gt),
-        })
-    }
-}
-
 use std::fmt;
 
 impl fmt::Display for BinopCmp {
@@ -172,12 +194,6 @@ impl fmt::Display for BinopCmp {
             BinopCmp::Ge => write!(f, ">="),
             BinopCmp::Gt => write!(f, ">"),
         }
-    }
-}
-
-impl fmt::Display for BinopCmpSpanned {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", &self.op)
     }
 }
 
