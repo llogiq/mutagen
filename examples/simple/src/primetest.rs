@@ -2,7 +2,7 @@ use mutagen::mutate;
 
 #[cfg_attr(test, mutate)]
 pub fn primetest(n: u32) -> bool {
-    if n % 2 == 0 {
+    if n % 2 == 0u32 {
         return n == 2;
     }
     if n == 1 {
@@ -10,7 +10,7 @@ pub fn primetest(n: u32) -> bool {
     }
     let mut k = 3;
     while k * k <= n {
-        if n % k == 0 {
+        if n % k == 0u32 {
             return false;
         }
         k += 2;

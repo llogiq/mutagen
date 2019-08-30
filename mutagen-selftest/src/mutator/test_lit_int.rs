@@ -146,7 +146,7 @@ mod tests {
         }
 
         #[test]
-        fn x_is_5() {
+        fn x_is_vec5() {
             assert_eq!(x().len(), 5)
         }
     }
@@ -161,8 +161,23 @@ mod tests {
         }
 
         #[test]
-        fn x_is_5() {
+        fn x_is_none() {
             assert_eq!(x(), None)
+        }
+    }
+
+    mod tuple_index_access_not_mutated {
+
+        use ::mutagen::mutate;
+
+        #[mutate(conf = local(expected_mutations = 0), mutators = only(lit_int))]
+        fn x() -> &'static str {
+            ((),"").1
+        }
+
+        #[test]
+        fn x_is_emptystr() {
+            assert_eq!(x(), "")
         }
     }
 }
