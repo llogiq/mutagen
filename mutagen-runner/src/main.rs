@@ -27,6 +27,11 @@ fn run() -> Fallible<()> {
         bail!("test executable(s) not found");
     }
 
+    // TODO: print test-executables?
+    for e in &tests_executables {
+        println!("{}", e.display());
+    }
+
     // collect mutations
     let mutations = read_mutations()?;
 
@@ -87,22 +92,38 @@ fn run_mutations(
 /// build all tests and collect test-suite executables
 fn compile_tests() -> Fallible<Vec<PathBuf>> {
     let mut tests: Vec<PathBuf> = Vec::new();
+
+    // execute `cargo test --no-run --message-format=json` and collect output
     let compile_out = Command::new("cargo")
         .args(&["test", "--no-run", "--message-format=json"])
         .stderr(Stdio::inherit())
         .output()?;
-
     if !compile_out.status.success() {
-        println!("{}", str::from_utf8(&compile_out.stdout)?);
         bail!("`cargo test --no-run` returned non-zero exit status");
     }
     let compile_stdout = str::from_utf8(&compile_out.stdout)?;
+
+    // TODO: comment
+    // each line is a json-value, we want to extract the test-executables
+    // these are compiler artifacts that have set `test:true` in the profile
     for line in compile_stdout.lines() {
         let msg_json = json::parse(line)?;
         if msg_json["reason"].as_str() == Some("compiler-artifact")
             && msg_json["profile"]["test"].as_bool() == Some(true)
         {
-            tests.push(msg_json["executable"].as_str().unwrap().to_string().into());
+            let mut test_exe: PathBuf = msg_json["executable"].as_str().unwrap().to_string().into();
+
+            // if the executable is found in the `deps` folder, execute it from there instead
+            let test_exe_in_deps_dir = test_exe
+                .parent()
+                .unwrap()
+                .join("deps")
+                .join(test_exe.file_name().unwrap());
+            if test_exe_in_deps_dir.exists() {
+                test_exe = test_exe_in_deps_dir
+            }
+
+            tests.push(test_exe);
         }
     }
     Ok(tests)

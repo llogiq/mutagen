@@ -2,6 +2,7 @@ use failure::{bail, Fallible};
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
+use std::io::Write;
 
 use wait_timeout::ChildExt;
 
@@ -27,6 +28,9 @@ impl<'a> TestBin<'a> {
     pub fn run_test(self, num_mutations: usize) -> Fallible<TestBinTimed<'a>> {
         let test_start = Instant::now();
 
+        print!("test executable {} ... ", self.bin_path.display());
+        ::std::io::stdout().flush()?;
+
         // run test suite
         let mut command = Command::new(self.bin_path);
         command.env("MUTAGEN_MODE", "coverage");
@@ -37,8 +41,11 @@ impl<'a> TestBin<'a> {
         let exe_time = test_start.elapsed();
 
         if !status.success() {
+            println!("FAILED");
             bail!("test suite fails. Retry after `cargo test` succeeds");
         }
+
+        println!("ok");
 
         Ok(TestBinTimed {
             test_bin: self,
