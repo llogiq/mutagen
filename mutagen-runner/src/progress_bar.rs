@@ -120,11 +120,12 @@ impl ProgressBar {
 
         // print status details right to progress bar, if there is space for it
         let mut action_details = bar.action_details.to_owned();
+        action_details = format!(": {}", action_details);
         let space_after_main_bar = self.term_width - main_part_len;
         if space_after_main_bar < 10 {
             action_details = "".to_owned();
         } else if space_after_main_bar < action_details.len() {
-            action_details = format!("{:.*}...", space_after_main_bar - 3, action_details);
+            action_details = format!("{:.*}...", space_after_main_bar - 5, action_details);
         }
 
         write!(

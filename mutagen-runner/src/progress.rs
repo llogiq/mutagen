@@ -74,7 +74,7 @@ impl Progress {
         // write progress bar
         if self.bar.shows_progress() {
             let action_details = format!(
-                ": {}{}",
+                "{}{}",
                 m.source_file().display(),
                 m.context_description_in_brackets(),
             );
