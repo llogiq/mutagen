@@ -170,6 +170,11 @@ impl Fold for MutagenTransformerBundle {
         result
     }
 
+    fn fold_pat(&mut self, i: syn::Pat) -> syn::Pat {
+        // do not mutate patterns
+        i
+    }
+
     fn fold_item_const(&mut self, i: syn::ItemConst) -> syn::ItemConst {
         // do not mutate const-items
         i

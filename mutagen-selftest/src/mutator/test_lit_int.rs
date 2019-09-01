@@ -180,4 +180,30 @@ mod tests {
             assert_eq!(x(), "")
         }
     }
+    mod int_as_pattern_not_mutated {
+
+        use ::mutagen::mutate;
+
+        #[mutate(conf = local(expected_mutations = 0), mutators = only(lit_int))]
+        fn x(i: i8) -> &'static str {
+            match i {
+                0 => "zero",
+                1..=127 => "positive",
+                _ => "negative",
+            }
+        }
+
+        #[test]
+        fn x_zero() {
+            assert_eq!(x(0), "zero")
+        }
+        #[test]
+        fn x_one_positive() {
+            assert_eq!(x(1), "positive")
+        }
+        #[test]
+        fn x_minus_one_negative() {
+            assert_eq!(x(-1), "negative")
+        }
+    }
 }
