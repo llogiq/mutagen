@@ -1,4 +1,5 @@
 mod progress;
+mod progress_bar;
 mod test_bin;
 
 pub use progress::Progress;

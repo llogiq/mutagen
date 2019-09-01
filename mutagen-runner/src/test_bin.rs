@@ -8,12 +8,16 @@ use wait_timeout::ChildExt;
 
 use mutagen_core::comm::{BakedMutation, MutantStatus};
 
+use super::Progress;
+
 /// wrapper around a test-binary that can be executed
+#[derive(Debug)]
 pub struct TestBin<'a> {
-    bin_path: &'a Path,
+    pub bin_path: &'a Path,
 }
 
 // wrapper around a test-binary, which has been run already and its runtime has been timed.
+#[derive(Debug)]
 pub struct TestBinTimed<'a> {
     test_bin: TestBin<'a>,
     exe_time: Duration,
@@ -25,10 +29,15 @@ impl<'a> TestBin<'a> {
     }
 
     // run the test and record the time required.
-    pub fn run_test(self, num_mutations: usize) -> Fallible<TestBinTimed<'a>> {
+    pub fn run_test(
+        self,
+        progress: &mut Progress,
+        num_mutations: usize,
+    ) -> Fallible<TestBinTimed<'a>> {
         let test_start = Instant::now();
 
-        print!("test executable {} ... ", self.bin_path.display());
+        progress.start_testsuite_unmutated(&self.bin_path)?;
+
         ::std::io::stdout().flush()?;
 
         // run test suite
@@ -40,12 +49,13 @@ impl<'a> TestBin<'a> {
         let status = test_run.wait()?;
         let exe_time = test_start.elapsed();
 
-        if !status.success() {
-            println!("FAILED");
+        let success = status.success();
+
+        progress.finish_testsuite_unmutated(success)?;
+
+        if !success {
             bail!("test suite fails. Retry after `cargo test` succeeds");
         }
-
-        println!("ok");
 
         Ok(TestBinTimed {
             test_bin: self,

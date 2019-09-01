@@ -21,42 +21,39 @@ fn main() {
 }
 
 fn run() -> Fallible<()> {
-    // gather context information
+    // build the testsuites and collect mutations
     let tests_executables = compile_tests()?;
     if tests_executables.is_empty() {
-        bail!("test executable(s) not found");
+        bail!("no test executable(s) found");
     }
-
-    // TODO: print test-executables?
-    for e in &tests_executables {
-        println!("{}", e.display());
-    }
-
-    // collect mutations
     let mutations = read_mutations()?;
 
+    let mut progress = Progress::new(mutations.len());
+
+    // run all test-binaries without mutations and collect coverge
+    progress.section_testsuite_unmutated()?;
     let test_bins = tests_executables
         .iter()
         .map(|e| TestBin::new(&e))
-        .map(|b| b.run_test(mutations.len()))
+        .map(|b| b.run_test(&mut progress, mutations.len()))
         .collect::<Fallible<Vec<_>>>()?;
-
     let coverage = read_coverage()?;
 
     // run the mutations on the test-suites
-    run_mutations(&test_bins, mutations, &coverage)?;
+    progress.section_mutants()?;
+    run_mutations(progress, &test_bins, mutations, &coverage)?;
 
     Ok(())
 }
 
 /// run all mutations on all test-executables
 fn run_mutations(
+    mut progress: Progress,
     test_bins: &[TestBinTimed],
     mutations: Vec<BakedMutation>,
     coverage: &HashSet<usize>,
 ) -> Fallible<()> {
     let mut mutagen_report = MutagenReport::new();
-    let mut progress = Progress::new(mutations.len());
 
     for m in mutations {
         progress.start_mutation(&m)?;

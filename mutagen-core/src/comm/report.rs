@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 
 use super::BakedMutation;
@@ -12,11 +12,11 @@ pub struct MutagenReport {
 
 #[derive(Copy, Clone, Default, Serialize, Deserialize)]
 pub struct ReportSummary {
-    num_mutations: u32,
-    killed: u32,
-    timeout: u32,
-    survived: u32,
-    not_covered: u32,
+    num_mutations: usize,
+    killed: usize,
+    timeout: usize,
+    survived: usize,
+    not_covered: usize,
 }
 
 impl MutagenReport {
@@ -31,32 +31,63 @@ impl MutagenReport {
         self.summary.add_mutation_result(status);
     }
 
-    pub fn print_survived(&self) {
-        if self.summary.survived > 0 {
-            println!("SURVIVED");
-            let survived = group(
-                self.mutant_results
-                    .iter()
-                    .filter(|(_, s)| s.survived())
-                    .map(|(m, s)| (m.source_file(), (m, *s))),
-            );
+    /// creates a map of mutations per file.
+    ///
+    /// The map gets iterated in alphabetical order of the files and the list of mutations is sorted by mutation-id
+    fn mutations_per_file(
+        &self,
+    ) -> BTreeMap<&std::path::Path, Vec<(&BakedMutation, MutantStatus)>> {
+        let mut map = BTreeMap::new();
+        // collect mutations by source file
+        for (m, s) in &self.mutant_results {
+            map.entry(m.source_file()).or_insert(vec![]).push((m, *s));
+        }
+        // sort list of mutations per source file by id
+        for (_, ms) in &mut map {
+            ms.sort_unstable_by_key(|(m, _)| m.id());
+        }
+        map
+    }
 
-            for (file, mutations) in survived {
-                println!("    {}", file.display());
-                for (m, s) in mutations {
-                    println!(
-                        "        {}: {} at {}{}{}",
-                        m.id(),
-                        m.mutation_description(),
-                        m.location_in_file(),
-                        m.context_description_in_brackets(),
-                        if s == MutantStatus::NotCovered {
-                            format!(" {}", MutantStatus::NotCovered)
-                        } else {
-                            "".to_owned()
-                        },
-                    );
-                }
+    pub fn print_survived(&self) {
+        println!("SURVIVED");
+        let mutations_per_file = self.mutations_per_file().into_iter().collect::<Vec<_>>();
+
+        for (file, mutations) in mutations_per_file {
+            let num_mutations = mutations.len();
+            // TODO: use mutations.drain_filter
+            let survived = mutations
+                .into_iter()
+                .filter(|(_, s)| s.survived())
+                .collect::<Vec<_>>();
+            let num_survived = survived.len();
+
+            println!("    {}", file.display());
+            if num_survived == 0 {
+                println!("            all {} mutants killed", num_mutations);
+            } else if num_survived == num_mutations {
+                println!("            all {} mutants survived", num_survived);
+            } else {
+                println!(
+                    "            {}/{}({:.2}%) mutants survived",
+                    num_survived,
+                    num_mutations,
+                    compute_percent(num_mutations, num_survived)
+                );
+            }
+            for (m, s) in survived {
+                println!(
+                    "        {}: {} at {}{}{}",
+                    m.id(),
+                    m.mutation_description(),
+                    m.location_in_file(),
+                    m.context_description_in_brackets(),
+                    if s == MutantStatus::NotCovered {
+                        format!(" {}", MutantStatus::NotCovered)
+                    } else {
+                        "".to_owned()
+                    },
+                );
             }
         }
     }
@@ -84,26 +115,25 @@ impl ReportSummary {
     }
 
     pub fn print(&self) {
-        let coverage = 100.0 * self.killed as f64 / self.num_mutations as f64;
+        let percent_mutations_killed = compute_percent(self.num_mutations, self.killed);
+        let percent_mutations_timeout = compute_percent(self.num_mutations, self.timeout);
+        let percent_mutations_survived = compute_percent(self.num_mutations, self.survived);
+        let percent_mutations_not_covered = compute_percent(self.num_mutations, self.not_covered);
 
         println!();
+        println!("{} generated mutations", self.num_mutations);
         println!(
-            "{} mutants killed ({} by timeout)",
-            self.killed, self.timeout
+            "{}({:.2}%) mutants killed, {}({:.2}%) by timeout",
+            self.killed, percent_mutations_killed, self.timeout, percent_mutations_timeout,
         );
         println!(
-            "{} mutants SURVIVED ({} NOT COVERED)",
-            self.survived, self.not_covered
+            "{}({:.2}%) mutants SURVIVED, {}({:.2}%) NOT COVERED",
+            self.survived,
+            percent_mutations_survived,
+            self.not_covered,
+            percent_mutations_not_covered,
         );
-        println!("{:.2}% mutation coverage", coverage);
     }
-}
-
-fn group<K: Eq + std::hash::Hash, V, I: Iterator<Item = (K, V)>>(iter: I) -> HashMap<K, Vec<V>> {
-    iter.fold(HashMap::new(), |mut map, (k, v)| {
-        map.entry(k).or_insert_with(|| Vec::new()).push(v);
-        map
-    })
 }
 
 /// Result from a test run
@@ -134,4 +164,8 @@ impl fmt::Display for MutantStatus {
             Self::Timeout => write!(f, "killed (timeout)"),
         }
     }
+}
+
+fn compute_percent(total: usize, num: usize) -> f64 {
+    100.0 * num as f64 / total as f64
 }
