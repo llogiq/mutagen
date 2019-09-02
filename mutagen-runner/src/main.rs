@@ -103,6 +103,7 @@ fn compile_tests() -> Fallible<Vec<PathBuf>> {
     // TODO: comment
     // each line is a json-value, we want to extract the test-executables
     // these are compiler artifacts that have set `test:true` in the profile
+    let current_dir = std::env::current_dir()?;
     for line in compile_stdout.lines() {
         let msg_json = json::parse(line)?;
         if msg_json["reason"].as_str() == Some("compiler-artifact")
@@ -119,6 +120,12 @@ fn compile_tests() -> Fallible<Vec<PathBuf>> {
             if test_exe_in_deps_dir.exists() {
                 test_exe = test_exe_in_deps_dir
             }
+
+            // try to make path relative to current path
+            test_exe = test_exe
+                .strip_prefix(&current_dir)
+                .map(|x| x.to_owned())
+                .unwrap_or(test_exe);
 
             tests.push(test_exe);
         }
