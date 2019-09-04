@@ -27,6 +27,25 @@ mod const_fn {
     }
 }
 
+mod const_method {
+
+    use ::mutagen::mutate;
+
+    struct X;
+
+    #[mutate(conf = local(expected_mutations = 0))]
+    impl X {
+        const fn x() -> i32 {
+            5
+        }
+    }
+
+    #[test]
+    fn x_is_5() {
+        assert_eq!(X::x(), 5)
+    }
+}
+
 mod array_expr_size {
 
     use ::mutagen::mutate;
@@ -95,5 +114,57 @@ mod int_as_pattern {
     #[test]
     fn x_minus_one_negative() {
         assert_eq!(x(-1), "negative")
+    }
+}
+
+mod unsafe_fn {
+    use ::mutagen::mutate;
+
+    #[mutate(conf = local(expected_mutations = 0))]
+    unsafe fn x() -> u8 {
+        5
+    }
+
+    #[test]
+    fn x_is_5() {
+        unsafe { assert_eq!(x(), 5) }
+    }
+}
+
+mod unsafe_method {
+
+    use ::mutagen::mutate;
+
+    struct X;
+
+    #[mutate(conf = local(expected_mutations = 0))]
+    impl X {
+        unsafe fn x() -> i32 {
+            5
+        }
+    }
+
+    #[test]
+    fn x_is_5() {
+        assert_eq!(unsafe { X::x() }, 5)
+    }
+}
+
+mod unsafe_block {
+
+    use ::mutagen::mutate;
+
+    #[mutate(conf = local(expected_mutations = 0))]
+    fn x() -> u8 {
+        // this is a dummy-unsafe-block with something that *could* be mutated but should not
+        #[allow(unused_unsafe)]
+        unsafe {
+            5
+        }
+    }
+
+    #[test]
+    fn x_is_5() {
+        assert_eq!(x(), 5)
     }
 }

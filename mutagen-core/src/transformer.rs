@@ -77,6 +77,11 @@ impl Fold for MutagenTransformerBundle {
         if i.sig.constness.is_some() {
             return i;
         }
+        // do not mutate unsafe functions
+        if i.sig.unsafety.is_some() {
+            return i;
+        }
+
         // insert the new functionname into context
         let old_fn_name = self
             .transform_context
@@ -97,6 +102,11 @@ impl Fold for MutagenTransformerBundle {
         if i.sig.constness.is_some() {
             return i;
         }
+        // do not mutate unsafe functions
+        if i.sig.unsafety.is_some() {
+            return i;
+        }
+
         // insert the new functionname into context
         let old_fn_name = self
             .transform_context
@@ -154,6 +164,9 @@ impl Fold for MutagenTransformerBundle {
         if i.sig.constness.is_some() {
             return i;
         }
+        if i.sig.unsafety.is_some() {
+            return i;
+        }
 
         // insert the new functionname into context
         let old_fn_name = self
@@ -183,6 +196,11 @@ impl Fold for MutagenTransformerBundle {
     fn fold_type(&mut self, t: syn::Type) -> syn::Type {
         // do not mutate types
         t
+    }
+
+    fn fold_expr_unsafe(&mut self, e: syn::ExprUnsafe) -> syn::ExprUnsafe {
+        // do not mutate unsafe blocks
+        e
     }
 }
 
