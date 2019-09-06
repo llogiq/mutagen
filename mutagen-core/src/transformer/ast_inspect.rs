@@ -29,6 +29,29 @@ impl TryFrom<syn::Expr> for ExprBinopAdd {
     }
 }
 
+
+#[derive(Clone, Debug)]
+pub struct ExprUnopNot {
+    pub expr: syn::Expr,
+    pub span: Span,
+}
+
+impl TryFrom<syn::Expr> for ExprUnopNot {
+    type Error = syn::Expr;
+    fn try_from(expr: syn::Expr) -> Result<Self, syn::Expr> {
+        match expr {
+            syn::Expr::Unary(expr) => match expr.op {
+                syn::UnOp::Not(t) => Ok(ExprUnopNot {
+                    expr: *expr.expr,
+                    span: t.span(),
+                }),
+                _ => Err(syn::Expr::Unary(expr))
+            }
+            e => Err(e),
+        }
+    }
+}
+
 /// check if an expression has numeric type.
 ///
 /// This is implemented via a heuristic. An expression has an numeric type if:
@@ -63,6 +86,7 @@ pub fn is_num_expr(e: &syn::Expr) -> bool {
     };
     return false;
 }
+
 
 #[cfg(test)]
 mod tests {

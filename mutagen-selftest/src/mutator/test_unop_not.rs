@@ -84,3 +84,26 @@ mod test_double_negation {
         })
     }
 }
+
+mod test_bit_not_u32 {
+    use ::mutagen::mutate;
+    use ::mutagen::MutagenRuntimeConfig;
+
+    // double negation
+    #[mutate(conf = local(expected_mutations = 1), mutators = only(unop_not))]
+    fn bit_not_u32() -> u32 {
+        !0
+    }
+    #[test]
+    fn double_negation_inactive() {
+        MutagenRuntimeConfig::test_without_mutation(|| {
+            assert_eq!(bit_not_u32(), !0);
+        })
+    }
+    #[test]
+    fn double_negation_active1() {
+        MutagenRuntimeConfig::test_with_mutation_id(1, || {
+            assert_eq!(bit_not_u32(), 0);
+        })
+    }
+}

@@ -4,11 +4,11 @@ use std::convert::TryFrom;
 use std::ops::Add;
 use std::ops::Deref;
 
-use crate::transformer::ast_inspect::ExprBinopAdd;
 use quote::quote_spanned;
 use syn::Expr;
 
 use crate::comm::Mutation;
+use crate::transformer::ast_inspect::ExprBinopAdd;
 use crate::transformer::transform_info::SharedTransformInfo;
 use crate::transformer::TransformContext;
 
@@ -91,12 +91,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn sum_inative() {
+    fn sum_inactive() {
         let result = MutatorBinopAdd::run(1, 5, 4, &MutagenRuntimeConfig::without_mutation());
         assert_eq!(result, 9);
     }
     #[test]
-    fn sum_ative() {
+    fn sum_active() {
         let result = MutatorBinopAdd::run(1, 5, 4, &MutagenRuntimeConfig::with_mutation_id(1));
         assert_eq!(result, 1);
     }
@@ -122,5 +122,16 @@ mod tests {
         );
     }
 
-    // TODO: tests for native_num
+    #[test]
+    fn sum_native_inactive() {
+        let result = MutatorBinopAdd::run_native_num(1, 5, 4, &MutagenRuntimeConfig::without_mutation());
+        assert_eq!(result, 9);
+    }
+
+    #[test]
+    fn sum_native_active() {
+        let result = MutatorBinopAdd::run_native_num(1, 5, 4, &MutagenRuntimeConfig::with_mutation_id(1));
+        assert_eq!(result, 1);
+    }
+
 }

@@ -4,12 +4,11 @@ use std::convert::TryFrom;
 use std::ops::Deref;
 use std::ops::Not;
 
-use proc_macro2::Span;
 use quote::quote_spanned;
-use syn::spanned::Spanned;
-use syn::{Expr, ExprUnary, UnOp};
+use syn::Expr;
 
 use crate::comm::Mutation;
+use crate::transformer::ast_inspect::ExprUnopNot;
 use crate::transformer::transform_info::SharedTransformInfo;
 use crate::transformer::TransformContext;
 
@@ -27,6 +26,19 @@ impl MutatorUnopNot {
         runtime.covered(mutator_id);
         if runtime.is_mutation_active(mutator_id) {
             val.may_none()
+        } else {
+            !val
+        }
+    }
+
+    pub fn run_native_num<I: Not<Output = I>>(
+        mutator_id: usize,
+        val: I,
+        runtime: impl Deref<Target = MutagenRuntimeConfig>,
+    ) -> I {
+        runtime.covered(mutator_id);
+        if runtime.is_mutation_active(mutator_id) {
+            val
         } else {
             !val
         }
@@ -52,37 +64,21 @@ impl MutatorUnopNot {
 
         let expr = &e.expr;
 
+        // if the current expression is based on numbers, use the function `run_native_num` instead
+        let run_fn = if context.is_num_expr() {
+            quote_spanned! {e.span=> run_native_num}
+        } else {
+            quote_spanned! {e.span=> run}
+        };
+
         syn::parse2(quote_spanned! {e.span=>
-            ::mutagen::mutator::MutatorUnopNot::run(
+            ::mutagen::mutator::MutatorUnopNot::#run_fn(
                     #mutator_id,
                     #expr,
                     ::mutagen::MutagenRuntimeConfig::get_default()
                 )
         })
         .expect("transformed code invalid")
-    }
-}
-
-#[derive(Clone, Debug)]
-struct ExprUnopNot {
-    expr: Expr,
-    span: Span,
-}
-
-impl TryFrom<Expr> for ExprUnopNot {
-    type Error = Expr;
-    fn try_from(expr: Expr) -> Result<Self, Expr> {
-        match expr {
-            Expr::Unary(ExprUnary {
-                expr,
-                op: UnOp::Not(op),
-                ..
-            }) => Ok(ExprUnopNot {
-                expr: *expr,
-                span: op.span(),
-            }),
-            e => Err(e),
-        }
     }
 }
 
@@ -104,7 +100,8 @@ mod tests {
     }
     #[test]
     fn intnot_active() {
-        let result = MutatorUnopNot::run(1, 1, &MutagenRuntimeConfig::with_mutation_id(1));
+        let result =
+            MutatorUnopNot::run_native_num(1, 1, &MutagenRuntimeConfig::with_mutation_id(1));
         assert_eq!(result, 1);
     }
 
