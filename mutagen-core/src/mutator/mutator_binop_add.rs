@@ -4,11 +4,9 @@ use std::convert::TryFrom;
 use std::ops::Add;
 use std::ops::Deref;
 
-use proc_macro2::Span;
-
+use crate::transformer::ast_inspect::ExprBinopAdd;
 use quote::quote_spanned;
-use syn::spanned::Spanned;
-use syn::{BinOp, Expr, ExprBinary};
+use syn::Expr;
 
 use crate::comm::Mutation;
 use crate::transformer::transform_info::SharedTransformInfo;
@@ -27,6 +25,19 @@ impl MutatorBinopAdd {
         runtime: impl Deref<Target = MutagenRuntimeConfig>,
     ) -> <L as Add<R>>::Output {
         runtime.covered(mutator_id);
+        if runtime.is_mutation_active(mutator_id) {
+            left.may_sub(right)
+        } else {
+            left + right
+        }
+    }
+
+    pub fn run_native_num<I: Add<I, Output = I>>(
+        mutator_id: usize,
+        left: I,
+        right: I,
+        runtime: impl Deref<Target = MutagenRuntimeConfig>,
+    ) -> I {
         if runtime.is_mutation_active(mutator_id) {
             left.may_sub(right)
         } else {
@@ -55,8 +66,15 @@ impl MutatorBinopAdd {
         let left = &e.left;
         let right = &e.right;
 
+        // if the current expression is based on numbers, use the function `run_native_num` instead
+        let run_fn = if context.is_num_expr() {
+            quote_spanned! {e.span=> run_native_num}
+        } else {
+            quote_spanned! {e.span=> run}
+        };
+
         syn::parse2(quote_spanned! {e.span=>
-            ::mutagen::mutator::MutatorBinopAdd::run(
+            ::mutagen::mutator::MutatorBinopAdd::#run_fn(
                     #mutator_id,
                     #left,
                     #right,
@@ -64,40 +82,6 @@ impl MutatorBinopAdd {
                 )
         })
         .expect("transformed code invalid")
-    }
-}
-
-#[derive(Clone, Debug)]
-struct ExprBinopAdd {
-    left: Expr,
-    right: Expr,
-    span: Span,
-}
-
-impl TryFrom<Expr> for ExprBinopAdd {
-    type Error = Expr;
-    fn try_from(expr: Expr) -> Result<Self, Expr> {
-        match expr {
-            Expr::Binary(ExprBinary {
-                left,
-                right,
-                op,
-                attrs,
-            }) => match op {
-                BinOp::Add(t) => Ok(ExprBinopAdd {
-                    left: *left,
-                    right: *right,
-                    span: t.span(),
-                }),
-                _ => Err(Expr::Binary(ExprBinary {
-                    left,
-                    right,
-                    op,
-                    attrs,
-                })),
-            },
-            _ => Err(expr),
-        }
     }
 }
 
@@ -137,4 +121,6 @@ mod tests {
             &MutagenRuntimeConfig::with_mutation_id(1),
         );
     }
+
+    // TODO: tests for native_num
 }

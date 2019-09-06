@@ -3,6 +3,7 @@ use quote::ToTokens;
 use syn::fold::Fold;
 
 mod arg_ast;
+pub(crate) mod ast_inspect;
 mod mutate_args;
 pub mod transform_context;
 pub mod transform_info;
@@ -45,6 +46,9 @@ type MutagenStmtTransformer =
 
 impl Fold for MutagenTransformerBundle {
     fn fold_expr(&mut self, e: syn::Expr) -> syn::Expr {
+        // save the original expr into the context
+        let old_expr = self.transform_context.original_expr.replace(e.clone());
+
         // transform content of the expression first
         let mut result = syn::fold::fold_expr(self, e);
 
@@ -52,6 +56,9 @@ impl Fold for MutagenTransformerBundle {
         for transformer in &mut self.expr_transformers {
             result = transformer(result, &self.transform_info, &self.transform_context);
         }
+
+        // reset original_stmt to original state
+        self.transform_context.original_expr = old_expr;
         result
     }
 
