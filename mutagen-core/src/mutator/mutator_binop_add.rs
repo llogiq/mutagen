@@ -124,14 +124,15 @@ mod tests {
 
     #[test]
     fn sum_native_inactive() {
-        let result = MutatorBinopAdd::run_native_num(1, 5, 4, &MutagenRuntimeConfig::without_mutation());
+        let result =
+            MutatorBinopAdd::run_native_num(1, 5, 4, &MutagenRuntimeConfig::without_mutation());
         assert_eq!(result, 9);
     }
 
     #[test]
     fn sum_native_active() {
-        let result = MutatorBinopAdd::run_native_num(1, 5, 4, &MutagenRuntimeConfig::with_mutation_id(1));
+        let result =
+            MutatorBinopAdd::run_native_num(1, 5, 4, &MutagenRuntimeConfig::with_mutation_id(1));
         assert_eq!(result, 1);
     }
-
 }

@@ -39,7 +39,8 @@ impl Progress {
     /// start the section of test-runs for each mutation
     pub fn section_mutants(&mut self) -> Fallible<()> {
         self.bar.println("")?;
-        self.bar.println(&format!("Test {} Mutants", self.num_mutations))?;
+        self.bar
+            .println(&format!("Test {} Mutants", self.num_mutations))?;
         Ok(())
     }
 

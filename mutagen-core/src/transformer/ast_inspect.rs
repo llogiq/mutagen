@@ -29,7 +29,6 @@ impl TryFrom<syn::Expr> for ExprBinopAdd {
     }
 }
 
-
 #[derive(Clone, Debug)]
 pub struct ExprUnopNot {
     pub expr: syn::Expr,
@@ -45,8 +44,8 @@ impl TryFrom<syn::Expr> for ExprUnopNot {
                     expr: *expr.expr,
                     span: t.span(),
                 }),
-                _ => Err(syn::Expr::Unary(expr))
-            }
+                _ => Err(syn::Expr::Unary(expr)),
+            },
             e => Err(e),
         }
     }
@@ -86,7 +85,6 @@ pub fn is_num_expr(e: &syn::Expr) -> bool {
     };
     return false;
 }
-
 
 #[cfg(test)]
 mod tests {
