@@ -3,11 +3,11 @@
 use std::convert::TryFrom;
 use std::ops::Deref;
 
-use proc_macro2::Span;
 use quote::quote_spanned;
-use syn::{Expr, ExprLit, Lit, LitInt};
+use syn::Expr;
 
 use crate::comm::Mutation;
+use crate::transformer::ast_inspect::ExprLitInt;
 use crate::transformer::transform_info::SharedTransformInfo;
 use crate::transformer::TransformContext;
 
@@ -22,7 +22,7 @@ impl MutatorLitInt {
         runtime: impl Deref<Target = MutagenRuntimeConfig>,
     ) -> T {
         runtime.covered(mutator_id);
-        let mutations = MutationLitInt::possible_mutations(original_lit.as_u64());
+        let mutations = MutationLitInt::possible_mutations(original_lit.as_u128());
         if let Some(m) = runtime.get_mutation(mutator_id, &mutations) {
             m.mutate(original_lit)
         } else {
@@ -46,7 +46,7 @@ impl MutatorLitInt {
                 .map(|m| m.to_mutation(&e, context)),
         );
 
-        let original_lit = e.original_lit;
+        let original_lit = e.lit;
         syn::parse2(quote_spanned! {e.span=>
             ::mutagen::mutator::MutatorLitInt::run(
                     #mutator_id,
@@ -60,13 +60,13 @@ impl MutatorLitInt {
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 enum MutationLitInt {
-    Relative(i64),
+    Relative(i128),
 }
 
 impl MutationLitInt {
-    fn possible_mutations(val: u64) -> Vec<Self> {
+    fn possible_mutations(val: u128) -> Vec<Self> {
         let mut mutations = vec![];
-        if val != u64::max_value() {
+        if val != u128::max_value() {
             mutations.push(MutationLitInt::Relative(1));
         }
         if val != 0 {
@@ -77,9 +77,7 @@ impl MutationLitInt {
 
     fn mutate<T: IntMutable>(self, val: T) -> T {
         match self {
-            Self::Relative(r) => {
-                IntMutable::from_u64((i128::from(val.as_u64()) + i128::from(r)) as u64)
-            }
+            Self::Relative(r) => IntMutable::from_u128(val.as_u128().wrapping_add(r as u128)),
         }
     }
 
@@ -88,46 +86,16 @@ impl MutationLitInt {
             &context,
             "lit_int".to_owned(),
             format!("{}", original_lit.value),
-            format!("{}", self.mutate::<u64>(original_lit.value)),
+            format!("{}", self.mutate::<u128>(original_lit.value)),
             original_lit.span,
         )
     }
 }
 
-#[derive(Clone, Debug)]
-struct ExprLitInt {
-    value: u64,
-    original_lit: LitInt,
-    span: Span,
-}
-
-impl TryFrom<Expr> for ExprLitInt {
-    type Error = Expr;
-    fn try_from(expr: Expr) -> Result<Self, Expr> {
-        match expr {
-            Expr::Lit(ExprLit {
-                lit: Lit::Int(lit),
-                attrs,
-            }) => match lit.base10_parse::<u64>() {
-                Ok(v) => Ok(ExprLitInt {
-                    value: v,
-                    span: lit.span(),
-                    original_lit: lit,
-                }),
-                Err(_) => Err(Expr::Lit(ExprLit {
-                    lit: Lit::Int(lit),
-                    attrs,
-                })),
-            },
-            _ => return Err(expr),
-        }
-    }
-}
-
 // trait for operations that mutate integers of any type
 pub trait IntMutable: Copy {
-    fn from_u64(val: u64) -> Self;
-    fn as_u64(self) -> u64;
+    fn from_u128(val: u128) -> Self;
+    fn as_u128(self) -> u128;
 }
 
 // implementation for `IntMutable` for all integer types
@@ -135,11 +103,11 @@ macro_rules! lit_int_mutables {
     { $($suf:ident, $ty:ident),* } => {
         $(
             impl IntMutable for $ty {
-                fn from_u64(val: u64) -> Self {
+                fn from_u128(val: u128) -> Self {
                     val as $ty
                 }
-                fn as_u64(self) -> u64 {
-                    self as u64
+                fn as_u128(self) -> u128 {
+                    self as u128
                 }
             }
         )*
@@ -205,7 +173,7 @@ mod tests {
     #[test]
     fn possible_mutations_with_max_value() {
         assert_eq!(
-            MutationLitInt::possible_mutations(u64::max_value()),
+            MutationLitInt::possible_mutations(u128::max_value()),
             vec![MutationLitInt::Relative(-1)]
         );
     }

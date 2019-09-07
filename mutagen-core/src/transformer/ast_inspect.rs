@@ -51,6 +51,36 @@ impl TryFrom<syn::Expr> for ExprUnopNot {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct ExprLitInt {
+    pub value: u128,
+    pub lit: syn::LitInt,
+    pub span: Span,
+}
+
+impl TryFrom<syn::Expr> for ExprLitInt {
+    type Error = syn::Expr;
+    fn try_from(expr: syn::Expr) -> Result<Self, syn::Expr> {
+        match expr {
+            syn::Expr::Lit(expr) => match expr.lit {
+                syn::Lit::Int(lit) => match lit.base10_parse::<u128>() {
+                    Ok(value) => Ok(ExprLitInt {
+                        value,
+                        span: lit.span(),
+                        lit,
+                    }),
+                    Err(_) => Err(syn::Expr::Lit(syn::ExprLit {
+                        lit: syn::Lit::Int(lit),
+                        attrs: expr.attrs,
+                    })),
+                },
+                _ => Err(syn::Expr::Lit(expr)),
+            },
+            _ => Err(expr),
+        }
+    }
+}
+
 /// check if an expression has numeric type.
 ///
 /// This is implemented via a heuristic. An expression has an numeric type if:
