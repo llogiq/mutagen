@@ -17,9 +17,9 @@ pub struct ProgressBar {
     show_progress: bool,
     total: usize,
     current_log_str: Option<String>,
+    current_bar_state: Option<ProgressBarState>,
 }
 
-// TODO: ref to action/action_details?
 pub struct ProgressBarState {
     pub action: &'static str,
     pub current: usize,
@@ -38,6 +38,7 @@ impl ProgressBar {
             show_progress,
             total,
             current_log_str: None,
+            current_bar_state: None,
         }
     }
 
@@ -45,16 +46,20 @@ impl ProgressBar {
         self.show_progress
     }
 
-    // TODO: comment this function
+    /// prints some text to stdout.
+    ///
+    /// If the progress bar is shown, the text is printed above the progress bar.
+    /// The next call to `println` will continue writing the line started by this function.
     pub fn print(&mut self, s: String) -> Fallible<()> {
         if self.show_progress {
             self.term.clear_line()?;
         }
 
-        // TODO: allow multiple print-calls
-        assert!(self.current_log_str.is_none());
-
-        // TODO: allowing newlines requires more analysis when appending to it later
+        // TODO: allow multiple print-calls and newlines
+        assert!(
+            self.current_log_str.is_none(),
+            "consecutive calls to ProgressBar::print are currently not supported"
+        );
         assert!(
             !s.contains('\n'),
             "newlines are currently not supported in ProgressBar::print"
@@ -65,12 +70,16 @@ impl ProgressBar {
         if self.show_progress {
             writeln!(&self.term)?;
 
+            self.write_progress_bar()?;
+
             self.current_log_str = Some(s);
         }
         Ok(())
     }
 
-    // TODO: comment this function
+    /// prints a line to stdout.
+    ///
+    /// If the progress bar is shown, the line is printed above the progress bar.
     pub fn println(&mut self, s: &str) -> Fallible<()> {
         if self.show_progress {
             self.term.clear_line()?;
@@ -82,6 +91,8 @@ impl ProgressBar {
             } else {
                 writeln!(&self.term, "{}", s)?;
             }
+
+            self.write_progress_bar()?;
         } else {
             writeln!(&self.term, "{}", s)?;
         }
@@ -102,37 +113,47 @@ impl ProgressBar {
         Ok(())
     }
 
-    // TODO: guard against show_progress?
-    pub fn write_progress_bar(&self, bar: ProgressBarState) -> Fallible<()> {
-        let current_total_string = format!("{}/{}", bar.current, self.total);
-        let action_name = console::style(format!("{:>12}", bar.action)).bold();
-
-        let main_part_len = self.term_width.min(80);
-
-        // construct progress bar
-        let bar_width = main_part_len - 18 - current_total_string.len();
-        let mut bar_pos = bar_width * bar.current / self.total;
-        if bar_pos == bar_width {
-            bar_pos -= 1;
+    /// updates the state of the progress bar and draws the new state if the progress is shown
+    pub fn set_state(&mut self, bar: ProgressBarState) -> Fallible<()> {
+        if self.show_progress {
+            self.current_bar_state = Some(bar);
+            self.write_progress_bar()?;
         }
-        let bar1 = "=".repeat(bar_pos);
-        let bar2 = " ".repeat(bar_width - bar_pos - 1);
+        Ok(())
+    }
 
-        // print status details right to progress bar, if there is space for it
-        let mut action_details = bar.action_details.to_owned();
-        action_details = format!(": {}", action_details);
-        let space_after_main_bar = self.term_width - main_part_len;
-        if space_after_main_bar < 10 {
-            action_details = "".to_owned();
-        } else if space_after_main_bar < action_details.len() {
-            action_details = format!("{:.*}...", space_after_main_bar - 5, action_details);
+    fn write_progress_bar(&self) -> Fallible<()> {
+        if let Some(bar) = &self.current_bar_state {
+            let current_total_string = format!("{}/{}", bar.current, self.total);
+            let action_name = console::style(format!("{:>12}", bar.action)).bold();
+
+            let main_part_len = self.term_width.min(80);
+
+            // construct progress bar
+            let bar_width = main_part_len - 18 - current_total_string.len();
+            let mut bar_pos = bar_width * bar.current / self.total;
+            if bar_pos == bar_width {
+                bar_pos -= 1;
+            }
+            let bar1 = "=".repeat(bar_pos);
+            let bar2 = " ".repeat(bar_width - bar_pos - 1);
+
+            // print status details right to progress bar, if there is space for it
+            let mut action_details = bar.action_details.to_owned();
+            action_details = format!(": {}", action_details);
+            let space_after_main_bar = self.term_width - main_part_len;
+            if space_after_main_bar < 10 {
+                action_details = "".to_owned();
+            } else if space_after_main_bar < action_details.len() {
+                action_details = format!("{:.*}...", space_after_main_bar - 5, action_details);
+            }
+
+            write!(
+                &self.term,
+                "{} [{}>{}] {}{}\r",
+                action_name, bar1, bar2, current_total_string, action_details
+            )?;
         }
-
-        write!(
-            &self.term,
-            "{} [{}>{}] {}{}\r",
-            action_name, bar1, bar2, current_total_string, action_details
-        )?;
 
         Ok(())
     }

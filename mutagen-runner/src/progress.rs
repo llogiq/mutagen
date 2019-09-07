@@ -5,6 +5,7 @@
 //! The progress bar tries to be adaptive as possible and only uses a single line in every case.
 //!
 //! The main challenges is to be able to continue writing to the line above the progress bar.
+//! The output to the terminal should look identical to piped output but contains a progress bar.
 
 use failure::Fallible;
 
@@ -16,30 +17,33 @@ use super::progress_bar::{ProgressBar, ProgressBarState};
 
 /// Print progress during mutation testing
 pub struct Progress {
+    num_mutations: usize,
     bar: ProgressBar,
 }
 
 impl Progress {
     pub fn new(num_mutations: usize) -> Self {
         Self {
+            num_mutations,
             bar: ProgressBar::new(num_mutations),
         }
     }
 
-    // start the section that runs the test suites unmutated
+    /// start the section that runs the test suites unmutated
     pub fn section_testsuite_unmutated(&mut self) -> Fallible<()> {
         self.bar.println("")?;
         self.bar.println("Tests without mutations")?;
         Ok(())
     }
 
-    // start the section of test-runs for each mutation
+    /// start the section of test-runs for each mutation
     pub fn section_mutants(&mut self) -> Fallible<()> {
         self.bar.println("")?;
-        self.bar.println("Mutants")?;
+        self.bar.println(&format!("Test {} Mutants", self.num_mutations))?;
         Ok(())
     }
 
+    /// indicate the start of a run of a single testsuite without mutations
     pub fn start_testsuite_unmutated(&mut self, bin: &Path) -> Fallible<()> {
         let log_string = format!("{} ... ", bin.display());
         self.bar.print(log_string)?;
@@ -51,12 +55,13 @@ impl Progress {
                 action_details: format!("{}", bin.display()),
             };
 
-            self.bar.write_progress_bar(bar)?;
+            self.bar.set_state(bar)?;
         }
 
         Ok(())
     }
 
+    /// indicate the end of a run of a single testsuite and display the result.
     pub fn finish_testsuite_unmutated(&mut self, ok: bool) -> Fallible<()> {
         self.bar.println(if ok { "ok" } else { "FAILED" })
     }
@@ -83,7 +88,7 @@ impl Progress {
                 current: m.id(),
                 action_details: action_details,
             };
-            self.bar.write_progress_bar(bar)?;
+            self.bar.set_state(bar)?;
         }
 
         Ok(())
