@@ -2,7 +2,7 @@
 
 `mutagen` provides several mutators. The document gives a rough overview of the implemented mutators.
 
-## MutatorLitBool
+## lit_bool
 
 ### Target Code
 
@@ -12,15 +12,7 @@ bool literals `true` and `false`
 
 1. negating the value of the literal
 
-### Limitations
-
-none
-
-### Customization
-
-none
-
-## MutatorLitInt
+## lit_int
 
 ### Target Code
 
@@ -35,17 +27,17 @@ Byte-literals like `b'a'` are not mutated by this mutator.
 ### Limitations
 
 * literals cannot be mutated into negative numbers
-* literals with a value that does not fit into an `u128` are not mutated
+* literals with a value that does not fit into `u128` are not mutated
 
 ### Customization
 
 Customization is WIP
 
-## MutatorUnopNot
+## unop_not
 
 ### Target Code
 
-`!`-expressions like `!done`
+`!`-expressions, like `!done`
 
 ### Mutations
 
@@ -57,11 +49,7 @@ This is a optimistic mutator. For some types the output type of the negation may
 
 such that the input type cannot be converted to it via `Into` without calling the negation.
 
-### Customization
-
-none
-
-## MutatorBinopBool
+## binop_bool
 
 ### Target Code
 
@@ -78,11 +66,7 @@ none.
 
 The target code has the same short-circuiting behavior to the original operators: When the right argument is not needed for the value of the mutated or original expression, the right argument is not evaluated.
 
-### Customization
-
-none
-
-## MutatorBinopCmp
+## binop_cmp
 
 ### Target Code
 
@@ -97,38 +81,22 @@ expressions that compare two values:
 
 1. replacing the comparison with any of the other three
 
-### Limitations
-
-none - all operations are defined by the trait `PartialOrd`
-
-### Customization
-
-none
-
-## MutatorBinopEq
+## binop_eq
 
 ### Target Code
 
-`==` expressions like `x == y`
+`==`-expressions, like `x == y`
 
 ### Mutations
 
 1. replacing `==` with `!=`
 1. replacing `!=` with `==`
 
-### Limitations
-
-none
-
-### Customization
-
-none
-
-## MutatorBinopAdd
+## binop_add
 
 ### Target Code
 
-`+` expressions like `a+y`
+`+`-expressions, like `a+y`
 
 ### Mutations
 
@@ -141,10 +109,10 @@ This is a optimistic mutator. Not for every type, the trait `Sub` is implemented
 ### Customization
 
 Customization is WIP
+
 Changing the `+` to the other binary operations `*`, `/` and `%` as well as the bit-wise operations are valid optimistic mutations.
 
-
-## MutatorStmtCall
+## stmt_call
 
 ### Target Code
 
@@ -153,11 +121,3 @@ Statements that call a single function or method
 ### Mutations
 
 1. removing the call to the function or method
-
-### Limitations
-
-none
-
-### Customization
-
-none

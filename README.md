@@ -40,6 +40,11 @@ use mutagen::mutate;
 ```
 
 Now you can advise mutagen to mutate any function or method by prepending `#[cfg_attr(test, mutate)]`. The use of `cfg_attr` ensures the `#[mutate]` attribute will only be active in test mode. The repository contains an example that shows how mutagen could be used.
+*Do not use `#[mutate]` inside an unsafe block.* Doing this would very probably break its invariants. The macro will skip an unsafe
+
+So don't run mutagen against modules or functions containing unsafe code under any circumstances.
+
+No mutations will be introduced in `unsafe`-blocks and `unsafe`. Mutations will probably break its invariants. Moreover, mutations in unsafe code could lead to undefined behavior that cannot be observed by any testcase.
 
 ### Running mutagen
 
@@ -55,8 +60,6 @@ If you want the development version of `cargo-mutagen`, run `cargo install` in t
 ## A Word of Warning
 
 Mutagen will change the code you annotate with the `#[mutate]` attribute. This can have dire consequences in some cases. However, functions not annotated with `#[mutate]` will not be altered.
-
-*Do not use `#[mutate]` with unsafe code.* Doing this would very probably break its invariants. So don't run mutagen against modules or functions containing unsafe code under any circumstances.
 
 *Do not use `#[mutate]` for code that can cause damage if buggy*. By corrupting the behavior or sanity checks of some parts of the program, dangerous accidents can happen. For example by overwriting the wrong file or sending credentials to the wrong server.
 
