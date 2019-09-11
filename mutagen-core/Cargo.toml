@@ -1,7 +1,7 @@
 [package]
 name = "mutagen-core"
 version = "0.2.0"
-authors = ["Samuel Pilz <samuel.pilz@posteo.net>"]
+authors = ["Andre Bogus <bogusandre@gmail.com>", "Samuel Pilz <samuel.pilz@posteo.net>"]
 edition = "2018"
 
 [dependencies]
