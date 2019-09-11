@@ -40,11 +40,6 @@ use mutagen::mutate;
 ```
 
 Now you can advise mutagen to mutate any function or method by prepending `#[cfg_attr(test, mutate)]`. The use of `cfg_attr` ensures the `#[mutate]` attribute will only be active in test mode. The repository contains an example that shows how mutagen could be used.
-*Do not use `#[mutate]` inside an unsafe block.* Doing this would very probably break its invariants. The macro will skip an unsafe
-
-So don't run mutagen against modules or functions containing unsafe code under any circumstances.
-
-No mutations will be introduced in `unsafe`-blocks and `unsafe`. Mutations will probably break its invariants. Moreover, mutations in unsafe code could lead to undefined behavior that cannot be observed by any testcase.
 
 ### Running mutagen
 
@@ -66,6 +61,14 @@ Mutagen will change the code you annotate with the `#[mutate]` attribute. This c
 *Use `#[mutate]` for tests only.* This is done by always annotating functions or modules with `#[cfg_attr(test, mutate)]` instead, which applies the `#[mutate]` annotation only in `test` mode. If a function is annotated with plain `#[mutate]` in every mode, the mutation-code is baked into the code even when compiled for release versions. However, when using `mutagen` as `dev-dependency`, adding a plain `#[mutate]` attribute will result in compilation errors in non-test mode since the compiler does not find the annotation.
 
 *Use `mutagen` as `dev-dependency`, unless otherwise necessary.* This ensures that no code from `mutagen` is part of your released library or application.
+
+## Limitations of Mutations
+
+*No mutations will be introduced in `unsafe`-blocks and `unsafe` functions*. Mutations would probably break the some invariantes. Moreover, mutations in unsafe code could lead to undefined behavior that cannot be observed by any testcase.
+
+*`const` expressions cannot be mutated.* They are evaluated at compile-time and Mutagen can only affect code that can alter its behavior at run-time. Array lengths and global constants are examples of `const` expressions.
+
+*Patterns are cannot mutated.* Mutations are introduced by injecting calls to mutagen-internal functions, which cannot be placed inside patterns.
 
 ## Contributing
 
