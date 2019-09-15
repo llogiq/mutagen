@@ -6,7 +6,7 @@ use std::ops::Deref;
 use proc_macro2::{Span, TokenStream};
 use quote::quote_spanned;
 use syn::spanned::Spanned;
-use syn::{BinOp, Expr, ExprBinary};
+use syn::{BinOp, Expr};
 
 use crate::comm::Mutation;
 use crate::transformer::transform_info::SharedTransformInfo;
@@ -14,58 +14,54 @@ use crate::transformer::TransformContext;
 
 use crate::MutagenRuntimeConfig;
 
-pub struct MutatorBinopBool {}
+pub fn run_left(
+    mutator_id: usize,
+    original_op: BinopBool,
+    left: bool,
+    runtime: impl Deref<Target = MutagenRuntimeConfig>,
+) -> Option<bool> {
+    runtime.covered(mutator_id);
+    let mutations = MutationBinopBool::possible_mutations(original_op);
+    let op = runtime
+        .get_mutation(mutator_id, &mutations)
+        .map(|m| m.op)
+        .unwrap_or(original_op);
+    op.short_circuit_left(left)
+}
 
-impl MutatorBinopBool {
-    pub fn run_left(
-        mutator_id: usize,
-        original_op: BinopBool,
-        left: bool,
-        runtime: impl Deref<Target = MutagenRuntimeConfig>,
-    ) -> Option<bool> {
-        runtime.covered(mutator_id);
-        let mutations = MutationBinopBool::possible_mutations(original_op);
-        let op = runtime
-            .get_mutation(mutator_id, &mutations)
-            .map(|m| m.op)
-            .unwrap_or(original_op);
-        op.short_circuit_left(left)
-    }
+pub fn transform(
+    e: Expr,
+    transform_info: &SharedTransformInfo,
+    context: &TransformContext,
+) -> Expr {
+    let e = match ExprBinopBool::try_from(e) {
+        Ok(e) => e,
+        Err(e) => return e,
+    };
 
-    pub fn transform(
-        e: Expr,
-        transform_info: &SharedTransformInfo,
-        context: &TransformContext,
-    ) -> Expr {
-        let e = match ExprBinopBool::try_from(e) {
-            Ok(e) => e,
-            Err(e) => return e,
-        };
+    let mutator_id = transform_info.add_mutations(
+        MutationBinopBool::possible_mutations(e.op)
+            .iter()
+            .map(|m| m.to_mutation(&e, context)),
+    );
 
-        let mutator_id = transform_info.add_mutations(
-            MutationBinopBool::possible_mutations(e.op)
-                .iter()
-                .map(|m| m.to_mutation(&e, context)),
-        );
+    let left = &e.left;
+    let right = &e.right;
+    let op = e.op_tokens();
 
-        let left = &e.left;
-        let right = &e.right;
-        let op = e.op_tokens();
-
-        syn::parse2(quote_spanned! {e.span=>
-            if let Some(x) = ::mutagen::mutator::MutatorBinopBool::run_left(
-                    #mutator_id,
-                    #op,
-                    #left,
-                    ::mutagen::MutagenRuntimeConfig::get_default()
-                ) {
-                x
-            } else {
-                #right
-            }
-        })
-        .expect("transformed code invalid")
-    }
+    syn::parse2(quote_spanned! {e.span=>
+        if let Some(x) = ::mutagen::mutator::mutator_binop_bool::run_left(
+                #mutator_id,
+                #op,
+                #left,
+                ::mutagen::MutagenRuntimeConfig::get_default()
+            ) {
+            x
+        } else {
+            #right
+        }
+    })
+    .expect("transformed code invalid")
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -106,30 +102,20 @@ impl TryFrom<Expr> for ExprBinopBool {
     type Error = Expr;
     fn try_from(expr: Expr) -> Result<Self, Expr> {
         match expr {
-            Expr::Binary(ExprBinary {
-                left,
-                right,
-                op,
-                attrs,
-            }) => match op {
+            Expr::Binary(expr) => match expr.op {
                 BinOp::And(t) => Ok(ExprBinopBool {
                     op: BinopBool::And,
-                    left: *left,
-                    right: *right,
+                    left: *expr.left,
+                    right: *expr.right,
                     span: t.span(),
                 }),
                 BinOp::Or(t) => Ok(ExprBinopBool {
                     op: BinopBool::Or,
-                    left: *left,
-                    right: *right,
+                    left: *expr.left,
+                    right: *expr.right,
                     span: t.span(),
                 }),
-                _ => Err(Expr::Binary(ExprBinary {
-                    left,
-                    right,
-                    op,
-                    attrs,
-                })),
+                _ => Err(Expr::Binary(expr)),
             },
             _ => Err(expr),
         }
@@ -224,7 +210,7 @@ mod tests {
     #[test]
     fn mutator_and_inactive() {
         assert_eq!(
-            MutatorBinopBool::run_left(
+            run_left(
                 1,
                 BinopBool::And,
                 true,
@@ -233,7 +219,7 @@ mod tests {
             None
         );
         assert_eq!(
-            MutatorBinopBool::run_left(
+            run_left(
                 1,
                 BinopBool::And,
                 false,
@@ -245,7 +231,7 @@ mod tests {
     #[test]
     fn mutator_and_active() {
         assert_eq!(
-            MutatorBinopBool::run_left(
+            run_left(
                 1,
                 BinopBool::And,
                 true,
@@ -254,7 +240,7 @@ mod tests {
             Some(true)
         );
         assert_eq!(
-            MutatorBinopBool::run_left(
+            run_left(
                 1,
                 BinopBool::And,
                 false,
@@ -267,7 +253,7 @@ mod tests {
     #[test]
     fn mutator_or_inactive() {
         assert_eq!(
-            MutatorBinopBool::run_left(
+            run_left(
                 1,
                 BinopBool::Or,
                 true,
@@ -276,7 +262,7 @@ mod tests {
             Some(true)
         );
         assert_eq!(
-            MutatorBinopBool::run_left(
+            run_left(
                 1,
                 BinopBool::Or,
                 false,
@@ -288,7 +274,7 @@ mod tests {
     #[test]
     fn mutator_or_active() {
         assert_eq!(
-            MutatorBinopBool::run_left(
+            run_left(
                 1,
                 BinopBool::Or,
                 true,
@@ -297,7 +283,7 @@ mod tests {
             None
         );
         assert_eq!(
-            MutatorBinopBool::run_left(
+            run_left(
                 1,
                 BinopBool::Or,
                 false,

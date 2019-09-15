@@ -4,20 +4,18 @@ use std::convert::TryFrom;
 use std::ops::Deref;
 use std::ops::Not;
 
+use proc_macro2::Span;
 use quote::quote_spanned;
-use syn::Expr;
+use syn::spanned::Spanned;
+use syn::{Expr, UnOp};
 
 use crate::comm::Mutation;
-use crate::transformer::ast_inspect::ExprUnopNot;
 use crate::transformer::transform_info::SharedTransformInfo;
 use crate::transformer::TransformContext;
 
 use crate::optimistic::NotToNone;
 use crate::MutagenRuntimeConfig;
 
-pub struct MutatorUnopNot {}
-
-impl MutatorUnopNot {
     pub fn run<T: Not>(
         mutator_id: usize,
         val: T,
@@ -72,13 +70,34 @@ impl MutatorUnopNot {
         };
 
         syn::parse2(quote_spanned! {e.span=>
-            ::mutagen::mutator::MutatorUnopNot::#run_fn(
+            ::mutagen::mutator::mutator_unop_not::#run_fn(
                     #mutator_id,
                     #expr,
                     ::mutagen::MutagenRuntimeConfig::get_default()
                 )
         })
         .expect("transformed code invalid")
+    }
+
+#[derive(Clone, Debug)]
+pub struct ExprUnopNot {
+    pub expr: Expr,
+    pub span: Span,
+}
+
+impl TryFrom<Expr> for ExprUnopNot {
+    type Error = Expr;
+    fn try_from(expr: Expr) -> Result<Self, Expr> {
+        match expr {
+            Expr::Unary(expr) => match expr.op {
+                UnOp::Not(t) => Ok(ExprUnopNot {
+                    expr: *expr.expr,
+                    span: t.span(),
+                }),
+                _ => Err(Expr::Unary(expr)),
+            },
+            e => Err(e),
+        }
     }
 }
 
@@ -90,18 +109,18 @@ mod tests {
     #[test]
     fn boolnot_inactive() {
         // input is true, but will be negated by non-active mutator
-        let result = MutatorUnopNot::run(1, true, &MutagenRuntimeConfig::without_mutation());
+        let result = run(1, true, &MutagenRuntimeConfig::without_mutation());
         assert_eq!(result, false);
     }
     #[test]
     fn boolnot_active() {
-        let result = MutatorUnopNot::run(1, true, &MutagenRuntimeConfig::with_mutation_id(1));
+        let result = run(1, true, &MutagenRuntimeConfig::with_mutation_id(1));
         assert_eq!(result, true);
     }
     #[test]
     fn intnot_active() {
         let result =
-            MutatorUnopNot::run_native_num(1, 1, &MutagenRuntimeConfig::with_mutation_id(1));
+            run_native_num(1, 1, &MutagenRuntimeConfig::with_mutation_id(1));
         assert_eq!(result, 1);
     }
 
@@ -109,7 +128,7 @@ mod tests {
 
     #[test]
     fn optimistic_incorrect_inactive() {
-        let result = MutatorUnopNot::run(
+        let result = run(
             1,
             TypeWithNotOtherOutput(),
             &MutagenRuntimeConfig::without_mutation(),
@@ -119,7 +138,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn optimistic_incorrect_active() {
-        MutatorUnopNot::run(
+        run(
             1,
             TypeWithNotOtherOutput(),
             &MutagenRuntimeConfig::with_mutation_id(1),

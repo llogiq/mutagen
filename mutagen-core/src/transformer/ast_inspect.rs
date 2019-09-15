@@ -1,86 +1,5 @@
 //! a collection of functions for extracting information from ast-types.
 
-use std::convert::TryFrom;
-
-use proc_macro2::Span;
-use syn::spanned::Spanned;
-
-#[derive(Clone, Debug)]
-pub struct ExprBinopAdd {
-    pub left: syn::Expr,
-    pub right: syn::Expr,
-    pub span: Span,
-}
-
-impl TryFrom<syn::Expr> for ExprBinopAdd {
-    type Error = syn::Expr;
-    fn try_from(expr: syn::Expr) -> Result<Self, syn::Expr> {
-        match expr {
-            syn::Expr::Binary(expr) => match expr.op {
-                syn::BinOp::Add(t) => Ok(ExprBinopAdd {
-                    left: *expr.left,
-                    right: *expr.right,
-                    span: t.span(),
-                }),
-                _ => Err(syn::Expr::Binary(expr)),
-            },
-            _ => Err(expr),
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct ExprUnopNot {
-    pub expr: syn::Expr,
-    pub span: Span,
-}
-
-impl TryFrom<syn::Expr> for ExprUnopNot {
-    type Error = syn::Expr;
-    fn try_from(expr: syn::Expr) -> Result<Self, syn::Expr> {
-        match expr {
-            syn::Expr::Unary(expr) => match expr.op {
-                syn::UnOp::Not(t) => Ok(ExprUnopNot {
-                    expr: *expr.expr,
-                    span: t.span(),
-                }),
-                _ => Err(syn::Expr::Unary(expr)),
-            },
-            e => Err(e),
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct ExprLitInt {
-    pub value: u128,
-    pub lit: syn::LitInt,
-    pub span: Span,
-}
-
-impl TryFrom<syn::Expr> for ExprLitInt {
-    type Error = syn::Expr;
-    fn try_from(expr: syn::Expr) -> Result<Self, syn::Expr> {
-        match expr {
-            syn::Expr::Lit(expr) => match expr.lit {
-                syn::Lit::Int(lit) => match lit.base10_parse::<u128>() {
-                    Ok(value) => Ok(ExprLitInt {
-                        value,
-                        span: lit.span(),
-                        lit,
-                    }),
-                    Err(_) => Err(syn::Expr::Lit(syn::ExprLit {
-                        lit: syn::Lit::Int(lit),
-                        attrs: expr.attrs,
-                    })),
-                },
-                _ => Err(syn::Expr::Lit(expr)),
-            },
-            _ => Err(expr),
-        }
-    }
-}
-
 /// check if an expression has numeric type.
 ///
 /// This is implemented via a heuristic. An expression has an numeric type if:
@@ -223,6 +142,20 @@ mod tests {
     #[test]
     fn num_expr_bitand_lit_int() {
         let tt = parse_quote! {1 & 2};
+
+        assert!(is_num_expr(&tt));
+    }
+
+    #[test]
+    fn num_expr_shl_lit_int() {
+        let tt = parse_quote! {1 << 3};
+
+        assert!(is_num_expr(&tt));
+    }
+
+    #[test]
+    fn num_expr_shr_lit_int() {
+        let tt = parse_quote! {1 >> 3};
 
         assert!(is_num_expr(&tt));
     }

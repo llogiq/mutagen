@@ -223,14 +223,14 @@ impl MutagenTransformerBundle {
         _transformer_args: &[String],
     ) -> MutagenTransformer {
         match transformer_name {
-            "lit_int" => MutagenTransformer::Expr(Box::new(MutatorLitInt::transform)),
-            "lit_bool" => MutagenTransformer::Expr(Box::new(MutatorLitBool::transform)),
-            "unop_not" => MutagenTransformer::Expr(Box::new(MutatorUnopNot::transform)),
-            "binop_add" => MutagenTransformer::Expr(Box::new(MutatorBinopAdd::transform)),
-            "binop_eq" => MutagenTransformer::Expr(Box::new(MutatorBinopEq::transform)),
-            "binop_cmp" => MutagenTransformer::Expr(Box::new(MutatorBinopCmp::transform)),
-            "binop_bool" => MutagenTransformer::Expr(Box::new(MutatorBinopBool::transform)),
-            "stmt_call" => MutagenTransformer::Stmt(Box::new(MutatorStmtCall::transform)),
+            "lit_int" => MutagenTransformer::Expr(Box::new(mutator_lit_int::transform)),
+            "lit_bool" => MutagenTransformer::Expr(Box::new(mutator_lit_bool::transform)),
+            "unop_not" => MutagenTransformer::Expr(Box::new(mutator_unop_not::transform)),
+            "binop_add" => MutagenTransformer::Expr(Box::new(mutator_binop_add::transform)),
+            "binop_eq" => MutagenTransformer::Expr(Box::new(mutator_binop_eq::transform)),
+            "binop_cmp" => MutagenTransformer::Expr(Box::new(mutator_binop_cmp::transform)),
+            "binop_bool" => MutagenTransformer::Expr(Box::new(mutator_binop_bool::transform)),
+            "stmt_call" => MutagenTransformer::Stmt(Box::new(mutator_stmt_call::transform)),
             _ => panic!("unknown transformer {}", transformer_name),
         }
     }

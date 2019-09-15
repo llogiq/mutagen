@@ -13,50 +13,46 @@ use crate::transformer::TransformContext;
 
 use crate::MutagenRuntimeConfig;
 
-pub struct MutatorLitBool {}
-
-impl MutatorLitBool {
-    pub fn run(
-        mutator_id: usize,
-        original_lit: bool,
-        runtime: impl Deref<Target = MutagenRuntimeConfig>,
-    ) -> bool {
-        runtime.covered(mutator_id);
-        if runtime.is_mutation_active(mutator_id) {
-            !original_lit
-        } else {
-            original_lit
-        }
+pub fn run(
+    mutator_id: usize,
+    original_lit: bool,
+    runtime: impl Deref<Target = MutagenRuntimeConfig>,
+) -> bool {
+    runtime.covered(mutator_id);
+    if runtime.is_mutation_active(mutator_id) {
+        !original_lit
+    } else {
+        original_lit
     }
+}
 
-    pub fn transform(
-        e: Expr,
-        transform_info: &SharedTransformInfo,
-        context: &TransformContext,
-    ) -> Expr {
-        let e = match ExprLitBool::try_from(e) {
-            Ok(e) => e,
-            Err(e) => return e,
-        };
+pub fn transform(
+    e: Expr,
+    transform_info: &SharedTransformInfo,
+    context: &TransformContext,
+) -> Expr {
+    let e = match ExprLitBool::try_from(e) {
+        Ok(e) => e,
+        Err(e) => return e,
+    };
 
-        let mutator_id = transform_info.add_mutation(Mutation::new_spanned(
-            &context,
-            "lit_bool".to_owned(),
-            format!("{:?}", e.value),
-            format!("{:?}", !e.value),
-            e.span,
-        ));
+    let mutator_id = transform_info.add_mutation(Mutation::new_spanned(
+        &context,
+        "lit_bool".to_owned(),
+        format!("{:?}", e.value),
+        format!("{:?}", !e.value),
+        e.span,
+    ));
 
-        let value = e.value;
-        syn::parse2(quote_spanned! {e.span=>
-            ::mutagen::mutator::MutatorLitBool::run(
-                    #mutator_id,
-                    #value,
-                    ::mutagen::MutagenRuntimeConfig::get_default()
-                )
-        })
-        .expect("transformed code invalid")
-    }
+    let value = e.value;
+    syn::parse2(quote_spanned! {e.span=>
+        ::mutagen::mutator::mutator_lit_bool::run(
+                #mutator_id,
+                #value,
+                ::mutagen::MutagenRuntimeConfig::get_default()
+            )
+    })
+    .expect("transformed code invalid")
 }
 
 #[derive(Clone, Debug)]
@@ -86,22 +82,22 @@ mod tests {
 
     #[test]
     pub fn false_inactive() {
-        let result = MutatorLitBool::run(1, false, &MutagenRuntimeConfig::without_mutation());
+        let result = run(1, false, &MutagenRuntimeConfig::without_mutation());
         assert_eq!(result, false)
     }
     #[test]
     pub fn true_inactive() {
-        let result = MutatorLitBool::run(1, true, &MutagenRuntimeConfig::without_mutation());
+        let result = run(1, true, &MutagenRuntimeConfig::without_mutation());
         assert_eq!(result, true)
     }
     #[test]
     pub fn false_active() {
-        let result = MutatorLitBool::run(1, false, &MutagenRuntimeConfig::with_mutation_id(1));
+        let result = run(1, false, &MutagenRuntimeConfig::with_mutation_id(1));
         assert_eq!(result, true)
     }
     #[test]
     pub fn true_active() {
-        let result = MutatorLitBool::run(1, true, &MutagenRuntimeConfig::with_mutation_id(1));
+        let result = run(1, true, &MutagenRuntimeConfig::with_mutation_id(1));
         assert_eq!(result, false)
     }
 }

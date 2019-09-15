@@ -6,7 +6,7 @@ use std::ops::Deref;
 use proc_macro2::{Span, TokenStream};
 use quote::quote_spanned;
 use syn::spanned::Spanned;
-use syn::{BinOp, Expr, ExprBinary};
+use syn::{BinOp, Expr};
 
 use crate::comm::Mutation;
 use crate::transformer::transform_info::SharedTransformInfo;
@@ -14,56 +14,52 @@ use crate::transformer::TransformContext;
 
 use crate::MutagenRuntimeConfig;
 
-pub struct MutatorBinopEq {}
-
-impl MutatorBinopEq {
-    pub fn run<L: PartialEq<R>, R>(
-        mutator_id: usize,
-        left: L,
-        right: R,
-        original_op: BinopEq,
-        runtime: impl Deref<Target = MutagenRuntimeConfig>,
-    ) -> bool {
-        runtime.covered(mutator_id);
-        let mutations = MutationBinopEq::possible_mutations(original_op);
-        if let Some(m) = runtime.get_mutation(mutator_id, &mutations) {
-            m.mutate(left, right)
-        } else {
-            original_op.eq(left, right)
-        }
+pub fn run<L: PartialEq<R>, R>(
+    mutator_id: usize,
+    left: L,
+    right: R,
+    original_op: BinopEq,
+    runtime: impl Deref<Target = MutagenRuntimeConfig>,
+) -> bool {
+    runtime.covered(mutator_id);
+    let mutations = MutationBinopEq::possible_mutations(original_op);
+    if let Some(m) = runtime.get_mutation(mutator_id, &mutations) {
+        m.mutate(left, right)
+    } else {
+        original_op.eq(left, right)
     }
+}
 
-    pub fn transform(
-        e: Expr,
-        transform_info: &SharedTransformInfo,
-        context: &TransformContext,
-    ) -> Expr {
-        let e = match ExprBinopEq::try_from(e) {
-            Ok(e) => e,
-            Err(e) => return e,
-        };
+pub fn transform(
+    e: Expr,
+    transform_info: &SharedTransformInfo,
+    context: &TransformContext,
+) -> Expr {
+    let e = match ExprBinopEq::try_from(e) {
+        Ok(e) => e,
+        Err(e) => return e,
+    };
 
-        let mutator_id = transform_info.add_mutations(
-            MutationBinopEq::possible_mutations(e.op)
-                .iter()
-                .map(|m| m.to_mutation(&e, context)),
-        );
+    let mutator_id = transform_info.add_mutations(
+        MutationBinopEq::possible_mutations(e.op)
+            .iter()
+            .map(|m| m.to_mutation(&e, context)),
+    );
 
-        let left = &e.left;
-        let right = &e.right;
-        let op = e.op_tokens();
+    let left = &e.left;
+    let right = &e.right;
+    let op = e.op_tokens();
 
-        syn::parse2(quote_spanned! {e.span=>
-            ::mutagen::mutator::MutatorBinopEq::run(
-                    #mutator_id,
-                    &(#left),
-                    &(#right),
-                    #op,
-                    ::mutagen::MutagenRuntimeConfig::get_default()
-                )
-        })
-        .expect("transformed code invalid")
-    }
+    syn::parse2(quote_spanned! {e.span=>
+        ::mutagen::mutator::mutator_binop_eq::run(
+                #mutator_id,
+                &(#left),
+                &(#right),
+                #op,
+                ::mutagen::MutagenRuntimeConfig::get_default()
+            )
+    })
+    .expect("transformed code invalid")
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -108,30 +104,20 @@ impl TryFrom<Expr> for ExprBinopEq {
     type Error = Expr;
     fn try_from(expr: Expr) -> Result<Self, Expr> {
         match expr {
-            Expr::Binary(ExprBinary {
-                left,
-                right,
-                op,
-                attrs,
-            }) => match op {
+            Expr::Binary(expr) => match expr.op {
                 BinOp::Eq(t) => Ok(ExprBinopEq {
                     op: BinopEq::Eq,
-                    left: *left,
-                    right: *right,
+                    left: *expr.left,
+                    right: *expr.right,
                     span: t.span(),
                 }),
                 BinOp::Ne(t) => Ok(ExprBinopEq {
                     op: BinopEq::Ne,
-                    left: *left,
-                    right: *right,
+                    left: *expr.left,
+                    right: *expr.right,
                     span: t.span(),
                 }),
-                _ => Err(Expr::Binary(ExprBinary {
-                    left,
-                    right,
-                    op,
-                    attrs,
-                })),
+                _ => Err(Expr::Binary(expr)),
             },
             _ => Err(expr),
         }
@@ -184,7 +170,7 @@ mod tests {
 
     #[test]
     fn eq_inactive() {
-        let result = MutatorBinopEq::run(
+        let result = run(
             1,
             5,
             4,
@@ -195,7 +181,7 @@ mod tests {
     }
     #[test]
     fn eq_active() {
-        let result = MutatorBinopEq::run(
+        let result = run(
             1,
             5,
             4,
@@ -207,7 +193,7 @@ mod tests {
 
     #[test]
     fn ne_inactive() {
-        let result = MutatorBinopEq::run(
+        let result = run(
             1,
             5,
             4,
@@ -218,7 +204,7 @@ mod tests {
     }
     #[test]
     fn ne_active() {
-        let result = MutatorBinopEq::run(
+        let result = run(
             1,
             5,
             4,

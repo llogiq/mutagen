@@ -6,7 +6,7 @@ use std::ops::Deref;
 use proc_macro2::{Span, TokenStream};
 use quote::quote_spanned;
 use syn::spanned::Spanned;
-use syn::{BinOp, Expr, ExprBinary};
+use syn::{BinOp, Expr};
 
 use crate::comm::Mutation;
 use crate::transformer::transform_info::SharedTransformInfo;
@@ -14,56 +14,52 @@ use crate::transformer::TransformContext;
 
 use crate::MutagenRuntimeConfig;
 
-pub struct MutatorBinopCmp {}
-
-impl MutatorBinopCmp {
-    pub fn run<L: PartialOrd<R>, R>(
-        mutator_id: usize,
-        left: L,
-        right: R,
-        original_op: BinopCmp,
-        runtime: impl Deref<Target = MutagenRuntimeConfig>,
-    ) -> bool {
-        runtime.covered(mutator_id);
-        let mutations = MutationBinopCmp::possible_mutations(original_op);
-        if let Some(m) = runtime.get_mutation(mutator_id, &mutations) {
-            m.mutate(left, right)
-        } else {
-            original_op.cmp(left, right)
-        }
+pub fn run<L: PartialOrd<R>, R>(
+    mutator_id: usize,
+    left: L,
+    right: R,
+    original_op: BinopCmp,
+    runtime: impl Deref<Target = MutagenRuntimeConfig>,
+) -> bool {
+    runtime.covered(mutator_id);
+    let mutations = MutationBinopCmp::possible_mutations(original_op);
+    if let Some(m) = runtime.get_mutation(mutator_id, &mutations) {
+        m.mutate(left, right)
+    } else {
+        original_op.cmp(left, right)
     }
+}
 
-    pub fn transform(
-        e: Expr,
-        transform_info: &SharedTransformInfo,
-        context: &TransformContext,
-    ) -> Expr {
-        let e = match ExprBinopCmp::try_from(e) {
-            Ok(e) => e,
-            Err(e) => return e,
-        };
+pub fn transform(
+    e: Expr,
+    transform_info: &SharedTransformInfo,
+    context: &TransformContext,
+) -> Expr {
+    let e = match ExprBinopCmp::try_from(e) {
+        Ok(e) => e,
+        Err(e) => return e,
+    };
 
-        let mutator_id = transform_info.add_mutations(
-            MutationBinopCmp::possible_mutations(e.op)
-                .iter()
-                .map(|m| m.to_mutation(&e, context)),
-        );
+    let mutator_id = transform_info.add_mutations(
+        MutationBinopCmp::possible_mutations(e.op)
+            .iter()
+            .map(|m| m.to_mutation(&e, context)),
+    );
 
-        let left = &e.left;
-        let right = &e.right;
-        let op = e.op_tokens();
+    let left = &e.left;
+    let right = &e.right;
+    let op = e.op_tokens();
 
-        syn::parse2(quote_spanned! {e.span=>
-            ::mutagen::mutator::MutatorBinopCmp::run(
-                    #mutator_id,
-                    #left,
-                    #right,
-                    #op,
-                    ::mutagen::MutagenRuntimeConfig::get_default()
-                )
-        })
-        .expect("transformed code invalid")
-    }
+    syn::parse2(quote_spanned! {e.span=>
+        ::mutagen::mutator::mutator_binop_cmp::run(
+                #mutator_id,
+                #left,
+                #right,
+                #op,
+                ::mutagen::MutagenRuntimeConfig::get_default()
+            )
+    })
+    .expect("transformed code invalid")
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -108,42 +104,32 @@ impl TryFrom<Expr> for ExprBinopCmp {
     type Error = Expr;
     fn try_from(expr: Expr) -> Result<Self, Expr> {
         match expr {
-            Expr::Binary(ExprBinary {
-                left,
-                right,
-                op,
-                attrs,
-            }) => match op {
+            Expr::Binary(expr) => match expr.op {
                 BinOp::Lt(t) => Ok(ExprBinopCmp {
                     op: BinopCmp::Lt,
-                    left: *left,
-                    right: *right,
+                    left: *expr.left,
+                    right: *expr.right,
                     span: t.span(),
                 }),
                 BinOp::Le(t) => Ok(ExprBinopCmp {
                     op: BinopCmp::Le,
-                    left: *left,
-                    right: *right,
+                    left: *expr.left,
+                    right: *expr.right,
                     span: t.span(),
                 }),
                 BinOp::Ge(t) => Ok(ExprBinopCmp {
                     op: BinopCmp::Ge,
-                    left: *left,
-                    right: *right,
+                    left: *expr.left,
+                    right: *expr.right,
                     span: t.span(),
                 }),
                 BinOp::Gt(t) => Ok(ExprBinopCmp {
                     op: BinopCmp::Gt,
-                    left: *left,
-                    right: *right,
+                    left: *expr.left,
+                    right: *expr.right,
                     span: t.span(),
                 }),
-                _ => Err(Expr::Binary(ExprBinary {
-                    left,
-                    right,
-                    op,
-                    attrs,
-                })),
+                _ => Err(Expr::Binary(expr)),
             },
             _ => Err(expr),
         }
@@ -259,7 +245,7 @@ mod tests {
     #[test]
     fn mutator_cmp_gt_inactive() {
         assert_eq!(
-            MutatorBinopCmp::run(
+            run(
                 1,
                 1,
                 2,
@@ -269,7 +255,7 @@ mod tests {
             false
         );
         assert_eq!(
-            MutatorBinopCmp::run(
+            run(
                 1,
                 5,
                 4,
@@ -282,7 +268,7 @@ mod tests {
     #[test]
     fn mutator_cmp_gt_active1() {
         assert_eq!(
-            MutatorBinopCmp::run(
+            run(
                 1,
                 1,
                 2,
@@ -292,7 +278,7 @@ mod tests {
             true
         );
         assert_eq!(
-            MutatorBinopCmp::run(
+            run(
                 1,
                 3,
                 3,
