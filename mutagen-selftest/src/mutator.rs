@@ -1,4 +1,4 @@
-mod test_binop_add;
+mod test_binop_num;
 mod test_binop_bool;
 mod test_binop_cmp;
 mod test_binop_eq;

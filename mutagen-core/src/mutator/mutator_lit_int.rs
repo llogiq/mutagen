@@ -96,7 +96,7 @@ pub trait IntMutable: Copy {
 
 // implementation for `IntMutable` for all integer types
 macro_rules! lit_int_mutables {
-    { $($suf:ident, $ty:ident),* } => {
+    { $($suf:ident, $ty:ident,)* } => {
         $(
             impl IntMutable for $ty {
                 fn from_u128(val: u128) -> Self {
@@ -123,7 +123,7 @@ lit_int_mutables! {
     U32, u32,
     U64, u64,
     U128, u128,
-    Usize, usize
+    Usize, usize,
 }
 
 #[derive(Clone, Debug)]

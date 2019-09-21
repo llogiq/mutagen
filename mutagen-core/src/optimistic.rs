@@ -1,9 +1,7 @@
 //! types and traits for optimistic mutators
 
-mod add_to_sub;
 mod not_to_none;
 
-pub use add_to_sub::AddToSub;
 pub use not_to_none::NotToNone;
 
 #[cfg(any(test, feature = "self_test"))]

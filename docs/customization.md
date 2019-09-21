@@ -15,7 +15,7 @@ The details of all mutators are described in their own folder (see: [overview](m
 #[mutate(mutators = only(lit_int))]
 
 // only mutate int-literals and `+` operations.
-#[mutate(mutators = only(lit_int, binop_add))]
+#[mutate(mutators = only(lit_int, binop_num))]
 
 // include all mutations except bool literal mutations
 #[mutate(mutators = not(lit_bool))]

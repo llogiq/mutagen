@@ -90,7 +90,7 @@ expressions that compare two values:
 ### Mutations
 
 1. replacing `==` with `!=`
-1. replacing `!=` with `==`
+2. replacing `!=` with `==`
 
 ## binop_add
 
@@ -100,17 +100,20 @@ expressions that compare two values:
 
 ### Mutations
 
-1. replacing `+` with `-`
+1. replace `+` with `-`
+2. replace `-` with `+`
+3. replace `*` with `/`
+4. replace `/` with `*`
 
 ### Limitations
 
-This is a optimistic mutator. Not for every type, the trait `Sub` is implemented with the corresponding right-hand-side and the corresponding output
+This is a optimistic mutator. Not for every type, the corresponding trait of the mutated expression is implemented.
 
 ### Customization
 
 Customization is WIP
 
-Changing the `+` to the other binary operations `*`, `/` and `%` as well as the bit-wise operations are valid optimistic mutations.
+Changing the any numeric operator to the other binary numeric operations as well as the bit-wise operations are possible optimistic mutations.
 
 ## stmt_call
 
