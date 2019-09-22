@@ -92,11 +92,11 @@ expressions that compare two values:
 1. replacing `==` with `!=`
 2. replacing `!=` with `==`
 
-## binop_add
+## binop_num
 
 ### Target Code
 
-`+`-expressions, like `a+y`
+expressions of numeric operators `+`, `-`, `*`, `/`, like `a+y`
 
 ### Mutations
 
@@ -107,13 +107,27 @@ expressions that compare two values:
 
 ### Limitations
 
-This is a optimistic mutator. Not for every type, the corresponding trait of the mutated expression is implemented.
+This is a optimistic mutator. The trait corresponding to the operation might not be implemented for the types inside the mutated expression.
 
 ### Customization
 
 Customization is WIP
 
 Changing the any numeric operator to the other binary numeric operations as well as the bit-wise operations are possible optimistic mutations.
+
+## binop_bit
+
+### Target Code
+
+expressions of numeric operators `&`, `|`, `^`, like `x | 1`
+
+### Mutations
+
+1. the bit operation with any of the other two
+
+### Limitations
+
+This is a optimistic mutator. The trait corresponding to the operation might not be implemented for the types inside the mutated expression.
 
 ## stmt_call
 
