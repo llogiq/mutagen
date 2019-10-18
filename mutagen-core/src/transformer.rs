@@ -200,6 +200,11 @@ impl Fold for MutagenTransformerBundle {
         i
     }
 
+    fn fold_item_static(&mut self, i: syn::ItemStatic) -> syn::ItemStatic {
+        // do not mutate static items
+        i
+    }
+
     fn fold_type(&mut self, t: syn::Type) -> syn::Type {
         // do not mutate types
         t
