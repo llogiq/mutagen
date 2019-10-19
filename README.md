@@ -66,7 +66,7 @@ Mutagen will change the code you annotate with the `#[mutate]` attribute. This c
 
 *No mutations will be introduced in `unsafe`-blocks and `unsafe` functions*. Mutations would probably break the some invariantes. Moreover, mutations in unsafe code could lead to undefined behavior that cannot be observed by any testcase.
 
-*`const` expressions cannot be mutated.* They are evaluated at compile-time and Mutagen can only affect code that can alter its behavior at run-time. Array lengths and global constants are examples of `const` expressions.
+*`const` and `static` expressions cannot be mutated.* They are evaluated at compile-time and Mutagen can only affect code that can alter its behavior at run-time. Array lengths and global constants are examples of `const` expressions.
 
 *Patterns are cannot mutated.* Mutations are introduced by injecting calls to mutagen-internal functions, which cannot be placed inside patterns.
 
