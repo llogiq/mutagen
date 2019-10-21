@@ -53,8 +53,8 @@ pub fn transform(
     syn::parse2(quote_spanned! {e.span=>
         ::mutagen::mutator::mutator_binop_cmp::run(
                 #mutator_id,
-                #left,
-                #right,
+                &(#left),
+                &(#right),
                 #op,
                 ::mutagen::MutagenRuntimeConfig::get_default()
             )

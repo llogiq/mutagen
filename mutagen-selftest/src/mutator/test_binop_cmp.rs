@@ -185,3 +185,34 @@ mod test_gt {
         })
     }
 }
+
+mod test_cmp_nocopy {
+    use ::mutagen::mutate;
+    use ::mutagen::MutagenRuntimeConfig;
+
+    // simple comparison
+    #[mutate(conf = local(expected_mutations = 3), mutators = only(binop_cmp))]
+    fn max(left: String, right: String) -> String {
+        if left > right {
+            left
+        } else {
+            right
+        }
+    }
+
+    #[test]
+    fn max_inactive() {
+        MutagenRuntimeConfig::test_without_mutation(|| {
+            assert_eq!(max("a".to_owned(), "b".to_owned()), "b".to_owned());
+            assert_eq!(max("b".to_owned(), "a".to_owned()), "b".to_owned());
+        })
+    }
+
+    #[test]
+    fn max_active1() {
+        MutagenRuntimeConfig::test_with_mutation_id(1, || {
+            assert_eq!(max("a".to_owned(), "b".to_owned()), "a".to_owned());
+            assert_eq!(max("b".to_owned(), "a".to_owned()), "a".to_owned());
+        })
+    }
+}
