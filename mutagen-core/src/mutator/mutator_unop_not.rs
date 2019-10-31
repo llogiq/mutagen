@@ -103,7 +103,7 @@ impl TryFrom<Expr> for ExprUnopNot {
 /// trait that is used to optimistically remove a negation `!` from an expression
 ///
 /// This trait provides a function `may_none` that passes the input value unchanged
-/// If the value cannot be converted to the output type of the negation using `Into`, the function panics.
+/// If the value cannot be converted to the output type of the negation using `Into`, the optimistic assumption fails.
 pub trait NotToNone {
     type Output;
     // do nothing
@@ -117,7 +117,7 @@ where
     type Output = <T as Not>::Output;
 
     default fn may_none(self) -> <T as Not>::Output {
-        panic!("optimistic type mismatch: negation output is different type");
+        MutagenRuntimeConfig::get_default().optimistic_assmuption_failed();
     }
 }
 

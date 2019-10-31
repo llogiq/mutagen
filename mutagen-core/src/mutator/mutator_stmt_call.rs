@@ -92,14 +92,14 @@ impl TryFrom<Stmt> for StmtCall {
 /// * `let x = {f(return y);}`
 /// * `let x = {std::process::abort();}`
 ///
-/// Above examples compile and it is not possible to remove the statements without introducing compiler errors. 
+/// Above examples compile and it is not possible to remove the statements without introducing compiler errors.
 pub trait StmtCallToNone {
     fn stmt_call_to_none() -> Self;
 }
 
 impl<T> StmtCallToNone for T {
     default fn stmt_call_to_none() -> Self {
-        panic!("stmt_call not allowed to delete statement");
+        MutagenRuntimeConfig::get_default().optimistic_assmuption_failed();
     }
 }
 

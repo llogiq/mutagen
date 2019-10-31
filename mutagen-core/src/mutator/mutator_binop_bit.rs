@@ -270,7 +270,7 @@ macro_rules! binary_x_to_y {
             impl <L, R> $may_ty<R> for L where L: $t1<R> {
                 type Output = <L as $t1<R>>::Output;
                 default fn $may_fn(self, _r: R) -> <L as $t1<R>>::Output {
-                    panic!("optimistic assumption failed");
+                    MutagenRuntimeConfig::get_default().optimistic_assmuption_failed();
                 }
             }
 

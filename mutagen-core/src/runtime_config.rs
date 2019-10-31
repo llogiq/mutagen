@@ -65,7 +65,9 @@ impl MutagenRuntimeConfig {
         RUNTIME_CONFIG.read().unwrap()
     }
 
+    /// creates a runtime config from environment variables.
     #[cfg_attr(any(test, feature = "self_test"), allow(dead_code))]
+    // private fn from_env is not used when during test (cfg-switch in RUNTIME_CONFIG)
     fn from_env() -> Self {
         let mode = std::env::var("MUTAGEN_MODE").ok().unwrap_or("".to_owned());
         match &*mode {
@@ -95,6 +97,16 @@ impl MutagenRuntimeConfig {
         if let Self::Coverage(coverage) = &self {
             coverage.covered(mutator_id)
         }
+    }
+
+    pub fn optimistic_assmuption_failed(&self) -> ! {
+        match self {
+            Self::Mutation(m_id) => {
+                panic!("optimistic assumption failed for mutation {}", m_id);
+            }
+            _ => panic!("optimistic assumption failed without mutation")
+        }
+
     }
 
     pub fn mutation_id(&self) -> Option<usize> {
