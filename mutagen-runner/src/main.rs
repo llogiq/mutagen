@@ -163,7 +163,7 @@ fn read_mutations() -> Fallible<Vec<BakedMutation>> {
 fn read_coverage() -> Fallible<HashSet<usize>> {
     let coverage_file = comm::get_coverage_file()?;
     if !coverage_file.exists() {
-        return Ok(HashSet::new()) // no coverage file means that no mutations has been covered
+        return Ok(HashSet::new()); // no coverage file means that no mutations has been covered
     }
 
     let coverage_hits = comm::read_items::<CoverageHit, _>(coverage_file)?;

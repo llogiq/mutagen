@@ -27,7 +27,7 @@ pub fn run_and<L: BitAnd<R>, R>(
         match m.op {
             BinopBit::Or => left.and_may_or(right),
             BinopBit::Xor => left.and_may_xor(right),
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     } else {
         left & right
@@ -45,7 +45,7 @@ pub fn run_or<L: BitOr<R>, R>(
         match m.op {
             BinopBit::And => left.or_may_and(right),
             BinopBit::Xor => left.or_may_xor(right),
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     } else {
         left | right
@@ -63,7 +63,7 @@ pub fn run_xor<L: BitXor<R>, R>(
         match m.op {
             BinopBit::And => left.xor_may_and(right),
             BinopBit::Or => left.xor_may_or(right),
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     } else {
         left ^ right

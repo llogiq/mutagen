@@ -5,7 +5,7 @@ mod test_and_i32 {
 
     // simple function that sums two values
     #[mutate(conf = local(expected_mutations = 2), mutators = only(binop_bit))]
-    fn and_u32() ->u32 {
+    fn and_u32() -> u32 {
         0b10 & 0b11
     }
     #[test]

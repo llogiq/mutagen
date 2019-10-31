@@ -1,4 +1,3 @@
-
 mod test_vecpush {
 
     use ::mutagen::mutate;
@@ -66,7 +65,9 @@ mod test_early_return {
     #[test]
     #[should_panic]
     fn return_early_active() {
-        MutagenRuntimeConfig::test_with_mutation_id(1, || {return_early();})
+        MutagenRuntimeConfig::test_with_mutation_id(1, || {
+            return_early();
+        })
     }
 }
 

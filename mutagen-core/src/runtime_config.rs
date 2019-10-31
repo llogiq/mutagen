@@ -104,9 +104,8 @@ impl MutagenRuntimeConfig {
             Self::Mutation(m_id) => {
                 panic!("optimistic assumption failed for mutation {}", m_id);
             }
-            _ => panic!("optimistic assumption failed without mutation")
+            _ => panic!("optimistic assumption failed without mutation"),
         }
-
     }
 
     pub fn mutation_id(&self) -> Option<usize> {

@@ -15,68 +15,68 @@ use crate::transformer::TransformContext;
 
 use crate::MutagenRuntimeConfig;
 
-    pub fn run<T: Not>(
-        mutator_id: usize,
-        val: T,
-        runtime: impl Deref<Target = MutagenRuntimeConfig>,
-    ) -> <T as Not>::Output {
-        runtime.covered(mutator_id);
-        if runtime.is_mutation_active(mutator_id) {
-            val.may_none()
-        } else {
-            !val
-        }
+pub fn run<T: Not>(
+    mutator_id: usize,
+    val: T,
+    runtime: impl Deref<Target = MutagenRuntimeConfig>,
+) -> <T as Not>::Output {
+    runtime.covered(mutator_id);
+    if runtime.is_mutation_active(mutator_id) {
+        val.may_none()
+    } else {
+        !val
     }
+}
 
-    pub fn run_native_num<I: Not<Output = I>>(
-        mutator_id: usize,
-        val: I,
-        runtime: impl Deref<Target = MutagenRuntimeConfig>,
-    ) -> I {
-        runtime.covered(mutator_id);
-        if runtime.is_mutation_active(mutator_id) {
-            val
-        } else {
-            !val
-        }
+pub fn run_native_num<I: Not<Output = I>>(
+    mutator_id: usize,
+    val: I,
+    runtime: impl Deref<Target = MutagenRuntimeConfig>,
+) -> I {
+    runtime.covered(mutator_id);
+    if runtime.is_mutation_active(mutator_id) {
+        val
+    } else {
+        !val
     }
+}
 
-    pub fn transform(
-        e: Expr,
-        transform_info: &SharedTransformInfo,
-        context: &TransformContext,
-    ) -> Expr {
-        let e = match ExprUnopNot::try_from(e) {
-            Ok(e) => e,
-            Err(e) => return e,
-        };
+pub fn transform(
+    e: Expr,
+    transform_info: &SharedTransformInfo,
+    context: &TransformContext,
+) -> Expr {
+    let e = match ExprUnopNot::try_from(e) {
+        Ok(e) => e,
+        Err(e) => return e,
+    };
 
-        let mutator_id = transform_info.add_mutation(Mutation::new_spanned(
-            &context,
-            "unop_not".to_owned(),
-            "!".to_owned(),
-            "".to_owned(),
-            e.span,
-        ));
+    let mutator_id = transform_info.add_mutation(Mutation::new_spanned(
+        &context,
+        "unop_not".to_owned(),
+        "!".to_owned(),
+        "".to_owned(),
+        e.span,
+    ));
 
-        let expr = &e.expr;
+    let expr = &e.expr;
 
-        // if the current expression is based on numbers, use the function `run_native_num` instead
-        let run_fn = if context.is_num_expr() {
-            quote_spanned! {e.span=> run_native_num}
-        } else {
-            quote_spanned! {e.span=> run}
-        };
+    // if the current expression is based on numbers, use the function `run_native_num` instead
+    let run_fn = if context.is_num_expr() {
+        quote_spanned! {e.span=> run_native_num}
+    } else {
+        quote_spanned! {e.span=> run}
+    };
 
-        syn::parse2(quote_spanned! {e.span=>
-            ::mutagen::mutator::mutator_unop_not::#run_fn(
-                    #mutator_id,
-                    #expr,
-                    ::mutagen::MutagenRuntimeConfig::get_default()
-                )
-        })
-        .expect("transformed code invalid")
-    }
+    syn::parse2(quote_spanned! {e.span=>
+        ::mutagen::mutator::mutator_unop_not::#run_fn(
+                #mutator_id,
+                #expr,
+                ::mutagen::MutagenRuntimeConfig::get_default()
+            )
+    })
+    .expect("transformed code invalid")
+}
 
 #[derive(Clone, Debug)]
 pub struct ExprUnopNot {
@@ -154,8 +154,8 @@ pub mod optimistc_types {
 #[cfg(test)]
 mod tests {
 
-    use super::*;
     use super::optimistc_types::*;
+    use super::*;
 
     #[test]
     fn boolnot_inactive() {
@@ -170,8 +170,7 @@ mod tests {
     }
     #[test]
     fn intnot_active() {
-        let result =
-            run_native_num(1, 1, &MutagenRuntimeConfig::with_mutation_id(1));
+        let result = run_native_num(1, 1, &MutagenRuntimeConfig::with_mutation_id(1));
         assert_eq!(result, 1);
     }
 

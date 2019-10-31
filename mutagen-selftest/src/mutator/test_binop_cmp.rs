@@ -190,7 +190,7 @@ mod test_cmp_nocopy {
     use ::mutagen::mutate;
     use ::mutagen::MutagenRuntimeConfig;
 
-    // simple comparison
+    // simple comparison. This test checks that the comparison does not consume the input strings
     #[mutate(conf = local(expected_mutations = 3), mutators = only(binop_cmp))]
     fn max(left: String, right: String) -> String {
         if left > right {

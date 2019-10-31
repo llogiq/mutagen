@@ -264,7 +264,6 @@ impl fmt::Display for BinopNum {
     }
 }
 
-
 // specification of the traits `AddToSub`, `SubToAdd`, ...
 //
 // These traits consist of a function `max_x` that panics if the operation `x`

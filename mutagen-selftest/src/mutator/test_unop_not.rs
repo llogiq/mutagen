@@ -27,8 +27,10 @@ mod test_boolnot {
 mod test_optimistic_incorrect {
 
     use ::mutagen::mutate;
+    use ::mutagen::mutator::mutator_unop_not::optimistc_types::{
+        TypeWithNotOtherOutput, TypeWithNotTarget,
+    };
     use ::mutagen::MutagenRuntimeConfig;
-    use ::mutagen::mutator::mutator_unop_not::optimistc_types::{TypeWithNotOtherOutput, TypeWithNotTarget};
 
     // strings cannot be subtracted, the mutation that changes `+` into `-` should panic
     #[mutate(conf = local(expected_mutations = 1), mutators = only(unop_not))]
