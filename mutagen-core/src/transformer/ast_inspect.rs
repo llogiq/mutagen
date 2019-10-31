@@ -30,6 +30,7 @@ pub fn is_num_expr(e: &syn::Expr) -> bool {
         },
         syn::Expr::Unary(expr) => return is_num_expr(&expr.expr),
         syn::Expr::Reference(expr) => return is_num_expr(&expr.expr),
+        syn::Expr::Paren(expr) => return is_num_expr(&expr.expr),
         _ => {}
     };
     return false;
@@ -158,5 +159,12 @@ mod tests {
         let tt = parse_quote! {1 >> 3};
 
         assert!(is_num_expr(&tt));
+    }
+
+    #[test]
+    fn num_expr_not_shift() {
+        let tt = parse_quote! {!(1 >> 3)};
+
+        assert!(is_num_expr(&tt), format!("{:#?}", tt));
     }
 }
