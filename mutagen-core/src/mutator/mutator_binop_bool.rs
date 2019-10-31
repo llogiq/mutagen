@@ -1,4 +1,4 @@
-//! Mutator for binary operations `&&` and `&&`.
+//! Mutator for binary operations `&&` and `||`.
 
 use std::convert::TryFrom;
 use std::ops::Deref;

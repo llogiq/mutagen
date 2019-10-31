@@ -13,7 +13,6 @@ use crate::comm::Mutation;
 use crate::transformer::transform_info::SharedTransformInfo;
 use crate::transformer::TransformContext;
 
-use crate::optimistic::NotToNone;
 use crate::MutagenRuntimeConfig;
 
     pub fn run<T: Not>(
@@ -101,10 +100,62 @@ impl TryFrom<Expr> for ExprUnopNot {
     }
 }
 
+/// trait that is used to optimistically remove a negation `!` from an expression
+///
+/// This trait provides a function `may_none` that passes the input value unchanged
+/// If the value cannot be converted to the output type of the negation using `Into`, the function panics.
+pub trait NotToNone {
+    type Output;
+    // do nothing
+    fn may_none(self) -> Self::Output;
+}
+
+impl<T> NotToNone for T
+where
+    T: Not,
+{
+    type Output = <T as Not>::Output;
+
+    default fn may_none(self) -> <T as Not>::Output {
+        panic!("optimistic type mismatch: negation output is different type");
+    }
+}
+
+impl<T> NotToNone for T
+where
+    T: Not,
+    T: Into<<T as Not>::Output>,
+{
+    fn may_none(self) -> Self::Output {
+        self.into()
+    }
+}
+
+/// types for testing the optimistic mutator that removes the negation
+#[cfg(any(test, feature = "self_test"))]
+pub mod optimistc_types {
+
+    use std::ops::Not;
+
+    #[derive(Debug, PartialEq)]
+    pub struct TypeWithNotOtherOutput();
+    #[derive(Debug, PartialEq)]
+    pub struct TypeWithNotTarget();
+
+    impl Not for TypeWithNotOtherOutput {
+        type Output = TypeWithNotTarget;
+
+        fn not(self) -> <Self as Not>::Output {
+            TypeWithNotTarget()
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
     use super::*;
+    use super::optimistc_types::*;
 
     #[test]
     fn boolnot_inactive() {
@@ -123,8 +174,6 @@ mod tests {
             run_native_num(1, 1, &MutagenRuntimeConfig::with_mutation_id(1));
         assert_eq!(result, 1);
     }
-
-    pub use crate::optimistic::{TypeWithNotOtherOutput, TypeWithNotTarget};
 
     #[test]
     fn optimistic_incorrect_inactive() {

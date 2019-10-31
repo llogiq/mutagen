@@ -1,3 +1,4 @@
+
 mod test_vecpush {
 
     use ::mutagen::mutate;
@@ -44,5 +45,50 @@ mod test_set_to_1 {
     #[test]
     fn set_to_1_active() {
         MutagenRuntimeConfig::test_with_mutation_id(1, || assert_eq!(set_to_1(), 0))
+    }
+}
+
+#[allow(unreachable_code)]
+mod test_early_return {
+
+    use ::mutagen::mutate;
+    use ::mutagen::MutagenRuntimeConfig;
+
+    /// returns `1`, by returning from the argument of a function call
+    #[mutate(conf = local(expected_mutations = 1), mutators = only(stmt_call))]
+    fn return_early() -> i32 {
+        [1u8].get::<usize>(return 1);
+    }
+    #[test]
+    fn return_early_inactive() {
+        MutagenRuntimeConfig::test_without_mutation(|| assert_eq!(return_early(), 1))
+    }
+    #[test]
+    #[should_panic]
+    fn return_early_active() {
+        MutagenRuntimeConfig::test_with_mutation_id(1, || {return_early();})
+    }
+}
+
+#[allow(unreachable_code)]
+mod test_stmt_never {
+
+    use ::mutagen::mutate;
+    use ::mutagen::MutagenRuntimeConfig;
+
+    /// returns `!`, by panicing
+    #[mutate(conf = local(expected_mutations = 1), mutators = only(stmt_call))]
+    fn stmt_never() -> ! {
+        [1u8].get::<usize>(panic!());
+    }
+    #[test]
+    #[should_panic]
+    fn stmt_never_inactive() {
+        MutagenRuntimeConfig::test_without_mutation(|| stmt_never())
+    }
+    #[test]
+    #[should_panic]
+    fn stmt_never_active() {
+        MutagenRuntimeConfig::test_with_mutation_id(1, || stmt_never())
     }
 }

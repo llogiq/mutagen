@@ -1,4 +1,4 @@
-//! Mutator for binary operation `+`.
+//! Mutator for removing statements that only consist of a method or function call.
 
 use std::convert::TryFrom;
 use std::ops::Deref;
@@ -55,6 +55,8 @@ pub fn transform(
             )
         {
             #call;
+        } else {
+            ::mutagen::mutator::mutator_stmt_call::stmt_call_to_none()
         }
     })
     .expect("transformed code invalid")
@@ -81,6 +83,32 @@ impl TryFrom<Stmt> for StmtCall {
             _ => return Err(stmt),
         }
     }
+}
+
+/// a trait for optimistically removing a statement containing a method- or functioncall.
+///
+/// This operation is optimistic, since the statement could have the type `!` and can be used in surprising contexts:
+///
+/// * `let x = {f(return y);}`
+/// * `let x = {std::process::abort();}`
+///
+/// Above examples compile and it is not possible to remove the statements without introducing compiler errors. 
+pub trait StmtCallToNone {
+    fn stmt_call_to_none() -> Self;
+}
+
+impl<T> StmtCallToNone for T {
+    default fn stmt_call_to_none() -> Self {
+        panic!("stmt_call not allowed to delete statement");
+    }
+}
+
+impl StmtCallToNone for () {
+    fn stmt_call_to_none() -> () {}
+}
+
+pub fn stmt_call_to_none<T: StmtCallToNone>() -> T {
+    <T as StmtCallToNone>::stmt_call_to_none()
 }
 
 #[cfg(test)]

@@ -7,7 +7,6 @@ mod transformer;
 
 pub mod comm;
 pub mod mutator;
-pub mod optimistic;
 
 pub use runtime_config::CoverageHit;
 pub use runtime_config::MutagenRuntimeConfig;

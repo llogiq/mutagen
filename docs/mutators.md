@@ -138,3 +138,12 @@ Statements that call a single function or method
 ### Mutations
 
 1. removing the call to the function or method
+
+### Limitations
+
+This operation is optimistic, since the statement could have the type `!` and can be used in surprising contexts:
+
+* `let x = {f(return y);}`
+* `let x = {std::process::abort();}`
+
+Above examples compile and it is not possible to remove the statements without introducing compiler errors.
