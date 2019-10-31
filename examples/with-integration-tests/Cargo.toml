@@ -4,8 +4,11 @@ version = "0.2.0"
 authors = ["Samuel Pilz <samuel.pilz@posteo.net>"]
 edition = "2018"
 
+[features]
+mutationtest = ["mutagen"]
+
 [dependencies]
-mutagen = {path = "../../mutagen"}
+mutagen = {path = "../../mutagen", optional = true}
 
 [lib]
 doctest = false
