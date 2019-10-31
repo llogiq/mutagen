@@ -6,4 +6,5 @@ members = [
     "mutagen-transform",
     "mutagen-selftest",
     "examples/simple",
+    "examples/with-integration-tests",
 ]
