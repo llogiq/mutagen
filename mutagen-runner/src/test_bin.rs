@@ -1,4 +1,5 @@
 use failure::{bail, Fallible};
+use std::fs;
 use std::io::Write;
 use std::path::Path;
 use std::process::{Command, Stdio};
@@ -6,7 +7,7 @@ use std::time::{Duration, Instant};
 
 use wait_timeout::ChildExt;
 
-use mutagen_core::comm::{BakedMutation, MutantStatus};
+use mutagen_core::comm::{self, BakedMutation, CoverageCollection, CoverageHit, MutantStatus};
 
 use super::Progress;
 
@@ -18,9 +19,10 @@ pub struct TestBin<'a> {
 
 // wrapper around a test-binary, which has been run already and its runtime has been timed.
 #[derive(Debug)]
-pub struct TestBinTimed<'a> {
+pub struct TestBinTested<'a> {
     test_bin: TestBin<'a>,
     exe_time: Duration,
+    pub coverage: CoverageCollection,
 }
 
 impl<'a> TestBin<'a> {
@@ -28,12 +30,13 @@ impl<'a> TestBin<'a> {
         Self { bin_path }
     }
 
-    // run the test and record the time required.
+    // run the test and record the covered mutators and the time required to run the tests.
     pub fn run_test(
         self,
         progress: &mut Progress,
-        num_mutations: usize,
-    ) -> Fallible<TestBinTimed<'a>> {
+        mutations: &[BakedMutation],
+    ) -> Fallible<TestBinTested<'a>> {
+        let num_mutations = mutations.len();
         let test_start = Instant::now();
 
         progress.start_testsuite_unmutated(&self.bin_path)?;
@@ -44,6 +47,7 @@ impl<'a> TestBin<'a> {
         let mut command = Command::new(self.bin_path);
         command.env("MUTAGEN_MODE", "coverage");
         command.env("MUTAGEN_NUM_MUTATIONS", format!("{}", num_mutations));
+        command.env("MUTAGEN_TESTSUITE", &self.bin_path);
         command.stdout(Stdio::null());
         let mut test_run = command.spawn()?;
         let status = test_run.wait()?;
@@ -51,20 +55,44 @@ impl<'a> TestBin<'a> {
 
         let success = status.success();
 
-        progress.finish_testsuite_unmutated(success)?;
-
         if !success {
             bail!("test suite fails. Retry after `cargo test` succeeds");
         }
 
-        Ok(TestBinTimed {
+        // read the coverage-file for this testsuite and delete it afterwards
+        let coverage = {
+            let coverage_file = comm::get_coverage_file()?;
+            if !coverage_file.exists() {
+                // no coverage file means that no mutations has been covered
+                CoverageCollection::new_empty(num_mutations)
+            } else {
+                let coverage_hits = comm::read_items::<CoverageHit>(&coverage_file)?;
+                // delete coverage file after the execution of this testsuite
+                fs::remove_file(coverage_file)?;
+
+                CoverageCollection::from_coverage_hits(num_mutations, &coverage_hits, &mutations)
+            }
+        };
+
+        progress.finish_testsuite_unmutated(success, coverage.num_covered())?;
+
+        Ok(TestBinTested {
             test_bin: self,
+            coverage,
             exe_time,
         })
     }
 }
 
-impl<'a> TestBinTimed<'a> {
+impl<'a> TestBinTested<'a> {
+
+    /// Checks if any mutation is covered.
+    ///
+    /// Returns false, if no mutation is covered by the testsuite 
+    pub fn coveres_any_mutation(&self) -> bool {
+        self.coverage.num_covered() != 0
+    }
+
     pub fn check_mutant(&self, mutation: &BakedMutation) -> Fallible<MutantStatus> {
         // run command and wait for its output
         let mut command = Command::new(self.test_bin.bin_path);

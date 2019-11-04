@@ -15,16 +15,17 @@ pub struct BakedMutation {
     mutation: Mutation,
 }
 
+// TODO: document fields and getters
 /// Mutation in source code
 #[derive(Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Mutation {
-    impl_name: Option<String>,
-    fn_name: Option<String>,
-    mutator: String, // mutator is part of code that is changed
-    original_code: String,
-    mutated_code: String,
-    source_file: PathBuf,
-    location_in_file: String,
+    pub impl_name: Option<String>,
+    pub fn_name: Option<String>,
+    pub mutator: String,
+    pub original_code: String,
+    pub mutated_code: String,
+    pub source_file: PathBuf,
+    pub location_in_file: String,
 }
 
 impl Mutation {
@@ -56,6 +57,9 @@ impl Mutation {
         }
     }
 
+    /// Give the mutation an id and mutator id.
+    ///
+    /// This creates a baked mutation.
     pub fn with_id(self, id: usize, mutator_id: usize) -> BakedMutation {
         BakedMutation {
             id,
@@ -131,5 +135,21 @@ impl BakedMutation {
 impl AsRef<Mutation> for BakedMutation {
     fn as_ref(&self) -> &Mutation {
         &self.mutation
+    }
+}
+
+#[cfg(test)]
+impl Mutation {
+    /// Create a new mutation for testing purposes.
+    pub fn new_stub() -> Self {
+        Self {
+            impl_name: None,
+            fn_name: None,
+            mutator: "stub".to_owned(),
+            original_code: "stub".to_owned(),
+            mutated_code: "stub".to_owned(),
+            source_file: PathBuf::new(),
+            location_in_file: "stub".to_owned(),
+        }
     }
 }

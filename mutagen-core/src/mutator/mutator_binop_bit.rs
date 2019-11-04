@@ -23,7 +23,7 @@ pub fn run_and<L: BitAnd<R>, R>(
 ) -> <L as BitAnd<R>>::Output {
     runtime.covered(mutator_id);
     let mutations = MutationBinopBit::possible_mutations(BinopBit::And);
-    if let Some(m) = runtime.get_mutation(mutator_id, &mutations) {
+    if let Some(m) = runtime.get_mutation_for_mutator(mutator_id, &mutations) {
         match m.op {
             BinopBit::Or => left.and_may_or(right),
             BinopBit::Xor => left.and_may_xor(right),
@@ -41,7 +41,7 @@ pub fn run_or<L: BitOr<R>, R>(
 ) -> <L as BitOr<R>>::Output {
     runtime.covered(mutator_id);
     let mutations = MutationBinopBit::possible_mutations(BinopBit::Or);
-    if let Some(m) = runtime.get_mutation(mutator_id, &mutations) {
+    if let Some(m) = runtime.get_mutation_for_mutator(mutator_id, &mutations) {
         match m.op {
             BinopBit::And => left.or_may_and(right),
             BinopBit::Xor => left.or_may_xor(right),
@@ -59,7 +59,7 @@ pub fn run_xor<L: BitXor<R>, R>(
 ) -> <L as BitXor<R>>::Output {
     runtime.covered(mutator_id);
     let mutations = MutationBinopBit::possible_mutations(BinopBit::Xor);
-    if let Some(m) = runtime.get_mutation(mutator_id, &mutations) {
+    if let Some(m) = runtime.get_mutation_for_mutator(mutator_id, &mutations) {
         match m.op {
             BinopBit::And => left.xor_may_and(right),
             BinopBit::Or => left.xor_may_or(right),
@@ -82,7 +82,7 @@ where
 {
     runtime.covered(mutator_id);
     let mutations = MutationBinopBit::possible_mutations(original_op);
-    if let Some(m) = runtime.get_mutation(mutator_id, &mutations) {
+    if let Some(m) = runtime.get_mutation_for_mutator(mutator_id, &mutations) {
         m.mutate(left, right)
     } else {
         original_op.calc(left, right)
@@ -288,8 +288,6 @@ macro_rules! binary_x_to_y {
 
     }
 }
-
-// TODO: more compact traits?
 
 binary_x_to_y!(
     AndToOr, and_may_or, BitAnd, BitOr, |,

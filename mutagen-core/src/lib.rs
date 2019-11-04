@@ -8,7 +8,6 @@ mod transformer;
 pub mod comm;
 pub mod mutator;
 
-pub use runtime_config::CoverageHit;
 pub use runtime_config::MutagenRuntimeConfig;
 
 pub use transformer::do_transform_item;

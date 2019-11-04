@@ -18,6 +18,8 @@ use super::progress_bar::{ProgressBar, ProgressBarState};
 /// Print progress during mutation testing
 pub struct Progress {
     num_mutations: usize,
+    num_covered: usize,
+    tested_mutations: usize,
     bar: ProgressBar,
 }
 
@@ -25,11 +27,24 @@ impl Progress {
     pub fn new(num_mutations: usize) -> Self {
         Self {
             num_mutations,
-            bar: ProgressBar::new(num_mutations),
+            num_covered: 0,
+            tested_mutations: 0,
+            bar: ProgressBar::new(),
         }
     }
 
-    /// start the section that runs the test suites unmutated
+    /// Print summary information after the compilation of the test binaries.
+    pub fn summary_compile(&mut self, num_mutations: usize, num_testsuites: usize) -> Fallible<()> {
+        self.bar.println("")?;
+        self.bar
+            .println(&format!("Total mutations: {}", num_mutations))?;
+
+        self.bar.set_total(num_testsuites);
+
+        Ok(())
+    }
+
+    /// Start the section that runs the test suites unmutated.
     pub fn section_testsuite_unmutated(&mut self) -> Fallible<()> {
         self.bar.println("")?;
         self.bar.println("Tests without mutations")?;
@@ -63,19 +78,42 @@ impl Progress {
     }
 
     /// indicate the end of a run of a single testsuite and display the result.
-    pub fn finish_testsuite_unmutated(&mut self, ok: bool) -> Fallible<()> {
-        self.bar.println(if ok { "ok" } else { "FAILED" })
+    pub fn finish_testsuite_unmutated(&mut self, ok: bool, num_covered: usize) -> Fallible<()> {
+        if ok && num_covered > 0 {
+            self.bar.println(&format!(
+                "ok ({}/{} covered)",
+                num_covered, self.num_mutations
+            ))
+        } else if ok && num_covered == 0 {
+            self.bar.println("ok (NOTHING COVERED)")
+        } else {
+            self.bar.println("FAILED")
+        }
     }
 
-    /// indicate that a test-run begins.
+    /// print a summary after the testsuites have been run, especially coverage information.
+    pub fn summary_testsuite_unmutated(&mut self, num_covered: usize) -> Fallible<()> {
+        self.num_covered = num_covered;
+        self.bar.set_total(num_covered);
+
+        self.bar.println("")?;
+        self.bar.println(&format!(
+            "COVERED {}/{}",
+            self.num_covered, self.num_mutations
+        ))
+    }
+
+    /// indicate that a test-run of a covered mutation begins.
     ///
     /// The information about the mutation is logged to the console.
     /// A call to `finish_mutation` should follow a call to this function
-    pub fn start_mutation(&mut self, m: &BakedMutation) -> Fallible<()> {
+    pub fn start_mutation_covered(&mut self, m: &BakedMutation) -> Fallible<()> {
         let mut mutant_log_string = mutation_log_string(m);
         mutant_log_string += " ... ";
 
         self.bar.print(mutant_log_string)?;
+
+        self.tested_mutations += 1;
 
         // write progress bar
         if self.bar.shows_progress() {
@@ -86,13 +124,21 @@ impl Progress {
             );
             let bar = ProgressBarState {
                 action: "Test Mutants",
-                current: m.id(),
+                current: self.tested_mutations,
                 action_details: action_details,
             };
             self.bar.set_state(bar)?;
         }
 
         Ok(())
+    }
+
+    pub fn skip_mutation_uncovered(&mut self, m: &BakedMutation) -> Fallible<()> {
+        self.bar.println(&format!(
+            "{} ... {}",
+            mutation_log_string(m),
+            MutantStatus::NotCovered
+        ))
     }
 
     /// indicate that a mutation started with `start_mutation` has been finished.

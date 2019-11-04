@@ -40,7 +40,7 @@ fn mutagen_dir() -> Fallible<PathBuf> {
     Ok(root_dir.join(DEFAULT_MUTAGEN_DIR))
 }
 
-pub fn read_items<T: DeserializeOwned, P: AsRef<Path>>(filepath: P) -> Fallible<Vec<T>> {
+pub fn read_items<T: DeserializeOwned>(filepath: &Path) -> Fallible<Vec<T>> {
     BufReader::new(File::open(filepath)?)
         .lines()
         .map(|line| {

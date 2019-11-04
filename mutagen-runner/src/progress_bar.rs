@@ -27,7 +27,7 @@ pub struct ProgressBarState {
 }
 
 impl ProgressBar {
-    pub fn new(total: usize) -> Self {
+    pub fn new() -> Self {
         let term = Term::stdout();
         let term_width = term.size().1 as usize;
         let show_progress = term.is_term() && term_width > 20;
@@ -36,10 +36,15 @@ impl ProgressBar {
             term,
             term_width,
             show_progress,
-            total,
+            total: 0,
             current_log_str: None,
             current_bar_state: None,
         }
+    }
+
+    /// re-sets to total actions to perform
+    pub fn set_total(&mut self, total: usize) {
+        self.total = total;
     }
 
     pub fn shows_progress(&self) -> bool {
@@ -124,6 +129,9 @@ impl ProgressBar {
 
     fn write_progress_bar(&self) -> Fallible<()> {
         if let Some(bar) = &self.current_bar_state {
+            if self.total == 0 {
+                return Ok(());
+            }
             let current_total_string = format!("{}/{}", bar.current, self.total);
             let action_name = console::style(format!("{:>12}", bar.action)).bold();
 

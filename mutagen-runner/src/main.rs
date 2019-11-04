@@ -1,5 +1,5 @@
 use failure::{bail, Fallible};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufWriter;
 use std::path::PathBuf;
@@ -9,7 +9,7 @@ use std::str;
 
 use cargo_mutagen::*;
 use mutagen_core::comm;
-use mutagen_core::comm::{BakedMutation, CoverageHit, MutagenReport, MutantStatus};
+use mutagen_core::comm::{BakedMutation, CoverageCollection, MutagenReport, MutantStatus};
 
 fn main() {
     if let Err(err) = run() {
@@ -22,22 +22,31 @@ fn main() {
 
 fn run() -> Fallible<()> {
     // build the testsuites and collect mutations
-    let tests_executables = compile_tests()?;
-    if tests_executables.is_empty() {
+    let test_bins = compile_tests()?;
+    if test_bins.is_empty() {
         bail!("no test executable(s) found");
     }
     let mutations = read_mutations()?;
+    let num_mutations = mutations.len();
 
     let mut progress = Progress::new(mutations.len());
+    progress.summary_compile(mutations.len(), test_bins.len())?;
 
     // run all test-binaries without mutations and collect coverge
     progress.section_testsuite_unmutated()?;
-    let test_bins = tests_executables
+
+    let test_bins = test_bins
         .iter()
         .map(|e| TestBin::new(&e))
-        .map(|b| b.run_test(&mut progress, mutations.len()))
+        .filter_map(|bin| {
+            bin.run_test(&mut progress, &mutations)
+                .map(|bin| Some(bin).filter(|bin| bin.coveres_any_mutation()))
+                .transpose()
+        })
         .collect::<Fallible<Vec<_>>>()?;
-    let coverage = read_coverage()?;
+
+    let coverage = CoverageCollection::merge(num_mutations, test_bins.iter().map(|b| &b.coverage));
+    progress.summary_testsuite_unmutated(coverage.num_covered())?;
 
     // run the mutations on the test-suites
     progress.section_mutants()?;
@@ -49,17 +58,16 @@ fn run() -> Fallible<()> {
 /// run all mutations on all test-executables
 fn run_mutations(
     mut progress: Progress,
-    test_bins: &[TestBinTimed],
+    test_bins: &[TestBinTested],
     mutations: Vec<BakedMutation>,
-    coverage: &HashSet<usize>,
+    coverage: &CoverageCollection,
 ) -> Fallible<()> {
     let mut mutagen_report = MutagenReport::new();
 
     for m in mutations {
-        progress.start_mutation(&m)?;
+        let mutant_status = if coverage.is_covered(m.id()) {
+            progress.start_mutation_covered(&m)?;
 
-        let mutant_covered = coverage.contains(&m.mutator_id());
-        let mutant_status = if mutant_covered {
             // run all test binaries
             let mut mutant_status = MutantStatus::Survived;
             for bin in test_bins {
@@ -68,14 +76,14 @@ fn run_mutations(
                     break;
                 }
             }
+            progress.finish_mutation(mutant_status)?;
+
             mutant_status
         } else {
+            progress.skip_mutation_uncovered(&m)?;
             MutantStatus::NotCovered
         };
-
         mutagen_report.add_mutation_result(m, mutant_status);
-
-        progress.finish_mutation(mutant_status)?;
     }
     progress.finish()?;
 
@@ -100,7 +108,6 @@ fn compile_tests() -> Fallible<Vec<PathBuf>> {
     }
     let compile_stdout = str::from_utf8(&compile_out.stdout)?;
 
-    // TODO: comment
     // each line is a json-value, we want to extract the test-executables
     // these are compiler artifacts that have set `test:true` in the profile
     let current_dir = std::env::current_dir()?;
@@ -146,7 +153,7 @@ fn read_mutations() -> Fallible<Vec<BakedMutation>> {
         )
     }
 
-    let mutations = comm::read_items::<BakedMutation, _>(mutations_file)?;
+    let mutations = comm::read_items::<BakedMutation>(&mutations_file)?;
 
     // write the collected mutations
     let mutations_map = mutations
@@ -157,15 +164,4 @@ fn read_mutations() -> Fallible<Vec<BakedMutation>> {
     serde_json::to_writer(mutations_writer, &mutations_map)?;
 
     Ok(mutations)
-}
-
-/// read all coverage-hits from the coverage-file
-fn read_coverage() -> Fallible<HashSet<usize>> {
-    let coverage_file = comm::get_coverage_file()?;
-    if !coverage_file.exists() {
-        return Ok(HashSet::new()); // no coverage file means that no mutations has been covered
-    }
-
-    let coverage_hits = comm::read_items::<CoverageHit, _>(coverage_file)?;
-    Ok(coverage_hits.iter().map(|c| c.mutator_id).collect())
 }

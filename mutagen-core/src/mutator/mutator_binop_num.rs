@@ -80,7 +80,7 @@ where
 {
     runtime.covered(mutator_id);
     let mutations = MutationBinopNum::possible_mutations(original_op);
-    if let Some(m) = runtime.get_mutation(mutator_id, &mutations) {
+    if let Some(m) = runtime.get_mutation_for_mutator(mutator_id, &mutations) {
         m.mutate(left, right)
     } else {
         original_op.calc(left, right)

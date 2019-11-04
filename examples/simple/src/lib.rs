@@ -1,4 +1,4 @@
-#![allow(unused)]
+#![allow(unused, clippy::no_effect)]
 
 mod bubblesort;
 mod ggt;

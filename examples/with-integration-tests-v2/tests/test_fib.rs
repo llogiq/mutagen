@@ -1,6 +1,4 @@
-
-
-use example_with_integration_tests::fib;
+use example_with_integration_tests_v2::fib;
 
 #[test]
 fn fib_0() {

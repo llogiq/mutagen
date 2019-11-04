@@ -23,7 +23,7 @@ pub fn run_left(
     runtime.covered(mutator_id);
     let mutations = MutationBinopBool::possible_mutations(original_op);
     let op = runtime
-        .get_mutation(mutator_id, &mutations)
+        .get_mutation_for_mutator(mutator_id, &mutations)
         .map(|m| m.op)
         .unwrap_or(original_op);
     op.short_circuit_left(left)

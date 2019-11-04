@@ -20,7 +20,7 @@ pub fn run<T: IntMutable>(
 ) -> T {
     runtime.covered(mutator_id);
     let mutations = MutationLitInt::possible_mutations(original_lit.as_u128());
-    if let Some(m) = runtime.get_mutation(mutator_id, &mutations) {
+    if let Some(m) = runtime.get_mutation_for_mutator(mutator_id, &mutations) {
         m.mutate(original_lit)
     } else {
         original_lit
