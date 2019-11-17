@@ -9,6 +9,7 @@
 
 use failure::Fallible;
 
+use std::time::Duration;
 use std::path::Path;
 
 use mutagen_core::comm::{BakedMutation, MutantStatus};
@@ -45,9 +46,9 @@ impl Progress {
     }
 
     /// Start the section that runs the test suites unmutated.
-    pub fn section_testsuite_unmutated(&mut self) -> Fallible<()> {
+    pub fn section_testsuite_unmutated(&mut self, num_tests: usize) -> Fallible<()> {
         self.bar.println("")?;
-        self.bar.println("Tests without mutations")?;
+        self.bar.println(&format!("Run {} tests", num_tests))?;
         Ok(())
     }
 
@@ -59,15 +60,22 @@ impl Progress {
         Ok(())
     }
 
+    /// start the section of the
+    pub fn section_summary(&mut self) -> Fallible<()> {
+        self.bar.println("")?;
+        self.bar.clear_bar()?;
+        Ok(())
+    }
+
     /// indicate the start of a run of a single testsuite without mutations
-    pub fn start_testsuite_unmutated(&mut self, bin: &Path) -> Fallible<()> {
+    pub fn start_testsuite_unmutated(&mut self, bin: &Path, id: usize) -> Fallible<()> {
         let log_string = format!("{} ... ", bin.display());
         self.bar.print(log_string)?;
 
         if self.bar.shows_progress() {
             let bar = ProgressBarState {
                 action: "Run Tests",
-                current: 0,
+                current: id + 1,
                 action_details: format!("{}", bin.display()),
             };
 
@@ -98,7 +106,7 @@ impl Progress {
 
         self.bar.println("")?;
         self.bar.println(&format!(
-            "COVERED {}/{}",
+            "Mutations covered: {}/{}",
             self.num_covered, self.num_mutations
         ))
     }
@@ -152,7 +160,9 @@ impl Progress {
     /// indicate that mutation-testing is finished
     ///
     /// clears the progress-bar
-    pub fn finish(self) -> Fallible<()> {
+    pub fn finish(mut self, mutagen_time: Duration) -> Fallible<()> {
+        let rounded_time = Duration::from_secs(mutagen_time.as_secs());
+        self.bar.println(&format!("Total time: {}", ::humantime::format_duration(rounded_time)))?;
         self.bar.finish()?;
         Ok(())
     }

@@ -121,7 +121,7 @@ impl ReportSummary {
         let percent_mutations_not_covered = compute_percent(self.num_mutations, self.not_covered);
 
         println!();
-        println!("{} generated mutations", self.num_mutations);
+        println!("{} generated mutants", self.num_mutations);
         println!(
             "{}({:.2}%) mutants killed, {}({:.2}%) by timeout",
             self.killed, percent_mutations_killed, self.timeout, percent_mutations_timeout,

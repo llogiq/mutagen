@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use std::process;
 use std::process::{Command, Stdio};
 use std::str;
+use std::time::Instant;
 
 use cargo_mutagen::*;
 use mutagen_core::comm;
@@ -21,6 +22,8 @@ fn main() {
 }
 
 fn run() -> Fallible<()> {
+    let mutagen_start = Instant::now();
+
     // build the testsuites and collect mutations
     let test_bins = compile_tests()?;
     if test_bins.is_empty() {
@@ -33,11 +36,12 @@ fn run() -> Fallible<()> {
     progress.summary_compile(mutations.len(), test_bins.len())?;
 
     // run all test-binaries without mutations and collect coverge
-    progress.section_testsuite_unmutated()?;
+    progress.section_testsuite_unmutated(test_bins.len())?;
 
     let test_bins = test_bins
         .iter()
-        .map(|e| TestBin::new(&e))
+        .enumerate()
+        .map(|(i, e)| TestBin::new(&e, i))
         .filter_map(|bin| {
             bin.run_test(&mut progress, &mutations)
                 .map(|bin| Some(bin).filter(|bin| bin.coveres_any_mutation()))
@@ -50,18 +54,26 @@ fn run() -> Fallible<()> {
 
     // run the mutations on the test-suites
     progress.section_mutants()?;
-    run_mutations(progress, &test_bins, mutations, &coverage)?;
+    let mutagen_report = run_mutations(&mut progress, &test_bins, mutations, &coverage)?;
+
+    progress.section_summary()?;
+
+    // final report
+    mutagen_report.print_survived();
+    mutagen_report.summary().print();
+
+    progress.finish(mutagen_start.elapsed())?;
 
     Ok(())
 }
 
 /// run all mutations on all test-executables
 fn run_mutations(
-    mut progress: Progress,
+    progress: &mut Progress,
     test_bins: &[TestBinTested],
     mutations: Vec<BakedMutation>,
     coverage: &CoverageCollection,
-) -> Fallible<()> {
+) -> Fallible<MutagenReport> {
     let mut mutagen_report = MutagenReport::new();
 
     for m in mutations {
@@ -85,13 +97,8 @@ fn run_mutations(
         };
         mutagen_report.add_mutation_result(m, mutant_status);
     }
-    progress.finish()?;
 
-    // final report
-    mutagen_report.print_survived();
-    mutagen_report.summary().print();
-
-    Ok(())
+    Ok(mutagen_report)
 }
 
 /// build all tests and collect test-suite executables

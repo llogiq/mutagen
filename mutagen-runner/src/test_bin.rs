@@ -14,6 +14,7 @@ use super::Progress;
 /// wrapper around a test-binary that can be executed
 #[derive(Debug)]
 pub struct TestBin<'a> {
+    id: usize,
     pub bin_path: &'a Path,
 }
 
@@ -26,8 +27,8 @@ pub struct TestBinTested<'a> {
 }
 
 impl<'a> TestBin<'a> {
-    pub fn new(bin_path: &'a Path) -> Self {
-        Self { bin_path }
+    pub fn new(bin_path: &'a Path, id: usize) -> Self {
+        Self { id, bin_path }
     }
 
     // run the test and record the covered mutators and the time required to run the tests.
@@ -39,7 +40,7 @@ impl<'a> TestBin<'a> {
         let num_mutations = mutations.len();
         let test_start = Instant::now();
 
-        progress.start_testsuite_unmutated(&self.bin_path)?;
+        progress.start_testsuite_unmutated(&self.bin_path, self.id)?;
 
         ::std::io::stdout().flush()?;
 
@@ -88,7 +89,7 @@ impl<'a> TestBinTested<'a> {
 
     /// Checks if any mutation is covered.
     ///
-    /// Returns false, if no mutation is covered by the testsuite 
+    /// Returns false, if no mutation is covered by the testsuite
     pub fn coveres_any_mutation(&self) -> bool {
         self.coverage.num_covered() != 0
     }

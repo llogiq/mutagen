@@ -90,7 +90,7 @@ impl ProgressBar {
             self.term.clear_line()?;
 
             if let Some(log_str) = self.current_log_str.take() {
-                let log_str_lines = 1 + s.len() / self.term_width;
+                let log_str_lines = 1 + (log_str.len() + 1) / self.term_width;
                 self.term.clear_last_lines(log_str_lines)?;
                 writeln!(&self.term, "{}{}", log_str, s)?;
             } else {
@@ -104,6 +104,14 @@ impl ProgressBar {
 
         self.current_log_str = None;
 
+        Ok(())
+    }
+
+    /// clears the progress bar
+    pub fn clear_bar(&mut self) -> Fallible<()> {
+        if let Some(_) = self.current_bar_state.take() {
+            self.term.clear_line()?;
+        }
         Ok(())
     }
 
