@@ -64,5 +64,5 @@ With the crate `example/simple` of this repository, end-to-end tests of mutagen 
 The test can be executed with the command.
 
 ```bash
-cargo run --bin cargo-mutagen --package cargo-mutagen
+cargo run -p cargo-mutagen
 ```
