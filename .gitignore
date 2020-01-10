@@ -12,4 +12,4 @@ Cargo.lock
 **/*.rs.bk
 
 # Generated file from integration tests
-**/mutations.txt
+**/mutations

@@ -1,0 +1,13 @@
+[package]
+name = "mutagen"
+version = "0.2.0"
+authors = ["Andre Bogus <bogusandre@gmail.com>", "Samuel Pilz <samuel.pilz@posteo.net>"]
+edition = "2018"
+
+[dependencies]
+mutagen-transform = { path = "../mutagen-transform" }
+mutagen-core = { path = "../mutagen-core" }
+
+[lib]
+doctest = false
+test = false

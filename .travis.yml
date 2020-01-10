@@ -6,13 +6,11 @@ os:
 cache: cargo
 sudo: false
 script:
-  - cargo test
-  - pushd plugin
-  - cargo test
-  - popd
-  - pushd runner
-  - cargo install -f
-  - popd
-  - pushd examples/example_project
-  - cargo mutagen
-  - cargo mutagen -- --coverage
+  - cargo build
+  - cargo test -p mutagen-core # run unit tests first
+  - cargo test -p mutagen-selftest # run integration tests
+  - cargo test # run all (other) tests
+
+  # run executable cargo-mutagen on test project
+  - pushd examples/simple
+  - cargo run --bin cargo-mutagen --package cargo-mutagen

@@ -1,0 +1,9 @@
+mod test_binop_bit;
+mod test_binop_bool;
+mod test_binop_cmp;
+mod test_binop_eq;
+mod test_binop_num;
+mod test_lit_bool;
+mod test_lit_int;
+mod test_stmt_call;
+mod test_unop_not;

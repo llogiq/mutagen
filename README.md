@@ -1,73 +1,75 @@
 # Breaking your Rust code for fun & profit
 
-[![Build Status](https://travis-ci.org/llogiq/mutagen.svg?branch=master)](https://travis-ci.org/llogiq/mutagen)
-[![Downloads](https://img.shields.io/crates/d/mutagen.svg?style=flat-square)](https://crates.io/crates/mutagen/)
-[![Version](https://img.shields.io/crates/v/mutagen.svg?style=flat-square)](https://crates.io/crates/mutagen/)
-[![License](https://img.shields.io/crates/l/mutagen.svg?style=flat-square)](https://crates.io/crates/mutagen/)
+*this is a architecture-preview, not all components are there*
 
-This is a work in progress mutation testing framework. Not all components are there, those that are there aren't finished, but it's already somewhat usable as of now.
+This is a mutation testing framework for Rust code.
 
-### Mutation Testing
+## Mutation Testing
 
-The idea behind mutation testing is to insert changes into your code to see if they make your tests fail. If not, your tests obviously fail to test the changed code.
+A change (mutation) in the program source code is most likely a bug of some kind. A good test suite can detect changes in the source code by failing ("killing" the mutant). If the test suite is green even if the program is mutated (the mutant survives), the tests fail to detect this bug.
+
+Mutation testing is a way of evaluating the quality of a test suite, similar to code coverage.
 The difference to line or branch coverage is that those measure if the code under test was *executed*, but that says nothing about whether the tests would have caught any error.
 
-This repo has three components at the moment: The mutagen test runner, a helper library and a procedural macro that mutates your code.
+## How `mutagen` works
 
-### How mutagen Works
+`mutagen`'s  core functionality is implemented via a procedural macro that transforms the source code into
 
-Mutagen works as a procedural macro. This means two things:
+The procedural macro has access the bare AST. Information about inferred types, implemented traits, control flow, data flow or signatures of other functions are not available during the execution of procedural macros. Therefore, the mutations must be possible without additional type-information.
 
-1. You'll need a nightly rust toolchain to compile the plugin.
-2. it only gets to see the code you mark up with the `#[mutate]` annotation, nothing more.
-
-It also will only see the bare AST, no inferred types, no control flow or data flow, unless we analyse them ourselves. But not only that, we want to be *fast*.  This means we want to avoid doing one compile run per mutation, so we try to bake in all mutations into the code once and select them at runtime via a mutation count. This means we must avoid mutations that break the code so it no longer compiles.
+In order to be fast, it is necessary that the compilation of the test suite is performed only once. To achieve this, all mutations are baked into the code once and are selected at runtime via an environment variable. This means the mutations are not allowed to produce code that fails to compile.
 
 This project is basically an experiment to see what mutations we can still apply under those constraints.
 
-### A Word of Warning
+## Using mutagen
 
-mutagen will change the code you annotate with the `#[mutate]` attribute. As long as you use it with safe code, all is well. However, running mutagen against unsafe code will very probably break its invariants, with possible dire consequences. So don't run mutagen against modules containing unsafe code under any circumstances.
+You need Rust nightly to compile the procedural macro.
 
-### Using mutagen
-
-Again, remember you need a nightly `rustc` to compile the plugin. Add the plugin and helper library as a dev-dependency to your `Cargo.toml`:
+Add the library `mutagen` as a `dev-dependency` to your `Cargo.toml`:
 
 ```rust
 [dev-dependencies]
-mutagen = "0.1.2"
-mutagen-plugin = "0.1.2"
+mutagen = "0.2.0"
 ```
 
-Now, you can add the plugin to your crate by prepending the following:
+To use the attribute `#[mutate]`, you need to import it.
 
 ```rust
-#![cfg_attr(test, feature(plugin))]
-#![cfg_attr(test, plugin(mutagen_plugin))]
-#![feature(custom_attribute)]
-
 #[cfg(test)]
-extern crate mutagen;
+use mutagen::mutate;
 ```
 
-Now you can advise mutagen to mutate any function, method, impl, trait impl or whole module (but *not* the whole crate, this is a restriction of procedural macros for now) by prepending:
-
-```rust
-#[cfg_attr(test, mutate)]
-```
-
-This ensures the mutation will only be active in test mode.
+Now you can advise mutagen to mutate any function or method by prepending `#[cfg_attr(test, mutate)]`. The use of `cfg_attr` ensures the `#[mutate]` attribute will only be active in test mode. The repository contains an example that shows how mutagen could be used.
 
 ### Running mutagen
 
-Install `cargo-mutagen`. Run `cargo mutagen` on the project under test.
+Install `cargo-mutagen`, which can be done by running `cargo install cargo-mutagen`. Run `cargo mutagen` on the project under test for a complete mutation test evaluation.
 
-If you want the development version, run `cargo install` in the runner dir.
+The mutants can also be run manually: `cargo test` will compile code and write the performed mutations to `target/mutagen/mutations`. This file contains ids and descriptions of possible mutations.
+Then, the environment variable `MUTATION_ID` can be used to activate a single mutation as defined by the `mutations` file. The environment variable can be set before calling the test suite, i.e. `MUTATION_ID=1 cargo test`, `MUTATION_ID=2 ..`, etc. For every mutation count at of least one, the test suite should fail
 
-If you want to do this manually you can run `cargo test` as always, which will mutate your code and write a list of mutations in `target/mutagen/mutations.txt`. For every mutation, counting from one, you can run the test binary with the environment variable `MUTATION_COUNT=1 target/debug/myproj-123456`, `MUTATION_COUNT=2 ..`, etc.
+You can run `cargo mutagen -- --coverage` in order to reduce the time it takes to run the mutated code. When running on this mode, it runs the test suite at the beginning of the process and checks which tests are hitting mutated code. Then, for each mutation, instead of running the whole test suite again, it executes only the tests that are affected by the current mutation. This mode is specially useful when the test suite is slow or when the mutated code affects a little part of it.
 
-You can run `cargo mutagen -- --coverage` in order to reduce the time it takes to run the mutated code. When running on this mode, it runs the testsuite at the beginning of the process and checks which tests are hitting mutated code. Then, for each mutation, instead of running the whole testsuite again, it executes only the tests that are affected by the current mutation. This mode is specially useful when the testsuite is slow or when the mutated code affects a little part of it.
+If you want the development version of `cargo-mutagen`, run `cargo install` in the runner dir of this repository. Running `cargo install --force` might be necessary to overwrite any existing `cargo-mutagen` binary.
 
-### Contributing
+## A Word of Warning
+
+Mutagen will change the code you annotate with the `#[mutate]` attribute. This can have dire consequences in some cases. However, functions not annotated with `#[mutate]` will not be altered.
+
+*Do not use `#[mutate]` for code that can cause damage if buggy*. By corrupting the behavior or sanity checks of some parts of the program, dangerous accidents can happen. For example by overwriting the wrong file or sending credentials to the wrong server.
+
+*Use `#[mutate]` for tests only.* This is done by always annotating functions or modules with `#[cfg_attr(test, mutate)]` instead, which applies the `#[mutate]` annotation only in `test` mode. If a function is annotated with plain `#[mutate]` in every mode, the mutation-code is baked into the code even when compiled for release versions. However, when using `mutagen` as `dev-dependency`, adding a plain `#[mutate]` attribute will result in compilation errors in non-test mode since the compiler does not find the annotation.
+
+*Use `mutagen` as `dev-dependency`, unless otherwise necessary.* This ensures that no code from `mutagen` is part of your released library or application.
+
+## Limitations of Mutations
+
+*No mutations will be introduced in `unsafe`-blocks and `unsafe` functions*. Mutations would probably break the some invariantes. Moreover, mutations in unsafe code could lead to undefined behavior that cannot be observed by any testcase.
+
+*`const` and `static` expressions cannot be mutated.* They are evaluated at compile-time and Mutagen can only affect code that can alter its behavior at run-time. Array lengths and global constants are examples of `const` expressions.
+
+*Patterns are cannot mutated.* Mutations are introduced by injecting calls to mutagen-internal functions, which cannot be placed inside patterns.
+
+## Contributing
 
 Issues and PRs welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) on how to help.
