@@ -5,7 +5,7 @@ authors = ["Andre Bogus <bogusandre@gmail.com>", "Samuel Pilz <samuel.pilz@poste
 edition = "2018"
 
 [dependencies]
-json = "0.11"
+json = "0.12"
 failure = "0.1"
 wait-timeout = "0.1.5"
 serde_json = "1.0"
