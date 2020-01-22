@@ -21,11 +21,25 @@ fn main() {
     }
 }
 
+use structopt::StructOpt;
+#[derive(StructOpt, Debug)]
+struct Options {
+    /// Space-separated list of features to activate
+    #[structopt(long, name = "FEATURES")]
+    features: Option<String>,
+
+    /// Activate all available features
+    #[structopt(long)]
+    all_features: bool,
+}
+
 fn run() -> Fallible<()> {
     let mutagen_start = Instant::now();
 
+    let opt = Options::from_args();
+
     // build the testsuites and collect mutations
-    let test_bins = compile_tests()?;
+    let test_bins = compile_tests(&opt)?;
     if test_bins.is_empty() {
         bail!("no test executable(s) found");
     }
@@ -102,12 +116,21 @@ fn run_mutations(
 }
 
 /// build all tests and collect test-suite executables
-fn compile_tests() -> Fallible<Vec<PathBuf>> {
+fn compile_tests(opt: &Options) -> Fallible<Vec<PathBuf>> {
     let mut tests: Vec<PathBuf> = Vec::new();
+
+    let mut feature_args: Vec<&str> = vec![];
+    if let Some(f) = &opt.features {
+        feature_args.extend(&["--features", f]);
+    }
+    if opt.all_features {
+        feature_args.push("--all-features");
+    }
 
     // execute `cargo test --no-run --message-format=json` and collect output
     let compile_out = Command::new("cargo")
         .args(&["test", "--no-run", "--message-format=json"])
+        .args(&feature_args)
         .stderr(Stdio::inherit())
         .output()?;
     if !compile_out.status.success() {
