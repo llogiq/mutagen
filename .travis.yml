@@ -13,4 +13,7 @@ script:
 
   # run executable cargo-mutagen on test project
   - pushd examples/simple
-  - cargo run --bin cargo-mutagen --package cargo-mutagen
+  - cargo run --package cargo-mutagen
+  - popd
+  - pushd examples/feature-gated
+  - cargo run --package cargo-mutagen -- --features with_mutagen
