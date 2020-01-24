@@ -10,30 +10,52 @@
 pub fn is_num_expr(e: &syn::Expr) -> bool {
     match e {
         syn::Expr::Lit(expr) => match expr.lit {
-            syn::Lit::Int(_) => return true,
-            syn::Lit::Byte(_) => return true,
-            syn::Lit::Float(_) => return true,
-            _ => {}
+            syn::Lit::Int(_) => true,
+            syn::Lit::Byte(_) => true,
+            syn::Lit::Float(_) => true,
+            _ => false,
         },
         syn::Expr::Binary(expr) => match expr.op {
-            syn::BinOp::Add(_) => return is_num_expr(&expr.left),
-            syn::BinOp::Sub(_) => return is_num_expr(&expr.left),
-            syn::BinOp::Mul(_) => return is_num_expr(&expr.left),
-            syn::BinOp::Div(_) => return is_num_expr(&expr.left),
-            syn::BinOp::Rem(_) => return is_num_expr(&expr.left),
-            syn::BinOp::BitAnd(_) => return is_num_expr(&expr.left),
-            syn::BinOp::BitOr(_) => return is_num_expr(&expr.left),
-            syn::BinOp::BitXor(_) => return is_num_expr(&expr.left),
-            syn::BinOp::Shl(_) => return is_num_expr(&expr.left),
-            syn::BinOp::Shr(_) => return is_num_expr(&expr.left),
-            _ => {}
+            syn::BinOp::Add(_) => is_num_expr(&expr.left),
+            syn::BinOp::Sub(_) => is_num_expr(&expr.left),
+            syn::BinOp::Mul(_) => is_num_expr(&expr.left),
+            syn::BinOp::Div(_) => is_num_expr(&expr.left),
+            syn::BinOp::Rem(_) => is_num_expr(&expr.left),
+            syn::BinOp::BitAnd(_) => is_num_expr(&expr.left),
+            syn::BinOp::BitOr(_) => is_num_expr(&expr.left),
+            syn::BinOp::BitXor(_) => is_num_expr(&expr.left),
+            syn::BinOp::Shl(_) => is_num_expr(&expr.left),
+            syn::BinOp::Shr(_) => is_num_expr(&expr.left),
+            _ => false,
         },
-        syn::Expr::Unary(expr) => return is_num_expr(&expr.expr),
-        syn::Expr::Reference(expr) => return is_num_expr(&expr.expr),
-        syn::Expr::Paren(expr) => return is_num_expr(&expr.expr),
-        _ => {}
-    };
-    return false;
+        syn::Expr::Unary(expr) => is_num_expr(&expr.expr),
+        syn::Expr::Reference(expr) => is_num_expr(&expr.expr),
+        syn::Expr::Paren(expr) => is_num_expr(&expr.expr),
+        syn::Expr::Block(expr) => is_num_block(&expr.block),
+        syn::Expr::If(expr) => is_num_expr_if(&expr),
+        _ => false,
+    }
+}
+
+fn is_num_expr_if(expr: &syn::ExprIf) -> bool {
+    is_num_block(&expr.then_branch)
+        || match &expr.else_branch {
+            Some((_, else_expr)) => is_num_expr(else_expr),
+            _ => false,
+        }
+}
+
+fn is_num_block(block: &syn::Block) -> bool {
+    match block.stmts.last() {
+        Some(stmt) => is_num_stmt(&stmt),
+        _ => false,
+    }
+}
+fn is_num_stmt(stmt: &syn::Stmt) -> bool {
+    match stmt {
+        syn::Stmt::Expr(expr) => is_num_expr(&expr),
+        _ => false,
+    }
 }
 
 #[cfg(test)]
