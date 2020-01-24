@@ -7,6 +7,8 @@
 /// * it is an binary arithmetic- or bit-operation that has an integer expression on the left side
 /// * it is an unary operation with an numeric expression
 /// * it is a reference to a numeric expression. This lets us count `*&1` as numeric expression.
+/// * it is a block that ends in a numeric expression. This lets us count {...; 1} as numeric expression.
+/// * it is a if expression with an numeric expression as one of the cases
 pub fn is_num_expr(e: &syn::Expr) -> bool {
     match e {
         syn::Expr::Lit(expr) => match expr.lit {

@@ -230,29 +230,28 @@ mod test_add_after_block {
     }
 }
 
-// TODO: fix this issue
-// mod test_add_i64_with_tempvar {
+mod test_mul_i64_with_tempvar {
 
-//     use ::mutagen::mutate;
-//     use ::mutagen::MutagenRuntimeConfig;
+    use ::mutagen::mutate;
+    use ::mutagen::MutagenRuntimeConfig;
 
-//     // add two numbers, the first one is a temporary variable
-//     #[mutate(conf = local(expected_mutations = 1), mutators = only(binop_num))]
-//     pub fn add_with_tempvar() -> i64 {
-//         let x = 2;
-//         x + 1
-//     }
+    // multiplies two numbers, the first one is a temporary variable
+    #[mutate(conf = local(expected_mutations = 1), mutators = only(binop_num))]
+    pub fn mul_with_tempvar() -> i64 {
+        let x = 4;
+        x * 2
+    }
 
-//     #[test]
-//     fn add_with_tempvar_inactive() {
-//         MutagenRuntimeConfig::test_without_mutation(|| {
-//             assert_eq!(add_with_tempvar(), 3);
-//         })
-//     }
-//     #[test]
-//     fn add_with_tempvar_active1() {
-//         MutagenRuntimeConfig::test_with_mutation_id(1, || {
-//             assert_eq!(add_with_tempvar(), 1);
-//         })
-//     }
-// }
+    #[test]
+    fn mul_with_tempvar_inactive() {
+        MutagenRuntimeConfig::test_without_mutation(|| {
+            assert_eq!(mul_with_tempvar(), 8);
+        })
+    }
+    #[test]
+    fn mul_with_tempvar_active1() {
+        MutagenRuntimeConfig::test_with_mutation_id(1, || {
+            assert_eq!(mul_with_tempvar(), 2);
+        })
+    }
+}
