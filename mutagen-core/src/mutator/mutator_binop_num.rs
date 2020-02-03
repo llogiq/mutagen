@@ -93,13 +93,14 @@ pub fn transform(
         BinopNum::Div => quote_spanned! {e.span()=> run_div},
     };
     let op_token = e.op_token;
+    let tmp_var = transform_info.get_next_tmp_var(op_token.span());
     syn::parse2(quote_spanned! {e.span()=>
         {
-            let __mutagen_tmp = #left;
-            if false {__mutagen_tmp #op_token #right} else {
+            let #tmp_var = #left;
+            if false {#tmp_var #op_token #right} else {
                 ::mutagen::mutator::mutator_binop_num::#run_fn(
                     #mutator_id,
-                    __mutagen_tmp,
+                    #tmp_var,
                     #right,
                     ::mutagen::MutagenRuntimeConfig::get_default()
                 )
@@ -140,7 +141,7 @@ struct ExprBinopNum {
     op: BinopNum,
     left: Expr,
     right: Expr,
-    op_token: syn::BinOp
+    op_token: syn::BinOp,
 }
 
 impl TryFrom<Expr> for ExprBinopNum {
@@ -186,7 +187,7 @@ impl syn::spanned::Spanned for ExprBinopNum {
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
-pub enum BinopNum {
+enum BinopNum {
     Add,
     Sub,
     Mul,

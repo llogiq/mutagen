@@ -28,19 +28,6 @@ pub fn run<T: Not>(
     }
 }
 
-pub fn run_native_num<I: Not<Output = I>>(
-    mutator_id: usize,
-    val: I,
-    runtime: impl Deref<Target = MutagenRuntimeConfig>,
-) -> I {
-    runtime.covered(mutator_id);
-    if runtime.is_mutation_active(mutator_id) {
-        val
-    } else {
-        !val
-    }
-}
-
 pub fn transform(
     e: Expr,
     transform_info: &SharedTransformInfo,
@@ -56,32 +43,31 @@ pub fn transform(
         "unop_not".to_owned(),
         "!".to_owned(),
         "".to_owned(),
-        e.span,
+        e.span(),
     ));
 
     let expr = &e.expr;
-
-    // if the current expression is based on numbers, use the function `run_native_num` instead
-    let run_fn = if context.is_num_expr() {
-        quote_spanned! {e.span=> run_native_num}
-    } else {
-        quote_spanned! {e.span=> run}
-    };
-
-    syn::parse2(quote_spanned! {e.span=>
-        ::mutagen::mutator::mutator_unop_not::#run_fn(
-                #mutator_id,
-                #expr,
-                ::mutagen::MutagenRuntimeConfig::get_default()
-            )
+    let op_token = e.op_token;
+    let tmp_var = transform_info.get_next_tmp_var(op_token.span());
+    syn::parse2(quote_spanned! {e.span()=>
+        {
+            let #tmp_var = #expr;
+            if false {!#tmp_var} else {
+                ::mutagen::mutator::mutator_unop_not::run(
+                    #mutator_id,
+                    #tmp_var,
+                    ::mutagen::MutagenRuntimeConfig::get_default()
+                )
+            }
+        }
     })
     .expect("transformed code invalid")
 }
 
 #[derive(Clone, Debug)]
-pub struct ExprUnopNot {
-    pub expr: Expr,
-    pub span: Span,
+struct ExprUnopNot {
+    expr: Expr,
+    op_token: syn::UnOp,
 }
 
 impl TryFrom<Expr> for ExprUnopNot {
@@ -89,14 +75,20 @@ impl TryFrom<Expr> for ExprUnopNot {
     fn try_from(expr: Expr) -> Result<Self, Expr> {
         match expr {
             Expr::Unary(expr) => match expr.op {
-                UnOp::Not(t) => Ok(ExprUnopNot {
+                UnOp::Not(_) => Ok(ExprUnopNot {
                     expr: *expr.expr,
-                    span: t.span(),
+                    op_token: expr.op,
                 }),
                 _ => Err(Expr::Unary(expr)),
             },
             e => Err(e),
         }
+    }
+}
+
+impl syn::spanned::Spanned for ExprUnopNot {
+    fn span(&self) -> Span {
+        self.op_token.span()
     }
 }
 
@@ -167,11 +159,6 @@ mod tests {
     fn boolnot_active() {
         let result = run(1, true, &MutagenRuntimeConfig::with_mutation_id(1));
         assert_eq!(result, true);
-    }
-    #[test]
-    fn intnot_active() {
-        let result = run_native_num(1, 1, &MutagenRuntimeConfig::with_mutation_id(1));
-        assert_eq!(result, 1);
     }
 
     #[test]
