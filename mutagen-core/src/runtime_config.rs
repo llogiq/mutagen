@@ -51,7 +51,7 @@ pub struct CoverageRecorder {
 }
 
 impl MutagenRuntimeConfig {
-    /// Sccess the currently active runtime-config based on the environment variable `MUATION_ID`.
+    /// Success the currently active runtime-config based on the environment variable `MUTATION_ID`.
     ///
     /// During tests, the global runtime_config can be set to any value to allow
     /// exhaustive testing.
@@ -71,7 +71,7 @@ impl MutagenRuntimeConfig {
                 let num_mutations = std::env::var("MUTAGEN_NUM_MUTATIONS")
                     .ok()
                     .and_then(|s| s.parse().ok())
-                    .expect("environemnt variable `MUTAGEN_NUM_MUTATIONS` missing");
+                    .expect("environment variable `MUTAGEN_NUM_MUTATIONS` missing");
                 Self::Coverage(CoverageRecorder::new(num_mutations))
             }
             "" | "mutation" => {
@@ -101,7 +101,7 @@ impl MutagenRuntimeConfig {
     /// Function to abort the computation in case a optimistic mutation fails.
     ///
     /// In the future, this will be configurable
-    pub fn optimistic_assmuption_failed(&self) -> ! {
+    pub fn optimistic_assumption_failed(&self) -> ! {
         match self {
             Self::Mutation(m_id) => {
                 panic!("optimistic assumption failed for mutation {}", m_id);

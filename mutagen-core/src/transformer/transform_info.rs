@@ -19,8 +19,8 @@ pub struct SharedTransformInfo(Arc<Mutex<MutagenTransformInfo>>);
 /// Contains information about all mutations inserted into the code under test
 ///
 /// This struct is used to collect the mutations during transformation.
-/// After running all transformers, this struct contains all mutators 
-/// and their mutaitons inserted into the code
+/// After running all transformers, this struct contains all mutators
+/// and their mutations inserted into the code
 #[derive(Debug)]
 pub struct MutagenTransformInfo {
     mutations: Vec<BakedMutation>,
@@ -100,7 +100,7 @@ impl MutagenTransformInfo {
 }
 
 impl SharedTransformInfo {
-    fn lock_tranform_info(&self) -> MutexGuard<MutagenTransformInfo> {
+    fn lock_transform_info(&self) -> MutexGuard<MutagenTransformInfo> {
         self.0.lock().unwrap()
     }
 
@@ -110,7 +110,7 @@ impl SharedTransformInfo {
 
     pub fn global_info() -> Self {
         GLOBAL_TRANSFORM_INFO
-            .lock_tranform_info()
+            .lock_transform_info()
             .with_default_mutagen_file();
         GLOBAL_TRANSFORM_INFO.clone_shared()
     }
@@ -128,7 +128,7 @@ impl SharedTransformInfo {
     }
 
     pub fn add_mutations(&self, mutations: impl IntoIterator<Item = Mutation>) -> usize {
-        let mut transform_info = self.lock_tranform_info();
+        let mut transform_info = self.lock_transform_info();
 
         let mutator_id = transform_info.get_next_mutation_id();
 
@@ -144,14 +144,14 @@ impl SharedTransformInfo {
     }
 
     pub fn get_num_mutations(&self) -> usize {
-        self.lock_tranform_info().get_num_mutations()
+        self.lock_transform_info().get_num_mutations()
     }
 
     pub fn check_mutations(&self) {
-        self.lock_tranform_info().check_mutations()
+        self.lock_transform_info().check_mutations()
     }
 
     pub fn get_next_tmp_var(&self, span: Span) -> syn::Ident {
-        self.lock_tranform_info().get_next_tmp_var(span)
+        self.lock_transform_info().get_next_tmp_var(span)
     }
 }

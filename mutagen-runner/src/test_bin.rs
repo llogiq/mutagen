@@ -86,7 +86,6 @@ impl<'a> TestBin<'a> {
 }
 
 impl<'a> TestBinTested<'a> {
-
     /// Checks if any mutation is covered.
     ///
     /// Returns false, if no mutation is covered by the testsuite

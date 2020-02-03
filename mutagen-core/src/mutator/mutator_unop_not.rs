@@ -109,7 +109,7 @@ where
     type Output = <T as Not>::Output;
 
     default fn may_none(self) -> <T as Not>::Output {
-        MutagenRuntimeConfig::get_default().optimistic_assmuption_failed();
+        MutagenRuntimeConfig::get_default().optimistic_assumption_failed();
     }
 }
 
@@ -125,7 +125,7 @@ where
 
 /// types for testing the optimistic mutator that removes the negation
 #[cfg(any(test, feature = "self_test"))]
-pub mod optimistc_types {
+pub mod optimistic_types {
 
     use std::ops::Not;
 
@@ -146,7 +146,7 @@ pub mod optimistc_types {
 #[cfg(test)]
 mod tests {
 
-    use super::optimistc_types::*;
+    use super::optimistic_types::*;
     use super::*;
 
     #[test]

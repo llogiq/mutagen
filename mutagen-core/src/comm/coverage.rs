@@ -101,7 +101,7 @@ mod tests {
     }
 
     #[test]
-    fn coverage_collection_sinlge_covered() {
+    fn coverage_collection_single_covered() {
         let c = CoverageCollection::from_coverage_hits(
             2,
             &[CoverageHit { mutator_id: 1 }],
@@ -136,16 +136,10 @@ mod tests {
             Mutation::new_stub().with_id(3, 3),
             Mutation::new_stub().with_id(4, 3),
         ];
-        let c1 = CoverageCollection::from_coverage_hits(
-            4,
-            &[CoverageHit { mutator_id: 2 }],
-            &mutations,
-        );
-        let c2 = CoverageCollection::from_coverage_hits(
-            4,
-            &[CoverageHit { mutator_id: 3 }],
-            &mutations,
-        );
+        let c1 =
+            CoverageCollection::from_coverage_hits(4, &[CoverageHit { mutator_id: 2 }], &mutations);
+        let c2 =
+            CoverageCollection::from_coverage_hits(4, &[CoverageHit { mutator_id: 3 }], &mutations);
 
         let c = CoverageCollection::merge(4, &[c1, c2]);
 
