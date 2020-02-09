@@ -3,7 +3,6 @@ use quote::ToTokens;
 use syn::fold::Fold;
 
 mod arg_ast;
-pub(crate) mod ast_inspect;
 mod mutate_args;
 pub mod transform_context;
 pub mod transform_info;

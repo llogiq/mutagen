@@ -27,7 +27,7 @@ mod test_boolnot {
 mod test_optimistic_incorrect {
 
     use ::mutagen::mutate;
-    use ::mutagen::mutator::mutator_unop_not::optimistc_types::{
+    use ::mutagen::mutator::mutator_unop_not::optimistic_types::{
         TypeWithNotOtherOutput, TypeWithNotTarget,
     };
     use ::mutagen::MutagenRuntimeConfig;

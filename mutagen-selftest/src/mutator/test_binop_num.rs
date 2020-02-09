@@ -27,7 +27,7 @@ mod test_sum_u32 {
     use ::mutagen::mutate;
     use ::mutagen::MutagenRuntimeConfig;
 
-    // simple function that sums 2 u32 values. Unfortunately, the tag `u32` is necessary
+    // simple function that sums 2 u32 values
     #[mutate(conf = local(expected_mutations = 1), mutators = only(binop_num))]
     fn sum_u32() -> u32 {
         5 + 1
@@ -132,7 +132,7 @@ mod test_mul_2_3 {
     use ::mutagen::mutate;
     use ::mutagen::MutagenRuntimeConfig;
 
-    // sum of multiple values without brackets
+    // multiplication of two integers
     #[mutate(conf = local(expected_mutations = 1), mutators = only(binop_num))]
     pub fn mul_2_3() -> u32 {
         2 * 3
@@ -157,7 +157,7 @@ mod test_div_4_4 {
     use ::mutagen::mutate;
     use ::mutagen::MutagenRuntimeConfig;
 
-    // sum of multiple values without brackets
+    // division of two integers
     #[mutate(conf = local(expected_mutations = 1), mutators = only(binop_num))]
     pub fn div_4_4() -> u32 {
         4 / 4
@@ -173,6 +173,85 @@ mod test_div_4_4 {
     fn div_4_4_active1() {
         MutagenRuntimeConfig::test_with_mutation_id(1, || {
             assert_eq!(div_4_4(), 16);
+        })
+    }
+}
+
+mod test_add_after_if {
+    use ::mutagen::mutate;
+    use ::mutagen::MutagenRuntimeConfig;
+
+    // addition after an if expression
+    #[mutate(conf = local(expected_mutations = 1), mutators = only(binop_num))]
+    pub fn add_after_if(bit: bool) -> i8 {
+        (if bit { 1 } else { 0 }) + 2
+    }
+
+    #[test]
+    fn add_after_if_inactive() {
+        MutagenRuntimeConfig::test_without_mutation(|| {
+            assert_eq!(add_after_if(true), 3);
+            assert_eq!(add_after_if(false), 2);
+        })
+    }
+    #[test]
+    fn add_after_if_active1() {
+        MutagenRuntimeConfig::test_with_mutation_id(1, || {
+            assert_eq!(add_after_if(true), -1);
+            assert_eq!(add_after_if(false), -2);
+        })
+    }
+}
+
+mod test_add_after_block {
+    use ::mutagen::mutate;
+    use ::mutagen::MutagenRuntimeConfig;
+
+    // addition after a block expression
+    #[mutate(conf = local(expected_mutations = 1), mutators = only(binop_num))]
+    pub fn add_after_block() -> i8 {
+        ({
+            "";
+            1
+        }) + 2
+    }
+
+    #[test]
+    fn add_after_block_inactive() {
+        MutagenRuntimeConfig::test_without_mutation(|| {
+            assert_eq!(add_after_block(), 3);
+        })
+    }
+    #[test]
+    fn add_after_block_active1() {
+        MutagenRuntimeConfig::test_with_mutation_id(1, || {
+            assert_eq!(add_after_block(), -1);
+        })
+    }
+}
+
+mod test_mul_i64_with_tempvar {
+
+    use ::mutagen::mutate;
+    use ::mutagen::MutagenRuntimeConfig;
+
+    // multiplies two numbers, the first one is a temporary variable
+    #[mutate(conf = local(expected_mutations = 1), mutators = only(binop_num))]
+    pub fn mul_with_tempvar() -> i64 {
+        let x = 4;
+        x * 2
+    }
+
+    #[test]
+    fn mul_with_tempvar_inactive() {
+        MutagenRuntimeConfig::test_without_mutation(|| {
+            assert_eq!(mul_with_tempvar(), 8);
+        })
+    }
+    #[test]
+    fn mul_with_tempvar_active1() {
+        MutagenRuntimeConfig::test_with_mutation_id(1, || {
+            assert_eq!(mul_with_tempvar(), 2);
         })
     }
 }

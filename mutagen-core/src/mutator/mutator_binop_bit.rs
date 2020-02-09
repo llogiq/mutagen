@@ -4,7 +4,7 @@ use std::convert::TryFrom;
 use std::ops::Deref;
 use std::ops::{BitAnd, BitOr, BitXor};
 
-use proc_macro2::{Span, TokenStream};
+use proc_macro2::Span;
 use quote::quote_spanned;
 use syn::spanned::Spanned;
 use syn::{BinOp, Expr};
@@ -70,25 +70,6 @@ pub fn run_xor<L: BitXor<R>, R>(
     }
 }
 
-pub fn run_native_num<I>(
-    mutator_id: usize,
-    left: I,
-    right: I,
-    original_op: BinopBit,
-    runtime: impl Deref<Target = MutagenRuntimeConfig>,
-) -> I
-where
-    I: BitAnd<I, Output = I> + BitOr<I, Output = I> + BitXor<I, Output = I>,
-{
-    runtime.covered(mutator_id);
-    let mutations = MutationBinopBit::possible_mutations(original_op);
-    if let Some(m) = runtime.get_mutation_for_mutator(mutator_id, &mutations) {
-        m.mutate(left, right)
-    } else {
-        original_op.calc(left, right)
-    }
-}
-
 pub fn transform(
     e: Expr,
     transform_info: &SharedTransformInfo,
@@ -108,31 +89,24 @@ pub fn transform(
     let left = &e.left;
     let right = &e.right;
 
-    // if the current expression is based on numbers, use the function `run_native_num` instead
-    syn::parse2(if context.is_num_expr() {
-        let op = e.op_tokens();
-        quote_spanned! {e.span=>
-            ::mutagen::mutator::mutator_binop_bit::run_native_num(
+    let run_fn = match e.op {
+        BinopBit::And => quote_spanned! {e.span()=> run_and},
+        BinopBit::Or => quote_spanned! {e.span()=> run_or},
+        BinopBit::Xor => quote_spanned! {e.span()=> run_xor},
+    };
+    let op_token = e.op_token;
+    let tmp_var = transform_info.get_next_tmp_var(op_token.span());
+    syn::parse2(quote_spanned! {e.span()=>
+        {
+            let #tmp_var = #left;
+            if false {#tmp_var #op_token #right} else {
+                ::mutagen::mutator::mutator_binop_bit::#run_fn(
                     #mutator_id,
-                    #left,
-                    #right,
-                    #op,
-                    ::mutagen::MutagenRuntimeConfig::get_default()
-                )
-        }
-    } else {
-        let run_fn = match e.op {
-            BinopBit::And => quote_spanned! {e.span=> run_and},
-            BinopBit::Or => quote_spanned! {e.span=> run_or},
-            BinopBit::Xor => quote_spanned! {e.span=> run_xor},
-        };
-        quote_spanned! {e.span=>
-            ::mutagen::mutator::mutator_binop_bit::#run_fn(
-                    #mutator_id,
-                    #left,
+                    #tmp_var,
                     #right,
                     ::mutagen::MutagenRuntimeConfig::get_default()
                 )
+            }
         }
     })
     .expect("transformed code invalid")
@@ -153,20 +127,13 @@ impl MutationBinopBit {
             .collect()
     }
 
-    fn mutate<I>(self, left: I, right: I) -> I
-    where
-        I: BitAnd<I, Output = I> + BitOr<I, Output = I> + BitXor<I, Output = I>,
-    {
-        self.op.calc(left, right)
-    }
-
     fn to_mutation(self, original_expr: &ExprBinopBit, context: &TransformContext) -> Mutation {
         Mutation::new_spanned(
             &context,
             "binop_bit".to_owned(),
             format!("{}", original_expr.op),
             format!("{}", self.op),
-            original_expr.span,
+            original_expr.span(),
         )
     }
 }
@@ -176,7 +143,7 @@ struct ExprBinopBit {
     op: BinopBit,
     left: Expr,
     right: Expr,
-    span: Span,
+    op_token: syn::BinOp,
 }
 
 impl TryFrom<Expr> for ExprBinopBit {
@@ -184,23 +151,23 @@ impl TryFrom<Expr> for ExprBinopBit {
     fn try_from(expr: Expr) -> Result<Self, Expr> {
         match expr {
             Expr::Binary(expr) => match expr.op {
-                BinOp::BitAnd(t) => Ok(ExprBinopBit {
+                BinOp::BitAnd(_) => Ok(ExprBinopBit {
                     op: BinopBit::And,
                     left: *expr.left,
                     right: *expr.right,
-                    span: t.span(),
+                    op_token: expr.op,
                 }),
-                BinOp::BitOr(t) => Ok(ExprBinopBit {
+                BinOp::BitOr(_) => Ok(ExprBinopBit {
                     op: BinopBit::Or,
                     left: *expr.left,
                     right: *expr.right,
-                    span: t.span(),
+                    op_token: expr.op,
                 }),
-                BinOp::BitXor(t) => Ok(ExprBinopBit {
+                BinOp::BitXor(_) => Ok(ExprBinopBit {
                     op: BinopBit::Xor,
                     left: *expr.left,
                     right: *expr.right,
-                    span: t.span(),
+                    op_token: expr.op,
                 }),
                 _ => Err(Expr::Binary(expr)),
             },
@@ -209,38 +176,17 @@ impl TryFrom<Expr> for ExprBinopBit {
     }
 }
 
-impl ExprBinopBit {
-    fn op_tokens(&self) -> TokenStream {
-        let mut tokens = TokenStream::new();
-        tokens.extend(quote_spanned!(self.span=>
-            ::mutagen::mutator::mutator_binop_bit::BinopBit::));
-        tokens.extend(match self.op {
-            BinopBit::And => quote_spanned!(self.span=> And),
-            BinopBit::Or => quote_spanned!(self.span=> Or),
-            BinopBit::Xor => quote_spanned!(self.span=> Xor),
-        });
-        tokens
+impl syn::spanned::Spanned for ExprBinopBit {
+    fn span(&self) -> Span {
+        self.op_token.span()
     }
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
-pub enum BinopBit {
+enum BinopBit {
     And,
     Or,
     Xor,
-}
-
-impl BinopBit {
-    fn calc<I>(self, l: I, r: I) -> I
-    where
-        I: BitAnd<I, Output = I> + BitOr<I, Output = I> + BitXor<I, Output = I>,
-    {
-        match self {
-            BinopBit::And => l & r,
-            BinopBit::Or => l | r,
-            BinopBit::Xor => l ^ r,
-        }
-    }
 }
 
 use std::fmt;
@@ -270,7 +216,7 @@ macro_rules! binary_x_to_y {
             impl <L, R> $may_ty<R> for L where L: $t1<R> {
                 type Output = <L as $t1<R>>::Output;
                 default fn $may_fn(self, _r: R) -> <L as $t1<R>>::Output {
-                    MutagenRuntimeConfig::get_default().optimistic_assmuption_failed();
+                    MutagenRuntimeConfig::get_default().optimistic_assumption_failed();
                 }
             }
 
@@ -349,39 +295,5 @@ mod tests {
     fn xor_active2() {
         let result = run_xor(1, 0b11, 0b10, &MutagenRuntimeConfig::with_mutation_id(2));
         assert_eq!(result, 0b11);
-    }
-
-    #[test]
-    fn or_native_inactive() {
-        let result = run_native_num(
-            1,
-            0b11,
-            0b10,
-            BinopBit::Or,
-            &MutagenRuntimeConfig::without_mutation(),
-        );
-        assert_eq!(result, 0b11);
-    }
-    #[test]
-    fn or_native_active1() {
-        let result = run_native_num(
-            1,
-            0b11,
-            0b10,
-            BinopBit::Or,
-            &MutagenRuntimeConfig::with_mutation_id(1),
-        );
-        assert_eq!(result, 0b10);
-    }
-    #[test]
-    fn or_native_active2() {
-        let result = run_native_num(
-            1,
-            0b11,
-            0b10,
-            BinopBit::Or,
-            &MutagenRuntimeConfig::with_mutation_id(2),
-        );
-        assert_eq!(result, 0b01);
     }
 }

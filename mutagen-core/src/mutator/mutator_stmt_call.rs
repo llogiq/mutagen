@@ -85,7 +85,7 @@ impl TryFrom<Stmt> for StmtCall {
     }
 }
 
-/// a trait for optimistically removing a statement containing a method- or functioncall.
+/// a trait for optimistically removing a statement containing a method- or function call.
 ///
 /// This operation is optimistic, since the statement could have the type `!` and can be used in surprising contexts:
 ///
@@ -99,7 +99,7 @@ pub trait StmtCallToNone {
 
 impl<T> StmtCallToNone for T {
     default fn stmt_call_to_none() -> Self {
-        MutagenRuntimeConfig::get_default().optimistic_assmuption_failed();
+        MutagenRuntimeConfig::get_default().optimistic_assumption_failed();
     }
 }
 

@@ -4,7 +4,7 @@ use std::convert::TryFrom;
 use std::ops::Deref;
 use std::ops::{Add, Div, Mul, Sub};
 
-use proc_macro2::{Span, TokenStream};
+use proc_macro2::Span;
 use quote::quote_spanned;
 use syn::spanned::Spanned;
 use syn::{BinOp, Expr};
@@ -68,25 +68,6 @@ pub fn run_div<L: Div<R>, R>(
     }
 }
 
-pub fn run_native_num<I>(
-    mutator_id: usize,
-    left: I,
-    right: I,
-    original_op: BinopNum,
-    runtime: impl Deref<Target = MutagenRuntimeConfig>,
-) -> I
-where
-    I: Add<I, Output = I> + Sub<I, Output = I> + Mul<I, Output = I> + Div<I, Output = I>,
-{
-    runtime.covered(mutator_id);
-    let mutations = MutationBinopNum::possible_mutations(original_op);
-    if let Some(m) = runtime.get_mutation_for_mutator(mutator_id, &mutations) {
-        m.mutate(left, right)
-    } else {
-        original_op.calc(left, right)
-    }
-}
-
 pub fn transform(
     e: Expr,
     transform_info: &SharedTransformInfo,
@@ -105,33 +86,25 @@ pub fn transform(
 
     let left = &e.left;
     let right = &e.right;
-
-    // if the current expression is based on numbers, use the function `run_native_num` instead
-    syn::parse2(if context.is_num_expr() {
-        let op = e.op_tokens();
-        quote_spanned! {e.span=>
-            ::mutagen::mutator::mutator_binop_num::run_native_num(
+    let run_fn = match e.op {
+        BinopNum::Add => quote_spanned! {e.span()=> run_add},
+        BinopNum::Sub => quote_spanned! {e.span()=> run_sub},
+        BinopNum::Mul => quote_spanned! {e.span()=> run_mul},
+        BinopNum::Div => quote_spanned! {e.span()=> run_div},
+    };
+    let op_token = e.op_token;
+    let tmp_var = transform_info.get_next_tmp_var(op_token.span());
+    syn::parse2(quote_spanned! {e.span()=>
+        {
+            let #tmp_var = #left;
+            if false {#tmp_var #op_token #right} else {
+                ::mutagen::mutator::mutator_binop_num::#run_fn(
                     #mutator_id,
-                    #left,
-                    #right,
-                    #op,
-                    ::mutagen::MutagenRuntimeConfig::get_default()
-                )
-        }
-    } else {
-        let run_fn = match e.op {
-            BinopNum::Add => quote_spanned! {e.span=> run_add},
-            BinopNum::Sub => quote_spanned! {e.span=> run_sub},
-            BinopNum::Mul => quote_spanned! {e.span=> run_mul},
-            BinopNum::Div => quote_spanned! {e.span=> run_div},
-        };
-        quote_spanned! {e.span=>
-            ::mutagen::mutator::mutator_binop_num::#run_fn(
-                    #mutator_id,
-                    #left,
+                    #tmp_var,
                     #right,
                     ::mutagen::MutagenRuntimeConfig::get_default()
                 )
+            }
         }
     })
     .expect("transformed code invalid")
@@ -152,20 +125,13 @@ impl MutationBinopNum {
         }
     }
 
-    fn mutate<I>(self, left: I, right: I) -> I
-    where
-        I: Add<I, Output = I> + Sub<I, Output = I> + Mul<I, Output = I> + Div<I, Output = I>,
-    {
-        self.op.calc(left, right)
-    }
-
     fn to_mutation(self, original_expr: &ExprBinopNum, context: &TransformContext) -> Mutation {
         Mutation::new_spanned(
             &context,
             "binop_num".to_owned(),
             format!("{}", original_expr.op),
             format!("{}", self.op),
-            original_expr.span,
+            original_expr.span(),
         )
     }
 }
@@ -175,7 +141,7 @@ struct ExprBinopNum {
     op: BinopNum,
     left: Expr,
     right: Expr,
-    span: Span,
+    op_token: syn::BinOp,
 }
 
 impl TryFrom<Expr> for ExprBinopNum {
@@ -183,29 +149,29 @@ impl TryFrom<Expr> for ExprBinopNum {
     fn try_from(expr: Expr) -> Result<Self, Expr> {
         match expr {
             Expr::Binary(expr) => match expr.op {
-                BinOp::Add(t) => Ok(ExprBinopNum {
+                BinOp::Add(_) => Ok(ExprBinopNum {
                     op: BinopNum::Add,
                     left: *expr.left,
                     right: *expr.right,
-                    span: t.span(),
+                    op_token: expr.op,
                 }),
-                BinOp::Sub(t) => Ok(ExprBinopNum {
+                BinOp::Sub(_) => Ok(ExprBinopNum {
                     op: BinopNum::Sub,
                     left: *expr.left,
                     right: *expr.right,
-                    span: t.span(),
+                    op_token: expr.op,
                 }),
-                BinOp::Mul(t) => Ok(ExprBinopNum {
+                BinOp::Mul(_) => Ok(ExprBinopNum {
                     op: BinopNum::Mul,
                     left: *expr.left,
                     right: *expr.right,
-                    span: t.span(),
+                    op_token: expr.op,
                 }),
-                BinOp::Div(t) => Ok(ExprBinopNum {
+                BinOp::Div(_) => Ok(ExprBinopNum {
                     op: BinopNum::Div,
                     left: *expr.left,
                     right: *expr.right,
-                    span: t.span(),
+                    op_token: expr.op,
                 }),
                 _ => Err(Expr::Binary(expr)),
             },
@@ -214,41 +180,18 @@ impl TryFrom<Expr> for ExprBinopNum {
     }
 }
 
-impl ExprBinopNum {
-    fn op_tokens(&self) -> TokenStream {
-        let mut tokens = TokenStream::new();
-        tokens.extend(quote_spanned!(self.span=>
-            ::mutagen::mutator::mutator_binop_num::BinopNum::));
-        tokens.extend(match self.op {
-            BinopNum::Add => quote_spanned!(self.span=> Add),
-            BinopNum::Sub => quote_spanned!(self.span=> Sub),
-            BinopNum::Mul => quote_spanned!(self.span=> Mul),
-            BinopNum::Div => quote_spanned!(self.span=> Div),
-        });
-        tokens
+impl syn::spanned::Spanned for ExprBinopNum {
+    fn span(&self) -> Span {
+        self.op_token.span()
     }
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
-pub enum BinopNum {
+enum BinopNum {
     Add,
     Sub,
     Mul,
     Div,
-}
-
-impl BinopNum {
-    fn calc<I>(self, l: I, r: I) -> I
-    where
-        I: Add<I, Output = I> + Sub<I, Output = I> + Mul<I, Output = I> + Div<I, Output = I>,
-    {
-        match self {
-            BinopNum::Add => l + r,
-            BinopNum::Sub => l - r,
-            BinopNum::Mul => l * r,
-            BinopNum::Div => l / r,
-        }
-    }
 }
 
 use std::fmt;
@@ -279,7 +222,7 @@ macro_rules! binary_x_to_y {
             impl <L, R> $may_ty<R> for L where L: $t1<R> {
                 type Output = <L as $t1<R>>::Output;
                 default fn $may_fn(self, _r: R) -> <L as $t1<R>>::Output {
-                    MutagenRuntimeConfig::get_default().optimistic_assmuption_failed();
+                    MutagenRuntimeConfig::get_default().optimistic_assumption_failed();
                 }
             }
 
@@ -340,29 +283,5 @@ mod tests {
             "y",
             &MutagenRuntimeConfig::with_mutation_id(1),
         );
-    }
-
-    #[test]
-    fn sum_native_inactive() {
-        let result = run_native_num(
-            1,
-            5,
-            4,
-            BinopNum::Add,
-            &MutagenRuntimeConfig::without_mutation(),
-        );
-        assert_eq!(result, 9);
-    }
-
-    #[test]
-    fn sum_native_active() {
-        let result = run_native_num(
-            1,
-            5,
-            4,
-            BinopNum::Add,
-            &MutagenRuntimeConfig::with_mutation_id(1),
-        );
-        assert_eq!(result, 1);
     }
 }

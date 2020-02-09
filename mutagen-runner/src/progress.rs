@@ -9,8 +9,8 @@
 
 use failure::Fallible;
 
-use std::time::Duration;
 use std::path::Path;
+use std::time::Duration;
 
 use mutagen_core::comm::{BakedMutation, MutantStatus};
 
@@ -162,7 +162,10 @@ impl Progress {
     /// clears the progress-bar
     pub fn finish(mut self, mutagen_time: Duration) -> Fallible<()> {
         let rounded_time = Duration::from_secs(mutagen_time.as_secs());
-        self.bar.println(&format!("Total time: {}", ::humantime::format_duration(rounded_time)))?;
+        self.bar.println(&format!(
+            "Total time: {}",
+            ::humantime::format_duration(rounded_time)
+        ))?;
         self.bar.finish()?;
         Ok(())
     }

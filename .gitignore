@@ -13,3 +13,5 @@ Cargo.lock
 
 # Generated file from integration tests
 **/mutations
+
+.vscode/
