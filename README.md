@@ -13,7 +13,7 @@ The difference to line or branch coverage is that those measure if the code unde
 
 ## How `mutagen` works
 
-`mutagen`'s  core functionality is implemented via a procedural macro that transforms the source code into
+`mutagen`'s core functionality is implemented via a procedural macro that transforms the source code. Known patterns of code are replaced by mutators with identical behavior unless activated. Activating a mutator at runtime alters its behavior - having the effect of a mutation.
 
 The procedural macro has access the bare AST. Information about inferred types, implemented traits, control flow, data flow or signatures of other functions are not available during the execution of procedural macros. Therefore, the mutations must be possible without additional type-information.
 
