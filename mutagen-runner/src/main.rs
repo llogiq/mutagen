@@ -1,5 +1,6 @@
 use failure::{bail, Fallible};
 use std::collections::HashMap;
+use std::env;
 use std::fs::File;
 use std::io::BufWriter;
 use std::path::PathBuf;
@@ -36,7 +37,13 @@ struct Options {
 fn run() -> Fallible<()> {
     let mutagen_start = Instant::now();
 
-    let opt = Options::from_args();
+    // drop "mutagen" arg in cargo-subcommand mode
+    let mut args = env::args();
+    if env::var("CARGO").is_ok() {
+        // we're invoked by cargo, drop the first arg
+        args.next();
+    }
+    let opt = Options::from_iter(args);
 
     // build the testsuites and collect mutations
     let test_bins = compile_tests(&opt)?;
