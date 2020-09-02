@@ -23,13 +23,15 @@ This project is basically an experiment to see what mutations we can still apply
 
 ## Using mutagen
 
+**Note**: The version of mutagen (`0.2.0`) referenced in this README is not yet released on `crates.io`. To install and use an earlier, released version, you can follow the instructions on [crates.io mutagen crate](https://crates.io/crates/mutagen).
+
 You need Rust nightly to compile the procedural macro.
 
-Add the library `mutagen` as a `dev-dependency` to your `Cargo.toml`:
+Add the library `mutagen` as a `dev-dependency` to your `Cargo.toml` referencing this git repository:
 
 ```rust
 [dev-dependencies]
-mutagen = "0.2.0"
+mutagen = {git = "https://github.com/llogiq/mutagen"}
 ```
 
 To use the attribute `#[mutate]`, you need to import it.
