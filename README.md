@@ -23,13 +23,15 @@ This project is basically an experiment to see what mutations we can still apply
 
 ## Using mutagen
 
+**Note**: The version of mutagen (`0.2.0`) referenced in this README is not yet released on `crates.io`. To install and use an earlier, released version, you can follow the instructions on [crates.io mutagen crate](https://crates.io/crates/mutagen).
+
 You need Rust nightly to compile the procedural macro.
 
-Add the library `mutagen` as a `dev-dependency` to your `Cargo.toml`:
+Add the library `mutagen` as a `dev-dependency` to your `Cargo.toml` referencing this git repository:
 
 ```rust
 [dev-dependencies]
-mutagen = "0.2.0"
+mutagen = {git = "https://github.com/llogiq/mutagen"}
 ```
 
 To use the attribute `#[mutate]`, you need to import it.
@@ -50,7 +52,7 @@ Then, the environment variable `MUTATION_ID` can be used to activate a single mu
 
 You can run `cargo mutagen -- --coverage` in order to reduce the time it takes to run the mutated code. When running on this mode, it runs the test suite at the beginning of the process and checks which tests are hitting mutated code. Then, for each mutation, instead of running the whole test suite again, it executes only the tests that are affected by the current mutation. This mode is specially useful when the test suite is slow or when the mutated code affects a little part of it.
 
-If you want the development version of `cargo-mutagen`, run `cargo install` in the runner dir of this repository. Running `cargo install --force` might be necessary to overwrite any existing `cargo-mutagen` binary.
+If you referenced `mutagen` in your cargo.toml via the git repository as noted in the `Using Mutagen` section, you will probably want to install the development version of `cargo-mutagen`. To install the development version, run `cargo install` in the `mutagen-runner` dir of this repository. Running `cargo install --force` might be necessary to overwrite any existing `cargo-mutagen` binary.
 
 ## A Word of Warning
 
