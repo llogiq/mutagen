@@ -32,6 +32,14 @@ struct Options {
     /// Activate all available features
     #[structopt(long)]
     all_features: bool,
+
+    /// Package to run tests for
+    #[structopt(long, name = "SPEC")]
+    package: Option<String>,
+
+    /// Test all packages in the workspace
+    #[structopt(long)]
+    workspace: bool,
 }
 
 fn run() -> Fallible<()> {
@@ -132,6 +140,12 @@ fn compile_tests(opt: &Options) -> Fallible<Vec<PathBuf>> {
     }
     if opt.all_features {
         feature_args.push("--all-features");
+    }
+    if let Some(p) = &opt.package {
+        feature_args.extend(&["--package", p]);
+    }
+    if opt.workspace {
+        feature_args.push("--workspace");
     }
 
     // execute `cargo test --no-run --message-format=json` and collect output
