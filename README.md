@@ -1,4 +1,5 @@
 # Breaking your Rust code for fun & profit
+[![Hits](https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=https%3A%2F%2Fgithub.com%2Fllogiq%2Fmutagen&count_bg=%2379C83D&title_bg=%23555555&icon=&icon_color=%23E7E7E7&title=PAGE+VIEWS&edge_flat=false)](https://hits.seeyoufarm.com)
 
 *this is a architecture-preview, not all components are there*
 
