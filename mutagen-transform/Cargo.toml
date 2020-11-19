@@ -3,6 +3,7 @@ name = "mutagen-transform"
 version = "0.2.0"
 authors = ["Andre Bogus <bogusandre@gmail.com>", "power-fungus <samuel.pilz@posteo.net>"]
 edition = "2018"
+license = "Apache-2.0/MIT"
 
 [dependencies]
 mutagen-core = { path = "../mutagen-core" }
