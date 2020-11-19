@@ -3,6 +3,7 @@ name = "mutagen-selftest"
 version = "0.2.0"
 authors = ["Andre Bogus <bogusandre@gmail.com>", "Samuel Pilz <samuel.pilz@posteo.net>"]
 edition = "2018"
+license = "Apache-2.0/MIT"
 
 [dev-dependencies]
 mutagen = { path = "../mutagen" }
