@@ -81,7 +81,7 @@ impl MutationBinopBool {
 
     fn to_mutation(self, original_op: &ExprBinopBool, context: &TransformContext) -> Mutation {
         Mutation::new_spanned(
-            &context,
+            context,
             "binop_bool".to_owned(),
             format!("{}", original_op),
             format!("{}", self.op),

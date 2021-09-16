@@ -79,7 +79,7 @@ impl MutationLitInt {
 
     fn to_mutation(self, original_lit: &ExprLitInt, context: &TransformContext) -> Mutation {
         Mutation::new_spanned(
-            &context,
+            context,
             "lit_int".to_owned(),
             format!("{}", original_lit.value),
             format!("{}", self.mutate::<u128>(original_lit.value)),

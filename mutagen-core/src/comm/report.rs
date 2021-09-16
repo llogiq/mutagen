@@ -40,10 +40,12 @@ impl MutagenReport {
         let mut map = BTreeMap::new();
         // collect mutations by source file
         for (m, s) in &self.mutant_results {
-            map.entry(m.source_file()).or_insert(vec![]).push((m, *s));
+            map.entry(m.source_file())
+                .or_insert_with(Vec::new)
+                .push((m, *s));
         }
         // sort list of mutations per source file by id
-        for (_, ms) in &mut map {
+        for ms in map.values_mut() {
             ms.sort_unstable_by_key(|(m, _)| m.id());
         }
         map

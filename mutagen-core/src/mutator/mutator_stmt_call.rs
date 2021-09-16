@@ -32,16 +32,13 @@ pub fn transform(
     };
 
     let mutator_id = transform_info.add_mutation(Mutation::new_spanned(
-        &context,
+        context,
         "stmt_call".to_owned(),
-        format!(
-            "{}",
-            context
-                .original_stmt
-                .to_token_stream()
-                .to_string()
-                .replace("\n", " ")
-        ),
+        context
+            .original_stmt
+            .to_token_stream()
+            .to_string()
+            .replace("\n", " "),
         "".to_owned(),
         s.span,
     ));
@@ -80,7 +77,7 @@ impl TryFrom<Stmt> for StmtCall {
                 span: call.span(),
                 call: call.into_token_stream(),
             }),
-            _ => return Err(stmt),
+            _ => Err(stmt),
         }
     }
 }
@@ -104,7 +101,7 @@ impl<T> StmtCallToNone for T {
 }
 
 impl StmtCallToNone for () {
-    fn stmt_call_to_none() -> () {}
+    fn stmt_call_to_none() {}
 }
 
 pub fn stmt_call_to_none<T: StmtCallToNone>() -> T {

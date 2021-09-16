@@ -107,7 +107,7 @@ impl BakedMutation {
 
     pub fn fn_name(&self) -> Option<&str> {
         // TODO: use Option::deref instead
-        self.mutation.fn_name.as_ref().map(String::deref)
+        self.mutation.fn_name.as_deref()
     }
 
     pub fn original_code(&self) -> &str {

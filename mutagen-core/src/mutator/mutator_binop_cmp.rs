@@ -83,7 +83,7 @@ impl MutationBinopCmp {
 
     fn to_mutation(self, original_op: &ExprBinopCmp, context: &TransformContext) -> Mutation {
         Mutation::new_spanned(
-            &context,
+            context,
             "binop_cmp".to_owned(),
             format!("{}", original_op.op),
             format!("{}", self.op),

@@ -127,7 +127,7 @@ impl MutationBinopNum {
 
     fn to_mutation(self, original_expr: &ExprBinopNum, context: &TransformContext) -> Mutation {
         Mutation::new_spanned(
-            &context,
+            context,
             "binop_num".to_owned(),
             format!("{}", original_expr.op),
             format!("{}", self.op),

@@ -81,7 +81,7 @@ impl ArgAst {
         tt_iter: &mut impl Iterator<Item = TokenTree>,
     ) -> Result<Self, ()> {
         match tt_iter.next() {
-            None => return Ok(Self::new_fn(name, ArgAstList(vec![]))),
+            None => Ok(Self::new_fn(name, ArgAstList(vec![]))),
 
             // parse fn-variant
             Some(TokenTree::Group(g)) => {
@@ -90,7 +90,7 @@ impl ArgAst {
                 }
                 let args = ArgAstList::parse_list(g.stream())?;
                 tt_expect_comma_or_end(tt_iter)?;
-                return Ok(Self::new_fn(name, args));
+                Ok(Self::new_fn(name, args))
             }
 
             // parse eq-variant
@@ -113,9 +113,9 @@ impl ArgAst {
 
                 // parse value, only allow ArgFn values.
                 let val = Self::parse_single(next, tt_iter)?.expect_fn()?;
-                return Ok(Self::new_eq(name, val));
+                Ok(Self::new_eq(name, val))
             }
-            _ => return Err(()),
+            _ => Err(()),
         }
     }
 

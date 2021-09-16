@@ -65,7 +65,9 @@ impl MutagenRuntimeConfig {
     #[cfg_attr(any(test, feature = "self_test"), allow(dead_code))]
     // private fn `from_env` is not used when during test (cfg-switch in RUNTIME_CONFIG)
     fn from_env() -> Self {
-        let mode = std::env::var("MUTAGEN_MODE").ok().unwrap_or("".to_owned());
+        let mode = std::env::var("MUTAGEN_MODE")
+            .ok()
+            .unwrap_or_else(|| "".to_owned());
         match &*mode {
             "coverage" => {
                 let num_mutations = std::env::var("MUTAGEN_NUM_MUTATIONS")
@@ -201,18 +203,18 @@ mod test_tools {
         /// sets the global `mutation_id` correctly before running the test and runs tests sequentially.
         ///
         /// The lock is required to ensure that set `mutation_id` is valid for the complete duration of the test case.
-        fn test_with_runtime<F: FnOnce() -> ()>(self, testcase: F) {
+        fn test_with_runtime<F: FnOnce()>(self, testcase: F) {
             let lock = TEST_LOCK.lock();
             *RUNTIME_CONFIG.write().unwrap() = self;
             testcase();
             drop(lock); // drop here to show the extended lifetime of lock guard
         }
 
-        pub fn test_without_mutation<F: FnOnce() -> ()>(testcase: F) {
+        pub fn test_without_mutation<F: FnOnce()>(testcase: F) {
             Self::test_with_runtime(Self::without_mutation(), testcase)
         }
 
-        pub fn test_with_mutation_id<F: FnOnce() -> ()>(mutation_id: usize, testcase: F) {
+        pub fn test_with_mutation_id<F: FnOnce()>(mutation_id: usize, testcase: F) {
             Self::test_with_runtime(Self::with_mutation_id(mutation_id), testcase)
         }
 

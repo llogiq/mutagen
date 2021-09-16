@@ -40,7 +40,7 @@ impl<'a> TestBin<'a> {
         let num_mutations = mutations.len();
         let test_start = Instant::now();
 
-        progress.start_testsuite_unmutated(&self.bin_path, self.id)?;
+        progress.start_testsuite_unmutated(self.bin_path, self.id)?;
 
         ::std::io::stdout().flush()?;
 
@@ -71,7 +71,7 @@ impl<'a> TestBin<'a> {
                 // delete coverage file after the execution of this testsuite
                 fs::remove_file(coverage_file)?;
 
-                CoverageCollection::from_coverage_hits(num_mutations, &coverage_hits, &mutations)
+                CoverageCollection::from_coverage_hits(num_mutations, &coverage_hits, mutations)
             }
         };
 
