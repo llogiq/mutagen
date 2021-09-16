@@ -83,7 +83,7 @@ impl MutationBinopEq {
 
     fn to_mutation(self, original_op: &ExprBinopEq, context: &TransformContext) -> Mutation {
         Mutation::new_spanned(
-            &context,
+            context,
             "binop_eq".to_owned(),
             format!("{}", original_op.op),
             format!("{}", self.op),

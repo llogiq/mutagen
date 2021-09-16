@@ -49,7 +49,7 @@ impl ArgOptions {
 
         let ast = ArgAstList::parse_list(args)?;
         if let Some(conf) = ast.find_named_arg("conf")? {
-            options.conf = Conf::parse(&conf)?;
+            options.conf = Conf::parse(conf)?;
         }
         if let Some(transformers_arg) = ast.find_named_arg("mutators")? {
             match &*transformers_arg.name {

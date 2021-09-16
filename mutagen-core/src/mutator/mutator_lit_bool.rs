@@ -37,7 +37,7 @@ pub fn transform(
     };
 
     let mutator_id = transform_info.add_mutation(Mutation::new_spanned(
-        &context,
+        context,
         "lit_bool".to_owned(),
         format!("{:?}", e.value),
         format!("{:?}", !e.value),

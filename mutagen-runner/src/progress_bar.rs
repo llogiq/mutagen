@@ -109,7 +109,7 @@ impl ProgressBar {
 
     /// clears the progress bar
     pub fn clear_bar(&mut self) -> Fallible<()> {
-        if let Some(_) = self.current_bar_state.take() {
+        if self.current_bar_state.take().is_some() {
             self.term.clear_line()?;
         }
         Ok(())

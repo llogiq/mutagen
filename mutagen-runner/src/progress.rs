@@ -133,7 +133,7 @@ impl Progress {
             let bar = ProgressBarState {
                 action: "Test Mutants",
                 current: self.tested_mutations,
-                action_details: action_details,
+                action_details,
             };
             self.bar.set_state(bar)?;
         }

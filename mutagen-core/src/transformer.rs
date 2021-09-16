@@ -14,9 +14,9 @@ use transform_info::SharedTransformInfo;
 pub fn do_transform_item(args: TokenStream, input: TokenStream) -> TokenStream {
     let input = match syn::parse2::<syn::Item>(input) {
         Ok(ast) => ast,
-        Err(e) => return TokenStream::from(e.to_compile_error()),
+        Err(e) => return e.to_compile_error(),
     };
-    MutagenTransformerBundle::setup_from_attr(args.into()).mutagen_process_item(input)
+    MutagenTransformerBundle::setup_from_attr(args).mutagen_process_item(input)
 }
 
 pub enum MutagenTransformer {

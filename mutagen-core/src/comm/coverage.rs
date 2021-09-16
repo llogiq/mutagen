@@ -61,11 +61,9 @@ impl CoverageCollection {
 
         for c in coverages {
             for m_id in 1..=num_mutations {
-                if c.is_covered(m_id) {
-                    if !coverage[m_id] {
-                        num_covered += 1;
-                        coverage[m_id] = true;
-                    }
+                if c.is_covered(m_id) && !coverage[m_id] {
+                    num_covered += 1;
+                    coverage[m_id] = true;
                 }
             }
         }

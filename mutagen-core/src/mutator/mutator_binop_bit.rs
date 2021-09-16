@@ -129,7 +129,7 @@ impl MutationBinopBit {
 
     fn to_mutation(self, original_expr: &ExprBinopBit, context: &TransformContext) -> Mutation {
         Mutation::new_spanned(
-            &context,
+            context,
             "binop_bit".to_owned(),
             format!("{}", original_expr.op),
             format!("{}", self.op),

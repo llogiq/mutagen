@@ -70,7 +70,7 @@ fn run() -> Fallible<()> {
     let test_bins = test_bins
         .iter()
         .enumerate()
-        .map(|(i, e)| TestBin::new(&e, i))
+        .map(|(i, e)| TestBin::new(e, i))
         .filter_map(|bin| {
             bin.run_test(&mut progress, &mutations)
                 .map(|bin| Some(bin).filter(|bin| bin.coveres_any_mutation()))
