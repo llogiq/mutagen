@@ -11,7 +11,7 @@ failure = "0.1.8"
 wait-timeout = "0.2.0"
 serde_json = "1.0.68"
 mutagen-core = { path = "../mutagen-core"}
-console = "0.14.1"
+console = "0.15.0"
 humantime = "2.1.0"
 structopt = "0.3.23"
 
