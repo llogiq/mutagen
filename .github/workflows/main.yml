@@ -13,9 +13,10 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: nightly
+          override: true
       - uses: actions-rs/cargo@v1
         with:
-          command: test
+          command: +nightly test
 
   # Format the code with $ rust fmt --all -- --check
 
@@ -38,6 +39,7 @@ jobs:
 
   clippy:
     name: rust clippy
+    permissions: write-all
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -49,3 +51,4 @@ jobs:
       - uses: actions-rs/clippy-check@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          args: --all-features
