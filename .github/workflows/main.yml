@@ -14,9 +14,8 @@ jobs:
         with:
           toolchain: nightly
           override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: +nightly test
+      # now test only passes on nightly rust
+      - run: cargo +nightly test
 
   # Format the code with $ rust fmt --all -- --check
 
