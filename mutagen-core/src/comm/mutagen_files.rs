@@ -1,4 +1,4 @@
-use anyhow::{bail, Result, Context};
+use anyhow::{bail, Context, Result};
 use serde::{de::DeserializeOwned, Serialize};
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Write};
@@ -43,9 +43,7 @@ fn mutagen_dir() -> Result<PathBuf> {
 pub fn read_items<T: DeserializeOwned>(filepath: &Path) -> Result<Vec<T>> {
     BufReader::new(File::open(filepath)?)
         .lines()
-        .map(|line| {
-            serde_json::from_str(&line?).with_context(|| "mutation format error")
-        })
+        .map(|line| serde_json::from_str(&line?).with_context(|| "mutation format error"))
         .collect()
 }
 

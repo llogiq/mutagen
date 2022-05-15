@@ -6,8 +6,8 @@
 //!
 //! The main challenges is to be able to continue writing to the line above the progress bar.
 
-use console::Term;
 use anyhow::Result;
+use console::Term;
 use std::io::Write;
 
 /// Print progress during mutation testing
