@@ -1,4 +1,4 @@
-use failure::{bail, Fallible};
+use anyhow::{bail, Result};
 use std::collections::HashMap;
 use std::env;
 use std::fs::File;
@@ -42,7 +42,7 @@ struct Options {
     workspace: bool,
 }
 
-fn run() -> Fallible<()> {
+fn run() -> Result<()> {
     let mutagen_start = Instant::now();
 
     // drop "mutagen" arg in cargo-subcommand mode
@@ -76,7 +76,7 @@ fn run() -> Fallible<()> {
                 .map(|bin| Some(bin).filter(|bin| bin.coveres_any_mutation()))
                 .transpose()
         })
-        .collect::<Fallible<Vec<_>>>()?;
+        .collect::<Result<Vec<_>>>()?;
 
     let coverage = CoverageCollection::merge(num_mutations, test_bins.iter().map(|b| &b.coverage));
     progress.summary_testsuite_unmutated(coverage.num_covered())?;
@@ -102,7 +102,7 @@ fn run_mutations(
     test_bins: &[TestBinTested],
     mutations: Vec<BakedMutation>,
     coverage: &CoverageCollection,
-) -> Fallible<MutagenReport> {
+) -> Result<MutagenReport> {
     let mut mutagen_report = MutagenReport::new();
 
     for m in mutations {
@@ -131,7 +131,7 @@ fn run_mutations(
 }
 
 /// build all tests and collect test-suite executables
-fn compile_tests(opt: &Options) -> Fallible<Vec<PathBuf>> {
+fn compile_tests(opt: &Options) -> Result<Vec<PathBuf>> {
     let mut tests: Vec<PathBuf> = Vec::new();
 
     let mut feature_args: Vec<&str> = vec![];
@@ -195,7 +195,7 @@ fn compile_tests(opt: &Options) -> Fallible<Vec<PathBuf>> {
 ///
 /// This functions gets the file that describes all mutations performed on the target program and ensures that it exists.
 /// The list of mutations is also preserved
-fn read_mutations() -> Fallible<Vec<BakedMutation>> {
+fn read_mutations() -> Result<Vec<BakedMutation>> {
     let mutations_file = comm::get_mutations_file()?;
     if !mutations_file.exists() {
         bail!(

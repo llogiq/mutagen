@@ -7,7 +7,7 @@
 //! The main challenges is to be able to continue writing to the line above the progress bar.
 
 use console::Term;
-use failure::Fallible;
+use anyhow::Result;
 use std::io::Write;
 
 /// Print progress during mutation testing
@@ -55,7 +55,7 @@ impl ProgressBar {
     ///
     /// If the progress bar is shown, the text is printed above the progress bar.
     /// The next call to `println` will continue writing the line started by this function.
-    pub fn print(&mut self, s: String) -> Fallible<()> {
+    pub fn print(&mut self, s: String) -> Result<()> {
         if self.show_progress {
             self.term.clear_line()?;
         }
@@ -85,7 +85,7 @@ impl ProgressBar {
     /// prints a line to stdout.
     ///
     /// If the progress bar is shown, the line is printed above the progress bar.
-    pub fn println(&mut self, s: &str) -> Fallible<()> {
+    pub fn println(&mut self, s: &str) -> Result<()> {
         if self.show_progress {
             self.term.clear_line()?;
 
@@ -108,7 +108,7 @@ impl ProgressBar {
     }
 
     /// clears the progress bar
-    pub fn clear_bar(&mut self) -> Fallible<()> {
+    pub fn clear_bar(&mut self) -> Result<()> {
         if self.current_bar_state.take().is_some() {
             self.term.clear_line()?;
         }
@@ -118,7 +118,7 @@ impl ProgressBar {
     /// finish the progress bar
     ///
     /// clears the progress-indicator
-    pub fn finish(self) -> Fallible<()> {
+    pub fn finish(self) -> Result<()> {
         if self.show_progress {
             self.term.clear_line()?;
             writeln!(&self.term)?;
@@ -127,7 +127,7 @@ impl ProgressBar {
     }
 
     /// updates the state of the progress bar and draws the new state if the progress is shown
-    pub fn set_state(&mut self, bar: ProgressBarState) -> Fallible<()> {
+    pub fn set_state(&mut self, bar: ProgressBarState) -> Result<()> {
         if self.show_progress {
             self.current_bar_state = Some(bar);
             self.write_progress_bar()?;
@@ -135,7 +135,7 @@ impl ProgressBar {
         Ok(())
     }
 
-    fn write_progress_bar(&self) -> Fallible<()> {
+    fn write_progress_bar(&self) -> Result<()> {
         if let Some(bar) = &self.current_bar_state {
             if self.total == 0 {
                 return Ok(());

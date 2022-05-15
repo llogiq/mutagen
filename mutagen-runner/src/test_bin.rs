@@ -1,4 +1,4 @@
-use failure::{bail, Fallible};
+use anyhow::{bail, Result};
 use std::fs;
 use std::io::Write;
 use std::path::Path;
@@ -36,7 +36,7 @@ impl<'a> TestBin<'a> {
         self,
         progress: &mut Progress,
         mutations: &[BakedMutation],
-    ) -> Fallible<TestBinTested<'a>> {
+    ) -> Result<TestBinTested<'a>> {
         let num_mutations = mutations.len();
         let test_start = Instant::now();
 
@@ -93,7 +93,7 @@ impl<'a> TestBinTested<'a> {
         self.coverage.num_covered() != 0
     }
 
-    pub fn check_mutant(&self, mutation: &BakedMutation) -> Fallible<MutantStatus> {
+    pub fn check_mutant(&self, mutation: &BakedMutation) -> Result<MutantStatus> {
         // run command and wait for its output
         let mut command = Command::new(self.test_bin.bin_path);
         command.env("MUTATION_ID", mutation.id().to_string());

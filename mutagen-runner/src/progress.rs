@@ -7,7 +7,7 @@
 //! The main challenges is to be able to continue writing to the line above the progress bar.
 //! The output to the terminal should look identical to piped output but contains a progress bar.
 
-use failure::Fallible;
+use anyhow::Result;
 
 use std::path::Path;
 use std::time::Duration;
@@ -35,7 +35,7 @@ impl Progress {
     }
 
     /// Print summary information after the compilation of the test binaries.
-    pub fn summary_compile(&mut self, num_mutations: usize, num_testsuites: usize) -> Fallible<()> {
+    pub fn summary_compile(&mut self, num_mutations: usize, num_testsuites: usize) -> Result<()> {
         self.bar.println("")?;
         self.bar
             .println(&format!("Total mutations: {}", num_mutations))?;
@@ -46,14 +46,14 @@ impl Progress {
     }
 
     /// Start the section that runs the test suites unmutated.
-    pub fn section_testsuite_unmutated(&mut self, num_tests: usize) -> Fallible<()> {
+    pub fn section_testsuite_unmutated(&mut self, num_tests: usize) -> Result<()> {
         self.bar.println("")?;
         self.bar.println(&format!("Run {} tests", num_tests))?;
         Ok(())
     }
 
     /// start the section of test-runs for each mutation
-    pub fn section_mutants(&mut self) -> Fallible<()> {
+    pub fn section_mutants(&mut self) -> Result<()> {
         self.bar.println("")?;
         self.bar
             .println(&format!("Test {} Mutants", self.num_mutations))?;
@@ -61,14 +61,14 @@ impl Progress {
     }
 
     /// start the section of the
-    pub fn section_summary(&mut self) -> Fallible<()> {
+    pub fn section_summary(&mut self) -> Result<()> {
         self.bar.println("")?;
         self.bar.clear_bar()?;
         Ok(())
     }
 
     /// indicate the start of a run of a single testsuite without mutations
-    pub fn start_testsuite_unmutated(&mut self, bin: &Path, id: usize) -> Fallible<()> {
+    pub fn start_testsuite_unmutated(&mut self, bin: &Path, id: usize) -> Result<()> {
         let log_string = format!("{} ... ", bin.display());
         self.bar.print(log_string)?;
 
@@ -86,7 +86,7 @@ impl Progress {
     }
 
     /// indicate the end of a run of a single testsuite and display the result.
-    pub fn finish_testsuite_unmutated(&mut self, ok: bool, num_covered: usize) -> Fallible<()> {
+    pub fn finish_testsuite_unmutated(&mut self, ok: bool, num_covered: usize) -> Result<()> {
         if ok && num_covered > 0 {
             self.bar.println(&format!(
                 "ok ({}/{} covered)",
@@ -100,7 +100,7 @@ impl Progress {
     }
 
     /// print a summary after the testsuites have been run, especially coverage information.
-    pub fn summary_testsuite_unmutated(&mut self, num_covered: usize) -> Fallible<()> {
+    pub fn summary_testsuite_unmutated(&mut self, num_covered: usize) -> Result<()> {
         self.num_covered = num_covered;
         self.bar.set_total(num_covered);
 
@@ -115,7 +115,7 @@ impl Progress {
     ///
     /// The information about the mutation is logged to the console.
     /// A call to `finish_mutation` should follow a call to this function
-    pub fn start_mutation_covered(&mut self, m: &BakedMutation) -> Fallible<()> {
+    pub fn start_mutation_covered(&mut self, m: &BakedMutation) -> Result<()> {
         let mut mutant_log_string = mutation_log_string(m);
         mutant_log_string += " ... ";
 
@@ -141,7 +141,7 @@ impl Progress {
         Ok(())
     }
 
-    pub fn skip_mutation_uncovered(&mut self, m: &BakedMutation) -> Fallible<()> {
+    pub fn skip_mutation_uncovered(&mut self, m: &BakedMutation) -> Result<()> {
         self.bar.println(&format!(
             "{} ... {}",
             mutation_log_string(m),
@@ -152,7 +152,7 @@ impl Progress {
     /// indicate that a mutation started with `start_mutation` has been finished.
     ///
     /// The status is printed and progress bar is updated
-    pub fn finish_mutation(&mut self, status: MutantStatus) -> Fallible<()> {
+    pub fn finish_mutation(&mut self, status: MutantStatus) -> Result<()> {
         self.bar.println(&format!("{}", status))?;
         Ok(())
     }
@@ -160,7 +160,7 @@ impl Progress {
     /// indicate that mutation-testing is finished
     ///
     /// clears the progress-bar
-    pub fn finish(mut self, mutagen_time: Duration) -> Fallible<()> {
+    pub fn finish(mut self, mutagen_time: Duration) -> Result<()> {
         let rounded_time = Duration::from_secs(mutagen_time.as_secs());
         self.bar.println(&format!(
             "Total time: {}",
