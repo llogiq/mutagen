@@ -15,15 +15,15 @@ use crate::MutagenRuntimeConfig;
 
 pub fn run(
     mutator_id: usize,
-    original_lit: &str,
+    original_lit: &'static str,
     runtime: &impl Deref<Target = MutagenRuntimeConfig>,
-) -> String {
+) -> &'static str {
     runtime.covered(mutator_id);
     let mutations = MutationLitStr::possible_mutations(original_lit.to_string());
     if let Some(m) = runtime.get_mutation_for_mutator(mutator_id, &mutations) {
         m.clone().mutate(original_lit)
     } else {
-        original_lit.to_string()
+        original_lit
     }
 }
 
@@ -46,11 +46,11 @@ pub fn transform(
     let original_lit = e.lit.value();
 
     syn::parse2(quote_spanned! {e.span=>
-        (&::mutagen::mutator::mutator_lit_str::run(
+        ::mutagen::mutator::mutator_lit_str::run(
                 #mutator_id,
                 #original_lit,
                 &::mutagen::MutagenRuntimeConfig::get_default()
-            ))
+            )
     })
     .expect("transformed code invalid")
 }
@@ -58,38 +58,29 @@ pub fn transform(
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum MutationLitStr {
     Clear,
-    Set(String),
-    Append(char),
-    Prepend(char),
+    Set(&'static str),
 }
 
 impl MutationLitStr {
     fn possible_mutations(val: String) -> Vec<Self> {
         let mut mutations = vec![];
         if val.is_empty() {
-            mutations.push(Self::Set("A".to_string()))
+            mutations.push(Self::Set("A"))
         } else {
             mutations.push(Self::Clear);
-            mutations.push(Self::Prepend('-'));
-            mutations.push(Self::Append('-'));
+            if val != "-" {
+                mutations.push(Self::Set("-"));
+            } else {
+                mutations.push(Self::Set("*"))
+            }
         }
         mutations
     }
 
-    fn mutate(&self, val: &str) -> String {
+    fn mutate(&self, _val: &str) -> &'static str {
         match self {
-            Self::Clear => "".to_string(),
-            Self::Set(string) => string.to_string(),
-            Self::Append(char) => {
-                let mut new = val.to_string();
-                new.push(*char);
-                new
-            }
-            Self::Prepend(char) => {
-                let mut new = val.to_string();
-                new.insert(0, *char);
-                new
-            }
+            Self::Clear => "",
+            Self::Set(string) => string,
         }
     }
 
@@ -98,7 +89,7 @@ impl MutationLitStr {
             context,
             "lit_str".to_owned(),
             original_lit.value.to_string(),
-            self.mutate(&original_lit.value),
+            self.mutate(&original_lit.value).to_string(),
             original_lit.span,
         )
     }
@@ -155,13 +146,13 @@ mod tests {
     #[test]
     pub fn mutator_lit_str_non_empty_active_2() {
         let result = run(1, "a", &&MutagenRuntimeConfig::with_mutation_id(2));
-        assert_eq!(result, "-a")
+        assert_eq!(result, "-")
     }
 
     #[test]
-    pub fn mutator_lit_str_non_empty_active_3() {
-        let result = run(1, "a", &&MutagenRuntimeConfig::with_mutation_id(3));
-        assert_eq!(result, "a-")
+    pub fn mutator_lit_str_non_empty_active_2_dash() {
+        let result = run(1, "-", &&MutagenRuntimeConfig::with_mutation_id(2));
+        assert_eq!(result, "*")
     }
 
     #[test]

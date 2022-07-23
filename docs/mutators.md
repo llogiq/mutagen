@@ -45,8 +45,7 @@ Char literals like `'a'` are not mutated by this mutator.
 
 * If not empty:
   * Replace the literal with an empty string
-  * Prepend `'-'`
-  * Append `'-'`
+  * Replace the literal with `"-"` (or if the literal is already exactly `"-"`, with `"*"`)
 * If empty:
   * Replace the literal with `"A"`
 
