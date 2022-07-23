@@ -5,5 +5,6 @@ mod test_binop_eq;
 mod test_binop_num;
 mod test_lit_bool;
 mod test_lit_int;
+mod test_lit_str;
 mod test_stmt_call;
 mod test_unop_not;

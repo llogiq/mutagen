@@ -228,6 +228,7 @@ impl MutagenTransformerBundle {
     ) -> MutagenTransformer {
         match transformer_name {
             "lit_int" => MutagenTransformer::Expr(Box::new(mutator_lit_int::transform)),
+            "lit_str" => MutagenTransformer::Expr(Box::new(mutator_lit_str::transform)),
             "lit_bool" => MutagenTransformer::Expr(Box::new(mutator_lit_bool::transform)),
             "unop_not" => MutagenTransformer::Expr(Box::new(mutator_unop_not::transform)),
             "binop_bit" => MutagenTransformer::Expr(Box::new(mutator_binop_bit::transform)),
@@ -244,6 +245,7 @@ impl MutagenTransformerBundle {
     pub fn all_transformers() -> Vec<String> {
         [
             "lit_int",
+            "lit_str",
             "lit_bool",
             "unop_not",
             "binop_bit",

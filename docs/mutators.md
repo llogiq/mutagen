@@ -33,6 +33,23 @@ Byte-literals like `b'a'` are not mutated by this mutator.
 
 Customization is WIP
 
+## lit_str
+
+### Target Code
+
+`&str` literals.
+
+Char literals like `'a'` are not mutated by this mutator.
+
+### Mutations
+
+* If not empty:
+  * Replace the literal with an empty string
+  * Prepend `'-'`
+  * Append `'-'`
+* If empty:
+  * Replace the literal with `"A"`
+
 ## unop_not
 
 ### Target Code
