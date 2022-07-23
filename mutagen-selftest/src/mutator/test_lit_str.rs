@@ -16,7 +16,7 @@ mod test_return_non_empty_string {
             assert_eq!(return_non_empty_string(), "a".to_string());
         })
     }
-    
+
     #[test]
     fn active_clear() {
         let _ = MutagenRuntimeConfig::get_default();
@@ -56,7 +56,7 @@ mod test_return_check_equals_a {
             assert_eq!(check_equals_a("a"), true);
         })
     }
-    
+
     #[test]
     fn active_clear() {
         let _ = MutagenRuntimeConfig::get_default();
@@ -101,7 +101,7 @@ mod test_return_empty_string {
             assert_eq!(return_empty_string(), "".to_string());
         })
     }
-    
+
     #[test]
     fn active_set() {
         let _ = MutagenRuntimeConfig::get_default();
@@ -127,7 +127,7 @@ mod test_return_check_equals_empty_str {
             assert_eq!(check_equals_empty_str(""), true);
         })
     }
-    
+
     #[test]
     fn active_clear() {
         let _ = MutagenRuntimeConfig::get_default();
