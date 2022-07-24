@@ -174,3 +174,29 @@ mod test_to_string {
         })
     }
 }
+
+mod test_temporary_variable {
+
+    use ::mutagen::mutate;
+    use ::mutagen::MutagenRuntimeConfig;
+
+    #[mutate(conf = local(expected_mutations = 1), mutators = only(lit_str))]
+    fn a() -> &'static str {
+        ""
+    }
+
+    #[test]
+    fn inactive() {
+        MutagenRuntimeConfig::test_without_mutation(|| {
+            assert_eq!(a(), "");
+        })
+    }
+
+    #[test]
+    fn active_clear() {
+        let _ = MutagenRuntimeConfig::get_default();
+        MutagenRuntimeConfig::test_with_mutation_id(1, || {
+            assert_eq!(a(), "A");
+        })
+    }
+}
