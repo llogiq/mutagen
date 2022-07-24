@@ -3,7 +3,7 @@ mod test_return_non_empty_string {
     use ::mutagen::mutate;
     use ::mutagen::MutagenRuntimeConfig;
 
-    #[mutate(conf = local(expected_mutations = 2), mutators = only(lit_str))]
+    #[mutate(conf = local(expected_mutations = 3), mutators = only(lit_str))]
     fn return_non_empty_string() -> String {
         #[allow(unused_parens)]
         let s = "a";
@@ -26,9 +26,16 @@ mod test_return_non_empty_string {
     }
 
     #[test]
-    fn active_set() {
+    fn active_prepend() {
         MutagenRuntimeConfig::test_with_mutation_id(2, || {
-            assert_eq!(return_non_empty_string(), "-".to_string());
+            assert_eq!(return_non_empty_string(), "-a".to_string());
+        })
+    }
+
+    #[test]
+    fn active_append() {
+        MutagenRuntimeConfig::test_with_mutation_id(3, || {
+            assert_eq!(return_non_empty_string(), "a-".to_string());
         })
     }
 }
@@ -38,15 +45,15 @@ mod test_return_check_equals_a {
     use ::mutagen::mutate;
     use ::mutagen::MutagenRuntimeConfig;
 
-    #[mutate(conf = local(expected_mutations = 2), mutators = only(lit_str))]
+    #[mutate(conf = local(expected_mutations = 3), mutators = only(lit_str))]
     fn check_equals_a(input: &str) -> bool {
-        "-" == input
+        "a" == input
     }
 
     #[test]
     fn inactive() {
         MutagenRuntimeConfig::test_without_mutation(|| {
-            assert_eq!(check_equals_a("-"), true);
+            assert_eq!(check_equals_a("a"), true);
         })
     }
 
@@ -54,7 +61,7 @@ mod test_return_check_equals_a {
     fn active_clear() {
         let _ = MutagenRuntimeConfig::get_default();
         MutagenRuntimeConfig::test_with_mutation_id(1, || {
-            assert_eq!(check_equals_a("-"), false);
+            assert_eq!(check_equals_a("a"), false);
             assert_eq!(check_equals_a(""), true);
         })
     }
@@ -62,8 +69,16 @@ mod test_return_check_equals_a {
     #[test]
     fn active_prepend() {
         MutagenRuntimeConfig::test_with_mutation_id(2, || {
-            assert_eq!(check_equals_a("-"), false);
-            assert_eq!(check_equals_a("*"), true);
+            assert_eq!(check_equals_a("a"), false);
+            assert_eq!(check_equals_a("-a"), true);
+        })
+    }
+
+    #[test]
+    fn active_append() {
+        MutagenRuntimeConfig::test_with_mutation_id(3, || {
+            assert_eq!(check_equals_a("a"), false);
+            assert_eq!(check_equals_a("a-"), true);
         })
     }
 }
@@ -123,7 +138,7 @@ mod test_return_check_equals_empty_str {
     }
 }
 
-mod test_temp_variable {
+mod test_temporary_variable_1 {
     use ::mutagen::mutate;
     use ::mutagen::MutagenRuntimeConfig;
 
@@ -175,7 +190,7 @@ mod test_to_string {
     }
 }
 
-mod test_temporary_variable {
+mod test_temporary_variable_2 {
 
     use ::mutagen::mutate;
     use ::mutagen::MutagenRuntimeConfig;

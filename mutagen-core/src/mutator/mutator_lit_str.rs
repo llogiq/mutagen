@@ -16,12 +16,12 @@ use crate::MutagenRuntimeConfig;
 pub fn run(
     mutator_id: usize,
     original_lit: &'static str,
+    mutations: &[&'static str],
     runtime: &impl Deref<Target = MutagenRuntimeConfig>,
 ) -> &'static str {
     runtime.covered(mutator_id);
-    let mutations = MutationLitStr::possible_mutations(original_lit.to_string());
     if let Some(m) = runtime.get_mutation_for_mutator(mutator_id, &mutations) {
-        m.clone().mutate(original_lit)
+        m
     } else {
         original_lit
     }
@@ -37,8 +37,14 @@ pub fn transform(
         Err(e) => return e,
     };
 
+    let possible_mutations = MutationLitStr::possible_mutations(e.clone().value);
+    let mutations: Vec<_> = possible_mutations
+        .iter()
+        .map(|x| x.mutate(&e.clone().value))
+        .collect();
+
     let mutator_id = transform_info.add_mutations(
-        MutationLitStr::possible_mutations(e.clone().value)
+        possible_mutations
             .into_iter()
             .map(|m| m.to_mutation(&e, context)),
     );
@@ -49,6 +55,7 @@ pub fn transform(
         ::mutagen::mutator::mutator_lit_str::run(
                 #mutator_id,
                 #original_lit,
+                &[#(&#mutations),*], // Expands to `&[mutations[0], mutations[1], ..., [mutations[n]]]`
                 &::mutagen::MutagenRuntimeConfig::get_default()
             )
     })
@@ -59,6 +66,8 @@ pub fn transform(
 enum MutationLitStr {
     Clear,
     Set(&'static str),
+    Append(char),
+    Prepend(char),
 }
 
 impl MutationLitStr {
@@ -68,19 +77,26 @@ impl MutationLitStr {
             mutations.push(Self::Set("A"))
         } else {
             mutations.push(Self::Clear);
-            if val != "-" {
-                mutations.push(Self::Set("-"));
-            } else {
-                mutations.push(Self::Set("*"))
-            }
+            mutations.push(Self::Prepend('-'));
+            mutations.push(Self::Append('-'));
         }
         mutations
     }
 
-    fn mutate(&self, _val: &str) -> &'static str {
+    fn mutate(&self, val: &str) -> String {
         match self {
-            Self::Clear => "",
-            Self::Set(string) => string,
+            Self::Clear => "".to_string(),
+            Self::Set(string) => string.to_string(),
+            Self::Append(char) => {
+                let mut new = val.to_string();
+                new.push(*char);
+                new
+            }
+            Self::Prepend(char) => {
+                let mut new = val.to_string();
+                new.insert(0, *char);
+                new
+            }
         }
     }
 
@@ -127,37 +143,57 @@ mod tests {
 
     #[test]
     pub fn mutator_lit_str_empty_inactive() {
-        let result = run(1, "", &&MutagenRuntimeConfig::without_mutation());
+        let result = run(1, "", &["A"], &&MutagenRuntimeConfig::without_mutation());
         assert_eq!(result, "")
     }
 
     #[test]
     pub fn mutator_lit_str_non_empty_inactive() {
-        let result = run(1, "ABCD", &&MutagenRuntimeConfig::without_mutation());
+        let result = run(
+            1,
+            "ABCD",
+            &["", "-ABCD", "ABCD-"],
+            &&MutagenRuntimeConfig::without_mutation(),
+        );
         assert_eq!(result, "ABCD")
     }
 
     #[test]
     pub fn mutator_lit_str_non_empty_active_1() {
-        let result = run(1, "a", &&MutagenRuntimeConfig::with_mutation_id(1));
+        let result = run(
+            1,
+            "a",
+            &["", "-ABCD", "ABCD-"],
+            &&MutagenRuntimeConfig::with_mutation_id(1),
+        );
         assert_eq!(result, "")
     }
 
     #[test]
     pub fn mutator_lit_str_non_empty_active_2() {
-        let result = run(1, "a", &&MutagenRuntimeConfig::with_mutation_id(2));
-        assert_eq!(result, "-")
+        let result = run(
+            1,
+            "a",
+            &["", "-ABCD", "ABCD-"],
+            &&MutagenRuntimeConfig::with_mutation_id(2),
+        );
+        assert_eq!(result, "-ABCD")
     }
 
     #[test]
-    pub fn mutator_lit_str_non_empty_active_2_dash() {
-        let result = run(1, "-", &&MutagenRuntimeConfig::with_mutation_id(2));
-        assert_eq!(result, "*")
+    pub fn mutator_lit_str_non_empty_active_3() {
+        let result = run(
+            1,
+            "a",
+            &["", "-ABCD", "ABCD-"],
+            &&MutagenRuntimeConfig::with_mutation_id(3),
+        );
+        assert_eq!(result, "ABCD-")
     }
 
     #[test]
     pub fn mutator_lit_str_empty_active_1() {
-        let result = run(1, "", &&MutagenRuntimeConfig::with_mutation_id(1));
+        let result = run(1, "", &["A"], &&MutagenRuntimeConfig::with_mutation_id(1));
         assert_eq!(result, "A")
     }
 }
