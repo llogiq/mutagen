@@ -80,7 +80,7 @@ mod tuple_index_access {
 
     use ::mutagen::mutate;
 
-    #[mutate(conf = local(expected_mutations = 0))]
+    #[mutate(conf = local(expected_mutations = 0), mutators = not(lit_str))]
     fn x() -> &'static str {
         ((), "").1
     }
@@ -94,7 +94,7 @@ mod int_as_pattern {
 
     use ::mutagen::mutate;
 
-    #[mutate(conf = local(expected_mutations = 0))]
+    #[mutate(conf = local(expected_mutations = 0), mutators = not(lit_str))]
     fn x(i: i8) -> &'static str {
         match i {
             0 => "zero",
