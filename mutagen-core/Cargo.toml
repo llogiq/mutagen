@@ -14,7 +14,7 @@ lazy_static = "1.4.0"
 
 quote = "1.0.9"
 proc-macro2 = { version = "1.0.29", features = ["span-locations"] }
-syn = { version = "1.0.76", features = ["full", "extra-traits", "fold"] }
+syn = { version = "2.0.12", features = ["full", "extra-traits", "fold"] }
 
 
 [features]
